@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+    <RootNamespace>OpenMedStack.BioSharp.Calculations</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\openmedstack.biosharp.model\openmedstack.biosharp.model.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,14 @@
+*.suo
+packages
+[Bb]in
+[Oo]bj
+*.user
+.vs
+*.nuspec
+*.nupkg
+debian
+node_modules
+*.log
+*.ini
+publish
+*.Cache
