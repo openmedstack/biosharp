@@ -4,6 +4,7 @@
     using System.Collections.Generic;
     using System.IO;
     using System.IO.Compression;
+    using System.Linq;
     using System.Runtime.CompilerServices;
     using System.Text;
     using System.Threading;
@@ -35,28 +36,29 @@
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var id = string.IsNullOrWhiteSpace(line) ? await reader.ReadLineAsync().ConfigureAwait(false) : line;
-                var letters = new StringBuilder();
+                var letters = new List<string>();
                 while (!reader.EndOfStream)
                 {
                     line = await reader.ReadLineAsync().ConfigureAwait(false);
-                    if (line!.StartsWith('>')||string.IsNullOrWhiteSpace(line))
+                    if (line!.StartsWith('>') || string.IsNullOrWhiteSpace(line))
                     {
                         break;
                     }
-                    letters.Append(line.AsSpan());
+                    letters.Add(line);
                 }
 
-                var data = new byte[letters.Length];
+                var data = new byte[letters.Sum(x => x.Length)];
                 var index = 0;
-                foreach (var chunk in letters.GetChunks())
+                foreach (var chunk in letters)
                 {
-                    var bytes = encoding.GetBytes(chunk.ToArray());
-                    Array.Copy(bytes, 0, data, index, bytes.Length);
-                    index += bytes.Length;
+                    _ = encoding.GetBytes(chunk.AsSpan(), data.AsSpan(index, chunk.Length));
+                    index += chunk.Length;
                 }
 
                 var qualities = new byte[data.Length];
                 Array.Fill(qualities, (byte)255);
+                letters.Clear();
+                GC.Collect(3, GCCollectionMode.Forced);
                 yield return new Sequence(id![1..], data, qualities);
             }
         }

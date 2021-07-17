@@ -1,8 +1,8 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Sam
 {
-    using System;
+    using System.Collections.Generic;
+    using System.Collections.Immutable;
     using System.IO;
-    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
     using Model;
@@ -17,34 +17,59 @@
             return Read(filePath, cancellationToken);
         }
 
-        public async Task<SamDefinition> Read(
-            string filePath,
-            CancellationToken cancellationToken = default)
+        public async Task<SamDefinition> Read(string filePath, CancellationToken cancellationToken = default)
         {
             await using var file = File.OpenRead(filePath);
+            return await Read(file, cancellationToken).ConfigureAwait(false);
+        }
+
+        public async Task<SamDefinition> Read(Stream file, CancellationToken cancellationToken = default)
+        {
             using var reader = new StreamReader(file);
-            var sam = new SamDefinition();
-            while (file.Position < file.Length)
+            var sq = new List<ReferenceSequence>();
+            var alignmentSections = new List<AlignmentSection>();
+            FileMetadata fmd = null!;
+            Program pg = null!;
+            ReadGroup rg = null!;
+            while (!reader.EndOfStream)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var line = await reader.ReadLineAsync().ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(line)) { break; }
 
-                if (line.StartsWith('@'))
+                if (line[0] == '@')
                 {
-                    var span = line.AsMemory(1, 2);
-                    if ("HD" == span.Span)
+                    var span = line.Substring(1, 2);
+                    switch (span)
                     {
-                        sam.Hd = FileMetadata.Parse(line);
+                        case "HD":
+                            fmd = FileMetadata.Parse(line);
+                            break;
+                        case "SQ":
+                            sq.Add(ReferenceSequence.Parse(line));
+                            break;
+                        case "PG":
+                            pg = Program.Parse(line);
+                            break;
+                        case "RG":
+                            rg = ReadGroup.Parse(line);
+                            break;
                     }
-                    else if ("SQ" == span.Span)
-                    {
-                        sam.Sq = ReferenceSequence.Parse(line);
-                    }
+                }
+                else
+                {
+                    alignmentSections.Add(AlignmentSection.Parse(line));
                 }
             }
 
-            return sam;
+            return new SamDefinition
+            {
+                Hd = fmd,
+                Rg = rg,
+                Pg = pg,
+                Sq = sq.ToImmutableArray(),
+                AlignmentSections = alignmentSections.ToImmutableArray()
+            };
         }
     }
 }

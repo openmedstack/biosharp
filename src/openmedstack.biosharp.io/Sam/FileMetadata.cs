@@ -3,7 +3,7 @@
     using System;
     using System.Text.RegularExpressions;
 
-    public class FileMetadata
+    public record FileMetadata
     {
         private readonly string _version;
 
@@ -25,12 +25,12 @@
 
         public SortingOrder So { get; init; }
 
-        public AlignmentGrouping Go { get; set; }
+        public AlignmentGrouping Go { get; init; }
 
         public static FileMetadata Parse(string line)
         {
-            var parts = line.Split('\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            return new FileMetadata { Vn = parts[0], So = Enum.Parse<SortingOrder>(parts[1], true) };
+            var parts = line[4..].Split('\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            return new FileMetadata { Vn = parts[0][3..], So = Enum.Parse<SortingOrder>(parts[1][3..], true) };
         }
 
         public enum SortingOrder

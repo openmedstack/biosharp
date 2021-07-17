@@ -3,7 +3,7 @@
     using System;
     using System.Collections;
     using System.Collections.Generic;
-    
+
     public class Sequence : IEnumerable<BasePair>
     {
         private readonly byte[] _data;

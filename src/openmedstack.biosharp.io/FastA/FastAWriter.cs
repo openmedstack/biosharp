@@ -25,10 +25,14 @@
             byte lineLength = 70,
             CancellationToken cancellationToken = default)
         {
-            return Write(new[] { sequence }, output, lineLength, cancellationToken);
+            return Write(new[] {sequence}, output, lineLength, cancellationToken);
         }
 
-        public async Task Write(IEnumerable<Sequence> sequences, Stream output, byte lineLength = 70, CancellationToken cancellationToken = default)
+        public async Task Write(
+            IEnumerable<Sequence> sequences,
+            Stream output,
+            byte lineLength = 70,
+            CancellationToken cancellationToken = default)
         {
             await using var gzip = new GZipStream(output, CompressionLevel.Optimal, true);
             await using var writer = new StreamWriter(gzip, Encoding.UTF8);

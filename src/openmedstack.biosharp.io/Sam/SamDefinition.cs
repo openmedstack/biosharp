@@ -1,13 +1,17 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Sam
 {
-    public class SamDefinition
+    using System.Collections.Immutable;
+
+    public record SamDefinition
     {
-        public FileMetadata Hd { get; set; }
+        public FileMetadata Hd { get; init; }
 
-        public ReferenceSequence Sq { get; set; }
+        public ImmutableArray<ReferenceSequence> Sq { get; init; }
 
-        public ReadGroup Rg { get; set; }
+        public ReadGroup Rg { get; init; }
 
-        public Program Pg { get; set; }
+        public Program Pg { get; init; }
+
+        public ImmutableArray<AlignmentSection> AlignmentSections { get; init; }
     }
 }

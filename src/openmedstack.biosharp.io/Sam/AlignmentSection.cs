@@ -1,6 +1,7 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Sam
 {
     using System;
+    using System.Globalization;
 
     /// <summary>
     /// <para>
@@ -18,27 +19,51 @@
     /// 11 QUAL String [!-~]+ ASCII of Phred-scaled base QUALity+33
     /// </para>
     /// </summary>
-    public class AlignmentSection
+    public record AlignmentSection
     {
-        public string QName { get; set; }
+        private AlignmentSection() { }
 
-        public AlignmentFlag Flag { get; set; }
+        public string QName { get; init; }
 
-        public string RName { get; set; }
+        public AlignmentFlag Flag { get; init; }
 
-        public int MapQ { get; set; }
+        public string RName { get; init; }
 
-        public string Cigar { get; set; }
+        public int Position { get; init; }
 
-        public string RNext { get; set; }
+        public int MapQ { get; init; }
 
-        public int PNext { get; set; }
+        public string Cigar { get; init; }
 
-        public int TemplateLength { get; set; }
+        public string RNext { get; init; }
 
-        public string Sequence { get; set; }
+        public int PNext { get; init; }
 
-        public string Quality { get; set; }
+        public int TemplateLength { get; init; }
+
+        public string Sequence { get; init; }
+
+        public string Quality { get; init; }
+
+        public static AlignmentSection Parse(string line)
+        {
+            // r003 0 ref 9 30 5S6M * 0 0 GCCTAAGCTAA * SA:Z:ref,29,-,6H5M,17,0;
+            var parts = line.Split('\t', StringSplitOptions.TrimEntries);
+            return new AlignmentSection
+            {
+                QName = parts[0],
+                Flag = (AlignmentFlag)int.Parse(parts[1], NumberStyles.Integer),
+                RName = parts[2],
+                Position = int.Parse(parts[3], NumberStyles.Integer),
+                MapQ = int.Parse(parts[4], NumberStyles.Integer),
+                Cigar = parts[5],
+                RNext = parts[6],
+                PNext = int.Parse(parts[7], NumberStyles.Integer),
+                TemplateLength = int.Parse(parts[8], NumberStyles.Integer),
+                Sequence = parts[9],
+                Quality = parts[10]
+            };
+        }
 
         /// <summary>
         /// <para>
@@ -60,6 +85,7 @@
         [Flags]
         public enum AlignmentFlag
         {
+            None = 0,
             MultipleSegments = 1,
             EachSegmentProperlyAligned = 2,
             SegmentUnmapped = 4,
