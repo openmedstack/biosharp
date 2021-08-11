@@ -36,7 +36,7 @@
         {
             for (var i = 0; i < _qualities.Length; i++)
             {
-                yield return new BasePair((char)_data[i], _qualities[i]);
+                yield return new BasePair(_data[i], _qualities[i]);
             }
         }
 

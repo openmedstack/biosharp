@@ -2,29 +2,29 @@
 {
     public struct BasePair
     {
-        private readonly char _letter;
-        private readonly byte _quality;
+        private readonly byte _letter;
+        private readonly byte _errorProbability;
 
-        public BasePair(char letter, byte quality)
+        public BasePair(byte letter, byte errorProbability)
         {
             _letter = letter;
-            _quality = quality;
+            _errorProbability = errorProbability;
         }
 
         public char Letter
         {
-            get { return _letter; }
+            get { return (char)_letter; }
         }
 
-        public byte Quality
+        public char ErrorProbability
         {
-            get { return _quality; }
+            get { return (char)_errorProbability; }
         }
 
         /// <inheritdoc />
         public override string ToString()
         {
-            return $"{_letter}/{_quality}";
+            return $"{_letter}/{_errorProbability}";
         }
     }
 }

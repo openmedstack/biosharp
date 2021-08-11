@@ -44,7 +44,7 @@
                 foreach (var basePair in sequence)
                 {
                     letters[index] = basePair.Letter;
-                    qualities[index] = (char)basePair.Quality;
+                    qualities[index] = (char)basePair.ErrorProbability;
                     index++;
                 }
 
