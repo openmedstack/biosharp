@@ -1,12 +1,28 @@
 ﻿namespace OpenMedStack.BioSharp.Calculations
 {
+    using System;
     using System.Collections.Generic;
     using System.Linq;
     using Model;
 
+    public static class Utils
+    {
+        public static char ToQualChar(this double probability)
+        {
+            return (char)(-10 * Math.Log10(probability) + 33);
+        }
+
+        public static double ToQuality(this char qualityChar)
+        {
+            var q = qualityChar - 33;
+            var p = q / -10d;
+            return Math.Pow(10, p);
+        }
+    }
+
     public static class SequenceExtensions
     {
-        private static readonly string[] stopCodons = {"UAA", "UAG", "UGA"};
+        private static readonly string[] StopCodons = { "UAA", "UAG", "UGA" };
 
         public static int IndexOf(this Sequence sequence, char[] segment, int maxErrors = 0, int startIndex = 0)
         {
@@ -99,13 +115,15 @@
             var complemented = new byte[sequence.Length];
             for (var i = 0; i < sequence.Length; i++)
             {
-                complemented[i] = sequence[i] switch
+                var c = sequence[i];
+                complemented[i] = c switch
                 {
                     'A' => 84,
                     'T' => 65,
                     'C' => 71,
                     'G' => 67,
-                    'U' => 84
+                    'U' => 84,
+                    _ => throw new ArgumentOutOfRangeException(nameof(c), "Invalid character")
                 };
             }
             return new Sequence(sequence.Id, complemented, new byte[sequence.Length]);
@@ -116,12 +134,14 @@
             var complemented = new byte[sequence.Length];
             for (var i = 0; i < sequence.Length; i++)
             {
-                complemented[i] = sequence[i] switch
+                var c = sequence[i];
+                complemented[i] = c switch
                 {
                     'A' => 85,
                     'C' => 71,
                     'G' => 67,
-                    'U' => 65
+                    'U' => 65,
+                    _ => throw new ArgumentOutOfRangeException(nameof(c), "Invalid character")
                 };
             }
             return new Sequence(sequence.Id, complemented, new byte[sequence.Length]);
@@ -132,7 +152,7 @@
             for (var i = 0; i < sequence.Length; i += 3)
             {
                 var codon = new string(new[] { sequence[i], sequence[i + 1], sequence[i + 2] });
-                if (stopCodons.Contains(codon) && toStop)
+                if (StopCodons.Contains(codon) && toStop)
                 {
                     yield break;
                 }
@@ -203,6 +223,7 @@
                     "GGC" => 'G',
                     "GGA" => 'G',
                     "GGG" => 'G',
+                    _ => throw new ArgumentOutOfRangeException(nameof(codon), "Invalid codon")
                 };
             }
         }

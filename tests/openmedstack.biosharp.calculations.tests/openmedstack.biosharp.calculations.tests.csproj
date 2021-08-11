@@ -3,30 +3,21 @@
     <PropertyGroup>
         <TargetFramework>net5.0</TargetFramework>
         <IsPackable>false</IsPackable>
-        <RootNamespace>OpenMedStack.BioSharp.Io.Tests</RootNamespace>
+        <RootNamespace>OpenMedStack.BioSharp.Calculations.Tests</RootNamespace>
+        <IsPackable>false</IsPackable>
     </PropertyGroup>
 
     <ItemGroup>
-        <None Include="..\..\data\*.fastq.gz">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
-        <None Include="..\..\data\*.fa.gz">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="System.Linq.Async" Version="5.0.0" />
-        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.10.0" />
+        <PackageReference Include="Microsoft.NET.Test.Sdk" Version="16.9.4" />
         <PackageReference Include="xunit" Version="2.4.1" />
         <PackageReference Include="xunit.runner.visualstudio" Version="2.4.3">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
             <PrivateAssets>all</PrivateAssets>
         </PackageReference>
     </ItemGroup>
-
     <ItemGroup>
+        <ProjectReference Include="..\..\src\openmedstack.biosharp.calculations\openmedstack.biosharp.calculations.csproj" />
         <ProjectReference Include="..\..\src\openmedstack.biosharp.io\openmedstack.biosharp.io.csproj" />
     </ItemGroup>
-
 </Project>
