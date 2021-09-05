@@ -1,11 +1,9 @@
 ﻿namespace OpenMedStack.BioSharp.Model
 {
-    using System;
-
     /// <summary>
-    /// Defines the Variant type.
+    /// Defines the VcfVariant type.
     /// </summary>
-    public record Variant
+    public record VcfVariant
     {
         /// <summary>
         /// Gets or sets the chromosome

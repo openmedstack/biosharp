@@ -14,11 +14,11 @@
             _logger = logger;
         }
 
-        public Task<Variant> Read(string line)
+        public Task<VcfVariant> Read(string line)
         {
             _logger.LogDebug("Reading: {line}", line);
             var parts = line.Split('\t');
-            return Task.FromResult(new Variant
+            return Task.FromResult(new VcfVariant
             {
                 Chromosome = parts[0],
                 Position = int.Parse(parts[1]),

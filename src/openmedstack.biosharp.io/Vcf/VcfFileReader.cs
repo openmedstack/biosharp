@@ -83,7 +83,7 @@
             _metaReader = metaReader;
         }
 
-        public async Task<IHeaderedDisposableAsyncEnumerable<IVariantMetaInformation[], Variant>> Read(
+        public async Task<IHeaderedDisposableAsyncEnumerable<IVariantMetaInformation[], VcfVariant>> Read(
             string path,
             CancellationToken cancellationToken = default)
         {
@@ -98,14 +98,14 @@
             return await Read(new NoopDisposable(), file, cancellationToken).ConfigureAwait(false);
         }
 
-        public Task<IHeaderedDisposableAsyncEnumerable<IVariantMetaInformation[], Variant>> Read(
+        public Task<IHeaderedDisposableAsyncEnumerable<IVariantMetaInformation[], VcfVariant>> Read(
             Stream file,
             CancellationToken cancellationToken = default)
         {
             return Read(new NoopDisposable(), file, cancellationToken);
         }
 
-        private async Task<IHeaderedDisposableAsyncEnumerable<IVariantMetaInformation[], Variant>> Read(
+        private async Task<IHeaderedDisposableAsyncEnumerable<IVariantMetaInformation[], VcfVariant>> Read(
             IDisposable archive,
             Stream file,
             CancellationToken cancellationToken = default)
@@ -138,14 +138,14 @@
                 }
             }
 
-            return new HeaderedAsyncZipReader<IVariantMetaInformation[], Variant>(
+            return new HeaderedAsyncZipReader<IVariantMetaInformation[], VcfVariant>(
                 headers.ToArray(),
                 archive,
                 file,
                 () => ReadVariants(residualText, file, cancellationToken));
         }
 
-        private async IAsyncEnumerable<Variant> ReadVariants(
+        private async IAsyncEnumerable<VcfVariant> ReadVariants(
             string buffer,
             Stream stream,
             [EnumeratorCancellation] CancellationToken cancellationToken)

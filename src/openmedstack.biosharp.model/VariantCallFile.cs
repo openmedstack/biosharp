@@ -2,7 +2,7 @@
 {
     public class VariantCallFile
     {
-        public VariantCallFile(IVariantMetaInformation[] meta, params Variant[] entries)
+        public VariantCallFile(IVariantMetaInformation[] meta, params VcfVariant[] entries)
         {
             Meta = meta;
             Entries = entries;
@@ -10,6 +10,6 @@
 
         public IVariantMetaInformation[] Meta { get; }
 
-        public Variant[] Entries { get; }
+        public VcfVariant[] Entries { get; }
     }
 }
