@@ -1,7 +1,7 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Sam
 {
+    using System.Buffers.Text;
     using System.Collections.Generic;
-    using System.Collections.Immutable;
     using System.IO;
     using System.Threading;
     using System.Threading.Tasks;
@@ -62,14 +62,7 @@
                 }
             }
 
-            return new SamDefinition
-            {
-                Hd = fmd,
-                Rg = rg,
-                Pg = pg,
-                Sq = sq.ToImmutableArray(),
-                AlignmentSections = alignmentSections.ToImmutableArray()
-            };
+            return new SamDefinition(fmd, sq, rg, pg, alignmentSections);
         }
     }
 }

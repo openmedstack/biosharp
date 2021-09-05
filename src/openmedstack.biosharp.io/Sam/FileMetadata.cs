@@ -5,32 +5,31 @@
 
     public record FileMetadata
     {
-        private readonly string _version;
-
-        private FileMetadata() { }
-
-        public string Vn
+        private FileMetadata(string vn, SortingOrder so, AlignmentGrouping go)
         {
-            get { return _version; }
-            init
+            if (!Regex.IsMatch(vn, "^[0-9]+\\.[0-9]+$"))
             {
-                if (!Regex.IsMatch(value, "^[0-9]+\\.[0-9]+$"))
-                {
-                    throw new ArgumentException("Value does not match regex: /^[0-9]+\\.[0-9]+$/", nameof(value));
-                }
-
-                _version = value;
+                throw new ArgumentException("Value does not match regex: /^[0-9]+\\.[0-9]+$/", nameof(vn));
             }
+
+            Vn = vn;
+            So = so;
+            Go = go;
         }
 
-        public SortingOrder So { get; init; }
+        public string Vn { get; }
 
-        public AlignmentGrouping Go { get; init; }
+        public SortingOrder So { get; }
+
+        public AlignmentGrouping Go { get; }
 
         public static FileMetadata Parse(string line)
         {
             var parts = line[4..].Split('\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            return new FileMetadata { Vn = parts[0][3..], So = Enum.Parse<SortingOrder>(parts[1][3..], true) };
+            return new FileMetadata(
+                parts[0][3..],
+                Enum.Parse<SortingOrder>(parts[1][3..], true),
+                AlignmentGrouping.none);
         }
 
         public enum SortingOrder

@@ -1,5 +1,7 @@
 ﻿namespace OpenMedStack.BioSharp.Model
 {
+    using System;
+
     public record AminoAcid(char Letter, string Name)
     {
         public static implicit operator AminoAcid(char letter)
@@ -26,7 +28,8 @@
                 'V' => new AminoAcid('V', "Valine"),
                 'W' => new AminoAcid('W', "Tryptophan"),
                 'Y' => new AminoAcid('Y', "Tyrosine"),
-                '*' => new AminoAcid('*', "Nonsense")
+                '*' => new AminoAcid('*', "Nonsense"),
+                _ => throw new ArgumentOutOfRangeException(nameof(letter))
             };
         }
 

@@ -21,48 +21,59 @@
     /// </summary>
     public record AlignmentSection
     {
-        private AlignmentSection() { }
+        private AlignmentSection(string qname, AlignmentFlag flag, string rname, int position, int mapq, string cigar, string rnext, int pnext, int templatelength,
+            string sequence, string quality)
+        {
+            QName = qname;
+            Flag = flag;
+            RName = rname;
+            Position = position;
+            MapQ = mapq;
+            Cigar = cigar;
+            RNext = rnext;
+            PNext = pnext;
+            TemplateLength = templatelength;
+            Sequence = sequence;
+            Quality = quality;
+        }
 
-        public string QName { get; init; }
+        public string QName { get; }
 
-        public AlignmentFlag Flag { get; init; }
+        public AlignmentFlag Flag { get; }
 
-        public string RName { get; init; }
+        public string RName { get; }
 
-        public int Position { get; init; }
+        public int Position { get; }
 
-        public int MapQ { get; init; }
+        public int MapQ { get; }
 
-        public string Cigar { get; init; }
+        public string Cigar { get; }
 
-        public string RNext { get; init; }
+        public string RNext { get; }
 
-        public int PNext { get; init; }
+        public int PNext { get; }
 
-        public int TemplateLength { get; init; }
+        public int TemplateLength { get; }
 
-        public string Sequence { get; init; }
+        public string Sequence { get; }
 
-        public string Quality { get; init; }
+        public string Quality { get; }
 
         public static AlignmentSection Parse(string line)
         {
-            // r003 0 ref 9 30 5S6M * 0 0 GCCTAAGCTAA * SA:Z:ref,29,-,6H5M,17,0;
             var parts = line.Split('\t', StringSplitOptions.TrimEntries);
-            return new AlignmentSection
-            {
-                QName = parts[0],
-                Flag = (AlignmentFlag)int.Parse(parts[1], NumberStyles.Integer),
-                RName = parts[2],
-                Position = int.Parse(parts[3], NumberStyles.Integer),
-                MapQ = int.Parse(parts[4], NumberStyles.Integer),
-                Cigar = parts[5],
-                RNext = parts[6],
-                PNext = int.Parse(parts[7], NumberStyles.Integer),
-                TemplateLength = int.Parse(parts[8], NumberStyles.Integer),
-                Sequence = parts[9],
-                Quality = parts[10]
-            };
+            return new AlignmentSection(
+                parts[0],
+                (AlignmentFlag)int.Parse(parts[1], NumberStyles.Integer),
+                parts[2],
+                int.Parse(parts[3], NumberStyles.Integer),
+                int.Parse(parts[4], NumberStyles.Integer),
+                parts[5],
+                parts[6],
+                int.Parse(parts[7], NumberStyles.Integer),
+                int.Parse(parts[8], NumberStyles.Integer),
+                parts[9],
+                parts[10]);
         }
 
         /// <summary>

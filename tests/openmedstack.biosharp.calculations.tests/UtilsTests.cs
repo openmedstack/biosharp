@@ -1,5 +1,6 @@
 namespace OpenMedStack.BioSharp.Calculations.Tests
 {
+    using System;
     using Xunit;
 
     public class UtilsTests
@@ -34,6 +35,20 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
                 var q = prob.ToQualChar();
 
                 Assert.Equal((char)i, q);
+            }
+        }
+
+        [Fact]
+        public void CanMapPhredBack()
+        {
+            var rnd = new Random(DateTime.UtcNow.Millisecond);
+            for (var i = 0; i < 100; i++)
+            {
+                var d = rnd.NextDouble();
+                var prob = d.ToQuality();
+                var q = prob.ToPhred();
+
+                Assert.Equal(d, q, 8);
             }
         }
     }

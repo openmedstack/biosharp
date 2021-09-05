@@ -5,7 +5,7 @@
         private readonly byte _letter;
         private readonly byte _errorProbability;
 
-        public BasePair(byte letter, byte errorProbability)
+        public BasePair(byte letter, byte errorProbability = 0)
         {
             _letter = letter;
             _errorProbability = errorProbability;
@@ -24,7 +24,7 @@
         /// <inheritdoc />
         public override string ToString()
         {
-            return $"{_letter}/{_errorProbability}";
+            return $"{Letter}/{ErrorProbability}";
         }
     }
 }

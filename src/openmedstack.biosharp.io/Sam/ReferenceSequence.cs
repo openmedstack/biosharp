@@ -4,16 +4,20 @@
 
     public record ReferenceSequence
     {
-        private ReferenceSequence() { }
+        private ReferenceSequence(string sn, int ln)
+        {
+            Sn = sn;
+            Ln = ln;
+        }
 
-        public string Sn { get; init; }
+        public string Sn { get; }
 
-        public int Ln { get; init; }
+        public int Ln { get; }
 
         public static ReferenceSequence Parse(string line)
         {
             var parts = line[4..].Split('\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-            return new ReferenceSequence { Sn = parts[0][3..], Ln = int.Parse(parts[1][3..]) };
+            return new ReferenceSequence(parts[0][3..]!, int.Parse(parts[1].AsSpan(3)));
         }
     }
 }

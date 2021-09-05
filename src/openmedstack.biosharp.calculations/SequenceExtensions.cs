@@ -5,21 +5,6 @@
     using System.Linq;
     using Model;
 
-    public static class Utils
-    {
-        public static char ToQualChar(this double probability)
-        {
-            return (char)(-10 * Math.Log10(probability) + 33);
-        }
-
-        public static double ToQuality(this char qualityChar)
-        {
-            var q = qualityChar - 33;
-            var p = q / -10d;
-            return Math.Pow(10, p);
-        }
-    }
-
     public static class SequenceExtensions
     {
         private static readonly string[] StopCodons = { "UAA", "UAG", "UGA" };
