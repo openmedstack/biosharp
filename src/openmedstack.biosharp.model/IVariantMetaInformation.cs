@@ -25,7 +25,7 @@
 
     public record AlternativeAlleleFieldFormat(AlternativeAlleleKind Type, string Description) : IVariantMetaInformation;
 
-    public enum AlternativeAlleleKind
+    public enum AlternativeAlleleKind : byte
     {
         /// <summary>
         /// Deletion relative to the reference

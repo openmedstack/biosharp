@@ -32,7 +32,7 @@
                 AlignmentGrouping.none);
         }
 
-        public enum SortingOrder
+        public enum SortingOrder : byte
         {
             /// <summary>
             /// default
@@ -43,7 +43,7 @@
             coordinate = 3
         }
 
-        public enum AlignmentGrouping
+        public enum AlignmentGrouping : byte
         {
             /// <summary>
             /// default
