@@ -8,6 +8,7 @@
     using System.Runtime.CompilerServices;
     using System.Text;
     using System.Threading;
+    using System.Threading.Tasks;
     using Model;
     using SharpCompress.Archives.GZip;
 
@@ -17,8 +18,9 @@
             string path,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            await using var file = File.OpenRead(path);
-            await foreach (var sequence in Read(file, cancellationToken))
+            var file = File.OpenRead(path);
+            await using var _ = file.ConfigureAwait(false);
+            await foreach (var sequence in Read(file, cancellationToken).ConfigureAwait(false))
             {
                 yield return sequence;
             }
@@ -68,8 +70,10 @@
             bool compressedFile = false,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            await using var file = File.OpenRead(path);
-            await using var zip = new GZipStream(file, CompressionMode.Decompress);
+            var file = File.OpenRead(path);
+            await using var _ = file.ConfigureAwait(false);
+            var zip = new GZipStream(file, CompressionMode.Decompress);
+            await using var __ = zip.ConfigureAwait(false);
             Stream stream = zip;
             if (compressedFile)
             {
@@ -80,7 +84,7 @@
                 stream = ms;
             }
 
-            await foreach (var sequence in ReadGz(stream, compressedFile, cancellationToken))
+            await foreach (var sequence in ReadGz(stream, compressedFile, cancellationToken).ConfigureAwait(false))
             {
                 yield return sequence;
             }
@@ -97,9 +101,10 @@
 
                 foreach (var entry in archive.Entries)
                 {
-                    await using var entryStream = entry.OpenEntryStream();
+                    var entryStream = entry.OpenEntryStream();
+                    await using var _ = entryStream.ConfigureAwait(false);
 
-                    await foreach (var sequence in Read(entryStream, cancellationToken))
+                    await foreach (var sequence in Read(entryStream, cancellationToken).ConfigureAwait(false))
                     {
                         yield return sequence;
                     }
@@ -107,7 +112,7 @@
             }
             else
             {
-                await foreach (var sequence in Read(file, cancellationToken))
+                await foreach (var sequence in Read(file, cancellationToken).ConfigureAwait(false))
                 {
                     yield return sequence;
                 }

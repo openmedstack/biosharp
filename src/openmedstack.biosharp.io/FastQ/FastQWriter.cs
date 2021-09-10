@@ -29,8 +29,10 @@
 
         public async Task Write(IEnumerable<Sequence> sequences, Stream output, CancellationToken cancellationToken = default)
         {
-            await using var gzip = new GZipStream(output, CompressionLevel.Optimal, true);
-            await using var writer = new StreamWriter(gzip, Encoding.UTF8);
+            var gzip = new GZipStream(output, CompressionLevel.Optimal, true);
+            await using var _ = gzip.ConfigureAwait(false);
+            var writer = new StreamWriter(gzip, Encoding.UTF8);
+            await using var __ = writer.ConfigureAwait(false);
 
             foreach (var sequence in sequences)
             {

@@ -17,10 +17,12 @@ namespace OpenMedStack.BioSharp.Io.Tests
         {
             var sequence = new Sequence("test", Encoding.ASCII.GetBytes("GAC"), new byte[3]);
             var writer = new FastAWriter(new NullLogger<FastAWriter>());
-            await using var ms = new MemoryStream();
+            var ms = new MemoryStream();
+            await using var _ = ms.ConfigureAwait(false);
             await writer.Write(sequence, ms).ConfigureAwait(false);
             ms.Position = 0;
-            await using var zip = new GZipStream(ms, CompressionMode.Decompress);
+            var zip = new GZipStream(ms, CompressionMode.Decompress);
+            await using var __ = zip.ConfigureAwait(false);
             var reader = new StreamReader(zip);
             var content = await reader.ReadToEndAsync().ConfigureAwait(false);
 
@@ -34,10 +36,12 @@ namespace OpenMedStack.BioSharp.Io.Tests
                 Encoding.ASCII.GetBytes(Enumerable.Repeat("ACGT", 20).SelectMany(x => x).ToArray()),
                 new byte[80]);
             var writer = new FastAWriter(new NullLogger<FastAWriter>());
-            await using var ms = new MemoryStream();
+            var ms = new MemoryStream();
+            await using var _ = ms.ConfigureAwait(false);
             await writer.Write(sequence, ms).ConfigureAwait(false);
             ms.Position = 0;
-            await using var zip = new GZipStream(ms, CompressionMode.Decompress);
+            var zip = new GZipStream(ms, CompressionMode.Decompress);
+            await using var __ = zip.ConfigureAwait(false);
             var reader = new StreamReader(zip);
             var content = await reader.ReadToEndAsync().ConfigureAwait(false);
 

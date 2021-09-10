@@ -21,7 +21,8 @@ r003  2064  ref  29  17  6H5M  *  0  0  TAGGC  *  SA:Z:ref,9,+,5S6M,30,1;
 r001  147  ref  37  30  9M  =  7  -39  CAGCGGCAT  *  NM:i:1
 ".Replace("  ", "\t");
 
-            await using var ms = new MemoryStream(Encoding.UTF8.GetBytes(file));
+            var ms = new MemoryStream(Encoding.UTF8.GetBytes(file));
+            await using var _ = ms.ConfigureAwait(false);
             var reader = new SamReader();
             var definition = await reader.Read(ms).ConfigureAwait(false);
 

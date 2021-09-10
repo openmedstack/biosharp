@@ -74,12 +74,10 @@
 
     public class VcfFileReader
     {
-        private readonly VariantReader _variantReader;
         private readonly VcfMetaReader _metaReader;
 
-        public VcfFileReader(VariantReader variantReader, VcfMetaReader metaReader)
+        public VcfFileReader(VcfMetaReader metaReader)
         {
-            _variantReader = variantReader;
             _metaReader = metaReader;
         }
 
@@ -94,7 +92,8 @@
                 return await Read(zip, stream, cancellationToken).ConfigureAwait(false);
             }
 
-            await using var file = File.OpenRead(path);
+            var file = File.OpenRead(path);
+            await using var _ = file.ConfigureAwait(false);
             return await Read(new NoopDisposable(), file, cancellationToken).ConfigureAwait(false);
         }
 
@@ -161,7 +160,7 @@
 
                 if (!string.IsNullOrWhiteSpace(lines[i]))
                 {
-                    yield return await _variantReader.Read(lines[i]).ConfigureAwait(false);
+                    yield return VcfVariant.Parse(lines[i]);
                 }
             }
             using var reader = new StreamReader(stream);
@@ -180,13 +179,13 @@
                 }
                 if (line != null)
                 {
-                    yield return await _variantReader.Read(line).ConfigureAwait(false);
+                    yield return VcfVariant.Parse(line);
                 }
             }
 
             if (endsWithline)
             {
-                yield return await _variantReader.Read(lines[^1]).ConfigureAwait(false);
+                yield return VcfVariant.Parse(lines[^1]);
             }
         }
     }

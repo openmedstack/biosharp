@@ -1,5 +1,6 @@
 namespace OpenMedStack.BioSharp.Io.Tests
 {
+    using System;
     using System.IO;
     using System.Linq;
     using System.Text;
@@ -14,7 +15,7 @@ namespace OpenMedStack.BioSharp.Io.Tests
         [Fact]
         public async Task CanParseGzFile()
         {
-            var reader = new VcfFileReader(new VariantReader(NullLogger.Instance), new VcfMetaReader());
+            var reader = new VcfFileReader(new VcfMetaReader());
             const string path = "D.4x.vcf.gz";
             await using var headeredContent = await reader.Read(path).ConfigureAwait(false);
 
@@ -35,7 +36,7 @@ namespace OpenMedStack.BioSharp.Io.Tests
 20	2301308	rs84823	T	G	.	PASS	.	GT:PL	./.:.	1/1:10,5,0";
             var file = new MemoryStream(Encoding.UTF8.GetBytes(content));
             await using var _ = file.ConfigureAwait(false);
-            var reader = new VcfFileReader(new VariantReader(NullLogger.Instance), new VcfMetaReader());
+            var reader = new VcfFileReader(new VcfMetaReader());
             await using var headeredContent = await reader.Read(file).ConfigureAwait(false);
 
             Assert.NotNull(headeredContent.Header);

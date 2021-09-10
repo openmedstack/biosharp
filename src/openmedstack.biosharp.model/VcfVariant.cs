@@ -1,5 +1,7 @@
 ﻿namespace OpenMedStack.BioSharp.Model
 {
+    using System.Linq;
+
     /// <summary>
     /// Defines the VcfVariant type.
     /// </summary>
@@ -46,5 +48,26 @@
         /// Gets or sets additional information (no white space, tabs, or semi-colons permitted).
         /// </summary>
         public string AdditionalInformation { get; init; } = null!;
+
+        public static VcfVariant Parse(string line)
+        {
+            var parts = line.Split('\t');
+            return new VcfVariant
+            {
+                Chromosome = parts[0],
+                Position = int.Parse(parts[1]),
+                MarkerIdentifiers = parts[2],
+                Reference = parts[3][0],
+                Alternate = parts[4],
+                ErrorProbabilities = GetProbabilities(parts[5]),
+                FailedFilter = new[] { parts[6] },
+                AdditionalInformation = parts[7]
+            };
+        }
+
+        private static int[] GetProbabilities(string part)
+        {
+            return part.Split('/').Select(p => p == "." ? 0 : int.Parse(p)).ToArray();
+        }
     }
 }

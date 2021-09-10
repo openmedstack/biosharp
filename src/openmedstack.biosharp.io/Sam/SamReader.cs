@@ -19,7 +19,8 @@
 
         public async Task<SamDefinition> Read(string filePath, CancellationToken cancellationToken = default)
         {
-            await using var file = File.OpenRead(filePath);
+            var file = File.OpenRead(filePath);
+            await using var _ = file.ConfigureAwait(false);
             return await Read(file, cancellationToken).ConfigureAwait(false);
         }
 

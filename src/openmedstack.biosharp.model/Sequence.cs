@@ -3,6 +3,7 @@
     using System;
     using System.Collections;
     using System.Collections.Generic;
+    using System.Text;
 
     public class Sequence : IEnumerable<BasePair>
     {
@@ -11,10 +12,6 @@
 
         internal Sequence(string id, byte[] data, byte[] qualities)
         {
-            if (data.Length != qualities.Length)
-            {
-                throw new ArgumentException("Invalid input data");
-            }
             Id = id;
             _data = data;
             _qualities = qualities;
@@ -43,6 +40,12 @@
         IEnumerator IEnumerable.GetEnumerator()
         {
             return GetEnumerator();
+        }
+
+        /// <inheritdoc />
+        public override string ToString()
+        {
+            return $"{Id}:{Length}" + Environment.NewLine + Encoding.ASCII.GetString(_data) + Environment.NewLine + Encoding.ASCII.GetString(_qualities);
         }
     }
 }
