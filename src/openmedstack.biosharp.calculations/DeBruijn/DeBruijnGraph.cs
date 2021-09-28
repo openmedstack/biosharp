@@ -1,5 +1,6 @@
 ﻿namespace OpenMedStack.BioSharp.Calculations.DeBruijn
 {
+    using System;
     using System.Collections.Generic;
     using System.Linq;
     using System.Runtime.CompilerServices;
@@ -10,14 +11,24 @@
 
     internal class KmerNode
     {
-        public KmerNode(string id)
+        public KmerNode(string id, int inboundEdges, IEnumerable<string> outboundNodes)
         {
             Id = id;
+            InboundEdges = inboundEdges;
+            OutboundEdges = outboundNodes.ToList();
         }
 
         public string Id { get; }
 
-        public List<string> InboundEdges { get; } = new();
+        public int InboundEdges { get; set; }
+
+        public List<string> OutboundEdges { get; }
+
+        /// <inheritdoc />
+        public override string ToString()
+        {
+            return $"{InboundEdges}->{Id}->{string.Join(",", OutboundEdges)}";
+        }
     }
 
     public class DeBruijnGraph
@@ -31,62 +42,82 @@
             _reads = reads;
         }
 
-        private async IAsyncEnumerable<KmerNode> CreateKMers([EnumeratorCancellation] CancellationToken cancellationToken)
+        private async IAsyncEnumerable<string> CreateKMers(
+            [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             await foreach (var line in _reads.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
                 var data = line.GetData();
-                foreach (var node in Enumerable.Range(0, line.Length - _k).AsParallel()
-                    .Select(i => Encoding.ASCII.GetString(data.Span.Slice(i, _k + 1)))
-                    .Select(kMer => new KmerNode(kMer)))
+                foreach (var kmer in Enumerable.Range(0, line.Length + 1 - _k)
+                    .AsParallel()
+                    .Select(i => Encoding.ASCII.GetString(data.Span.Slice(i, _k))))
                 {
-                    yield return node;
+                    yield return kmer;
                 }
             }
         }
 
-        private async Task<Dictionary<string, List<KmerNode>>> CreateInterGraph(CancellationToken cancellationToken)
+        private async Task<IList<KmerNode>> CreateGraph(CancellationToken cancellationToken)
         {
             var kmers = await CreateKMers(cancellationToken).ToListAsync(cancellationToken).ConfigureAwait(false);
-            foreach (var kMer in kmers.AsParallel())
+            Dictionary<string, KmerNode> graph = new();
+
+            foreach (var kmer in kmers)
             {
-                var edge = kMer.Id[1..];
-                foreach (var node in kmers.Where(node => node != kMer).Where(node => node.Id.StartsWith(edge)))
+                var left = kmer[..^1];
+                var right = kmer[1..];
+                if (graph.TryGetValue(left, out var leftNode))
                 {
-                    node.InboundEdges.Add(edge);
+                    leftNode.OutboundEdges.Add(right);
+                }
+                else
+                {
+                    graph.Add(left, new KmerNode(left, 0, Enumerable.Empty<string>()));
+                }
+
+                if (graph.TryGetValue(right, out var rightNode))
+                {
+                    rightNode.InboundEdges++;
+                }
+                else
+                {
+                    graph.Add(right, new KmerNode(right, 1, Enumerable.Empty<string>()));
                 }
             }
 
-            return kmers.SelectMany(x => x.InboundEdges)
-                .Distinct()
-                .ToDictionary(x => x, x => kmers.Where(k => k.InboundEdges.Contains(x)).ToList());
+            return graph.Values.ToList();
         }
 
-        public async IAsyncEnumerable<string> CreateGraph([EnumeratorCancellation] CancellationToken cancellationToken)
+        public async IAsyncEnumerable<string> Assemble([EnumeratorCancellation] CancellationToken cancellationToken)
         {
-            var interGraph = await CreateInterGraph(cancellationToken).ConfigureAwait(false);
-            foreach (var start in interGraph.SelectMany(x => x.Value).Where(x => x.InboundEdges.Count == 0))
+            var interGraph = await CreateGraph(cancellationToken).ConfigureAwait(false);
+            foreach (var start in interGraph.Where(x => x.InboundEdges == 0))
             {
+                var nodesConsumed = 0;
                 cancellationToken.ThrowIfCancellationRequested();
                 var s = start;
                 var builder = new StringBuilder(start.Id);
                 while (true)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
-
-                    var hasNext = interGraph.TryGetValue(s.Id[1..], out var nextList);
-                    if (hasNext && nextList!.Count > 0)
+                    nodesConsumed++;
+                    if (s.OutboundEdges.Count > 0)
+                    {
+                        var next = s.OutboundEdges.First();
+                        s.OutboundEdges.Remove(next);
+                        builder.Append(next.AsSpan()[^1]);
+                        s = interGraph.First(x => x.Id == next);
+                    }
+                    else
                     {
                         break;
                     }
-
-                    var next = nextList![0];
-                    nextList.Remove(next);
-                    builder.Append(next.Id[^1]);
-                    s = next;
                 }
 
-                yield return builder.ToString();
+                if (nodesConsumed == interGraph.Count)
+                {
+                    yield return builder.ToString();
+                }
             }
         }
     }
