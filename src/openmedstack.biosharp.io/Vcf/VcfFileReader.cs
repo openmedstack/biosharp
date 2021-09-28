@@ -10,68 +10,6 @@
     using Model;
     using SharpCompress.Archives.GZip;
 
-    public interface IDisposableAsyncEnumerable<out T> : IAsyncDisposable, IAsyncEnumerable<T> { }
-
-    public interface IHeaderedDisposableAsyncEnumerable<out THeader, out T> : IAsyncDisposable, IAsyncEnumerable<T>
-    {
-        public THeader Header { get; }
-    }
-
-    internal class AsyncZipReader<T> : IDisposableAsyncEnumerable<T>
-    {
-        private readonly IDisposable _archive;
-        private readonly Stream _stream;
-        private readonly Func<IAsyncEnumerable<T>> _asyncCreator;
-        private bool _enumerableCreated;
-
-        public AsyncZipReader(IDisposable archive, Stream stream, Func<IAsyncEnumerable<T>> asyncCreator)
-        {
-            _archive = archive;
-            _stream = stream;
-            _asyncCreator = asyncCreator;
-        }
-
-        /// <inheritdoc />
-        public async ValueTask DisposeAsync()
-        {
-            _archive.Dispose();
-            await _stream.DisposeAsync().ConfigureAwait(false);
-        }
-
-        /// <inheritdoc />
-        public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = new())
-        {
-            if (_enumerableCreated)
-            {
-                throw new InvalidOperationException("Cannot create second enumerable");
-            }
-
-            _enumerableCreated = true;
-            return _asyncCreator().GetAsyncEnumerator(cancellationToken);
-        }
-    }
-
-    internal class HeaderedAsyncZipReader<THeader, T> : AsyncZipReader<T>, IHeaderedDisposableAsyncEnumerable<THeader, T>
-    {
-        /// <inheritdoc />
-        public HeaderedAsyncZipReader(THeader header, IDisposable archive, Stream stream, Func<IAsyncEnumerable<T>> asyncCreator)
-            : base(archive, stream, asyncCreator)
-        {
-            Header = header;
-        }
-
-        /// <inheritdoc />
-        public THeader Header { get; }
-    }
-
-    internal struct NoopDisposable : IDisposable
-    {
-        /// <inheritdoc />
-        public void Dispose()
-        {
-        }
-    }
-
     public class VcfFileReader
     {
         private readonly VcfMetaReader _metaReader;

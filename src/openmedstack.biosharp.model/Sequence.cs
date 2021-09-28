@@ -12,6 +12,10 @@
 
         internal Sequence(string id, byte[] data, byte[] qualities)
         {
+            if (data.Length != qualities.Length)
+            {
+                throw new ArgumentException("Invalid data", nameof(qualities));
+            }
             Id = id;
             _data = data;
             _qualities = qualities;
@@ -42,10 +46,19 @@
             return GetEnumerator();
         }
 
+        public ReadOnlyMemory<byte> GetData()
+        {
+            return _data;
+        }
+
         /// <inheritdoc />
         public override string ToString()
         {
-            return $"{Id}:{Length}" + Environment.NewLine + Encoding.ASCII.GetString(_data) + Environment.NewLine + Encoding.ASCII.GetString(_qualities);
+            return $"{Id}:{Length}"
+                   + Environment.NewLine
+                   + Encoding.ASCII.GetString(_data)
+                   + Environment.NewLine
+                   + Encoding.ASCII.GetString(_qualities);
         }
     }
 }
