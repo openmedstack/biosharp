@@ -1,5 +1,6 @@
 ﻿namespace OpenMedStack.BioSharp.Io.FastQ
 {
+    using System;
     using System.Collections.Generic;
     using System.IO;
     using System.IO.Compression;
@@ -26,7 +27,13 @@
 
                 var q = await reader.ReadLineAsync().ConfigureAwait(false);
                 var qualities = Encoding.ASCII.GetBytes(q!);
-                yield return new Sequence(id![1..], Encoding.ASCII.GetBytes(letters!), qualities);
+                var data = Encoding.ASCII.GetBytes(letters!);
+                if (qualities.Length == 1 && q == "+")
+                {
+                    qualities = new byte[data.Length];
+                    Array.Fill(qualities, (byte)43);
+                }
+                yield return new Sequence(id![1..], data, qualities);
             }
         }
     }
