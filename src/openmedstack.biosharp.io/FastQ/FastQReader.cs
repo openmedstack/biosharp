@@ -8,10 +8,18 @@
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
+    using Microsoft.Extensions.Logging;
     using Model;
 
     public class FastQReader
     {
+        private readonly ILogger _logger;
+
+        public FastQReader(ILogger logger)
+        {
+            _logger = logger;
+        }
+
         public async IAsyncEnumerable<Sequence> Read(string path, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             var file = File.OpenRead(path);
@@ -21,6 +29,7 @@
             using var reader = new StreamReader(gzip);
             while (file.Position < file.Length)
             {
+                _logger.LogInformation($"Read {file} to {file.Position}/{file.Length}");
                 cancellationToken.ThrowIfCancellationRequested();
                 var id = await reader.ReadLineAsync().ConfigureAwait(false);
                 var letters = await reader.ReadLineAsync().ConfigureAwait(false);

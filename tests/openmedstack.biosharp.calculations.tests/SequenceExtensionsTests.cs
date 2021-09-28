@@ -3,6 +3,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
     using System.Linq;
     using System.Threading.Tasks;
     using Io.FastQ;
+    using Microsoft.Extensions.Logging.Abstractions;
     using Model;
     using Xunit;
 
@@ -14,7 +15,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
         public async Task CanFindSubSequence(string code, int position)
         {
             const string path = "ERR164409.fastq.gz";
-            var parser = new FastQReader();
+            var parser = new FastQReader(NullLogger.Instance);
 
             var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
             Assert.Equal(position, sequence.IndexOf(code.ToCharArray()));
@@ -24,7 +25,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
         public async Task WhenIndexOfMaxErrorsIsEqualToSequenceLengthThenIndexIsZero()
         {
             const string path = "ERR164409.fastq.gz";
-            var parser = new FastQReader();
+            var parser = new FastQReader(NullLogger.Instance);
 
             var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
             Assert.Equal(0, sequence.IndexOf("TACTAC".ToCharArray(), 6));
@@ -34,7 +35,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
         public async Task WhenSequenceMatchesWithinAllowedErrorsThenFinds()
         {
             const string path = "ERR164409.fastq.gz";
-            var parser = new FastQReader();
+            var parser = new FastQReader(NullLogger.Instance);
 
             var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
             Assert.Equal(11, sequence.IndexOf("TAAX".ToCharArray(), 1));
@@ -44,7 +45,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
         public async Task CanFindAllSubSequences()
         {
             const string path = "ERR164409.fastq.gz";
-            var parser = new FastQReader();
+            var parser = new FastQReader(NullLogger.Instance);
 
             var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
             var actual = sequence.AllIndicesOf("TAT".ToCharArray()).ToArray();
@@ -55,7 +56,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
         public async Task CanCountAllSubSequences()
         {
             const string path = "ERR164409.fastq.gz";
-            var parser = new FastQReader();
+            var parser = new FastQReader(NullLogger.Instance);
 
             var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
             var actual = sequence.Count("TAT".ToCharArray());
@@ -66,7 +67,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
         public async Task CanReadAminoSequenceToStop()
         {
             const string path = "ERR164409.fastq.gz";
-            var parser = new FastQReader();
+            var parser = new FastQReader(NullLogger.Instance);
 
             var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
             var actual = sequence.ToRna().ReadAminoAcids(true).ToArray();
@@ -78,7 +79,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
         public async Task CanReadAminoSequenceToEnd()
         {
             const string path = "ERR164409.fastq.gz";
-            var parser = new FastQReader();
+            var parser = new FastQReader(NullLogger.Instance);
 
             var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
             var actual = string.Join("", sequence.ToRna().ReadAminoAcids().Select(a => a.ToString()).ToArray());
@@ -93,7 +94,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
         public async Task CanCountAllStopCodons(string codon, int count)
         {
             const string path = "ERR164409.fastq.gz";
-            var parser = new FastQReader();
+            var parser = new FastQReader(NullLogger.Instance);
 
             var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
             var actual = sequence.ToRna().Count(codon.ToCharArray());
