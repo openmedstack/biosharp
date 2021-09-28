@@ -1,6 +1,12 @@
 namespace OpenMedStack.BioSharp.Calculations.Tests
 {
+    using System.IO;
+    using System.Linq;
+    using System.Text;
+    using System.Threading;
     using System.Threading.Tasks;
+    using Io.FastQ;
+    using Microsoft.Extensions.Logging.Abstractions;
     using NeedlemanWunsch;
     using Xunit;
 
@@ -16,6 +22,22 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
 
             Assert.Equal(topAligned, top2);
             Assert.Equal(leftAligned, left2);
+        }
+
+        [Fact]
+        public async Task AlignSequences()
+        {
+            var fastq = "ERR164409.fastq.gz";
+            var reader = new FastQReader(NullLogger.Instance);
+            var sequences = await reader.Read(fastq, CancellationToken.None).Take(3).ToListAsync().ConfigureAwait(false);
+
+            var oneTwoAligned = await sequences[0].Align(sequences[1], 10).ConfigureAwait(false);
+
+            Assert.Equal(87, oneTwoAligned.GetCombineIndex());
+
+            var twoThreeAligned = await sequences[0].Combine(sequences[1], "test", 87).Align(sequences[2], 10).ConfigureAwait(false);
+
+            Assert.Equal(119, twoThreeAligned.GetCombineIndex());
         }
     }
 }

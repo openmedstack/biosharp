@@ -35,13 +35,13 @@
                 var letters = await reader.ReadLineAsync().ConfigureAwait(false);
 
                 var q = await reader.ReadLineAsync().ConfigureAwait(false);
+                if (q == "+")
+                {
+                    q = await reader.ReadLineAsync().ConfigureAwait(false);
+                }
                 var qualities = Encoding.ASCII.GetBytes(q!);
                 var data = Encoding.ASCII.GetBytes(letters!);
-                if (qualities.Length == 1 && q == "+")
-                {
-                    qualities = new byte[data.Length];
-                    Array.Fill(qualities, (byte)43);
-                }
+
                 yield return new Sequence(id![1..], data, qualities);
             }
         }

@@ -3,12 +3,16 @@
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Text;
     using System.Threading.Tasks;
+    using Model;
 
     public static class NeedlemanWunschAlgo
     {
         private static readonly Dictionary<string, sbyte> Blossum62 = new()
         {
+            #region MyRegion
+
             /*
             A Ala  4
             R Arg -1   5
@@ -33,8 +37,6 @@
                  Ala Arg Asn Asp Cys Gln Glu Gly His Ile Leu Lys Met Phe Pro Ser Thr Trp Tyr Val
                   A   R   N   D   C   Q   E   G   H   I   L   K   M   F   P   S   T   W   Y   V
              */
-
-            #region MyRegion
 
             ["AA"] = 4,
             ["AR"] = -1,
@@ -439,7 +441,7 @@
             #endregion
         };
 
-        private static Direction[,] InitializeMatrix(string top, string left, sbyte penalty)
+        private static Direction[,] InitializeMatrix(ReadOnlySpan<char> top, ReadOnlySpan<char> left, sbyte penalty)
         {
             var scoreData = new int[left.Length + 1, top.Length + 1];
             var traverseData = new Direction[left.Length + 1, top.Length + 1];
@@ -463,7 +465,7 @@
                     var i2 = i - 1;
                     var j2 = j - 1;
                     options[0] = (
-                        scoreData[j2, i2] + Blossum62[new string(new[] { top[i2], left[j2] }).ToUpperInvariant()],
+                        scoreData[j2, i2] + Blossum62[new string(new[] { top[i2], left[j2] })],
                         Direction.Diagonal);
                     options[1] = (scoreData[j2, i] + penalty, Direction.Up);
                     options[2] = (scoreData[j, i2] + penalty, Direction.Left);
@@ -476,45 +478,85 @@
             return traverseData;
         }
 
-        public static async Task<(string first, string second)> Align(this string first, string second, sbyte penalty)
+        public static Task<(string first, string second)> Align(this Sequence first, Sequence second, sbyte penalty)
         {
-            var matrixData = await Task.Run(() => InitializeMatrix(first, second, penalty))
-                .ConfigureAwait(false);
-            var topStack = new Stack<char>(first.Length);
-            var leftStack = new Stack<char>(second.Length);
-            var j = matrixData.GetLength(0) - 1;
-            var i = matrixData.GetLength(1) - 1;
-            var direction = matrixData[j, i];
-            while (direction != Direction.Done)
-            {
-                direction = matrixData[j, i];
+            return Align(
+                Encoding.ASCII.GetString(first.GetData().Span),
+                Encoding.ASCII.GetString(second.GetData().Span),
+                penalty);
+        }
 
-                switch (direction)
+        public static Task<(string first, string second)> Align(this string first, string second, sbyte penalty)
+        {
+            return Task.Run(
+                () =>
                 {
-                    case Direction.Diagonal:
-                        topStack.Push(first[i - 1]);
-                        leftStack.Push(second[j - 1]);
-                        i -= 1;
-                        j -= 1;
-                        break;
-                    case Direction.Left:
-                        topStack.Push(first[i - 1]);
-                        leftStack.Push('-');
-                        i -= 1;
-                        break;
-                    case Direction.Up:
-                        topStack.Push('-');
-                        leftStack.Push(second[j - 1]);
-                        j -= 1;
-                        break;
-                    case Direction.Done:
-                        break;
-                    default:
-                        throw new InvalidOperationException("Invalid direction");
-                }
+                    var matrixData = InitializeMatrix(first.AsSpan(), second.AsSpan(), penalty);
+                    var topStack = new Stack<char>(first.Length);
+                    var leftStack = new Stack<char>(second.Length);
+                    var j = matrixData.GetLength(0) - 1;
+                    var i = matrixData.GetLength(1) - 1;
+                    var direction = matrixData[j, i];
+                    while (direction != Direction.Done)
+                    {
+                        direction = matrixData[j, i];
+
+                        switch (direction)
+                        {
+                            case Direction.Diagonal:
+                                topStack.Push(first[i - 1]);
+                                leftStack.Push(second[j - 1]);
+                                i -= 1;
+                                j -= 1;
+                                break;
+                            case Direction.Left:
+                                topStack.Push(first[i - 1]);
+                                leftStack.Push('-');
+                                i -= 1;
+                                break;
+                            case Direction.Up:
+                                topStack.Push('-');
+                                leftStack.Push(second[j - 1]);
+                                j -= 1;
+                                break;
+                            case Direction.Done:
+                                break;
+                            default:
+                                throw new InvalidOperationException("Invalid direction");
+                        }
+                    }
+
+                    return (new string(topStack.ToArray()), new string(leftStack.ToArray()));
+                });
+        }
+
+        public static int GetCombineIndex(this (string first, string second) alignment)
+        {
+            var start = alignment.first.StartsWith('-') ? alignment.second : alignment.first;
+            var end = alignment.first.StartsWith('-') ? alignment.first : alignment.second;
+            var trailingBlanks = start.Reverse().TakeWhile(c => c == '-').Count();
+            var leadingBlanks = end.TakeWhile(c => c == '-').Count();
+            var overlapEnd = start.Length - trailingBlanks;
+
+            var s = start[..leadingBlanks];
+            var o = end[leadingBlanks..overlapEnd];
+            var startOverlap = start[..^trailingBlanks];
+            var endOverlap = end.AsSpan(leadingBlanks);
+            if (s + o == startOverlap && endOverlap.StartsWith(o))
+            {
+                return leadingBlanks;
             }
 
-            return (new string(topStack.ToArray()), new string(leftStack.ToArray()));
+            return -1;
+        }
+
+        public static Sequence Combine(this Sequence first, Sequence second, string newId, int index)
+        {
+            var basePairs = first.Take(index).Concat(second).ToList();
+            return new Sequence(
+                newId,
+                basePairs.Select(x => (byte)x.Letter).ToArray(),
+                basePairs.Select(x => (byte)x.ErrorProbability).ToArray());
         }
     }
 }
