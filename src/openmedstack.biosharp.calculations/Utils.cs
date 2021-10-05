@@ -1,7 +1,6 @@
 ﻿namespace OpenMedStack.BioSharp.Calculations
 {
     using System;
-    using System.Threading.Tasks;
 
     public static class Utils
     {

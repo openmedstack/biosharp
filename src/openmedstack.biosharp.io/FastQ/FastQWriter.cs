@@ -10,53 +10,65 @@
     using Microsoft.Extensions.Logging;
     using Model;
 
-    public class FastQWriter
+    public class FastQWriter : IAsyncDisposable
     {
         private readonly ILogger _logger;
+        private readonly GZipStream _gzip;
+        private readonly StreamWriter _writer;
 
-        public FastQWriter(ILogger logger)
+        public FastQWriter(ILogger logger, Stream output)
         {
             _logger = logger;
+            _gzip = new GZipStream(output, CompressionLevel.Optimal, false);
+            _writer = new StreamWriter(_gzip, Encoding.UTF8);
         }
 
         public Task Write(
             Sequence sequence,
-            Stream output,
             CancellationToken cancellationToken = default)
         {
-            return Write(new[] { sequence }, output, cancellationToken);
+            return Write(new[] { sequence }, cancellationToken);
         }
 
-        public async Task Write(IEnumerable<Sequence> sequences, Stream output, CancellationToken cancellationToken = default)
+        public async Task Write(IEnumerable<Sequence> sequences, CancellationToken cancellationToken = default)
         {
-            var gzip = new GZipStream(output, CompressionLevel.Optimal, true);
-            await using var _ = gzip.ConfigureAwait(false);
-            var writer = new StreamWriter(gzip, Encoding.UTF8);
-            await using var __ = writer.ConfigureAwait(false);
-
             foreach (var sequence in sequences)
             {
-                _logger.LogInformation("Writing {0} with length {1}", sequence.Id, sequence.Length);
-                await writer.WriteAsync('@').ConfigureAwait(false);
-                await writer.WriteLineAsync(sequence.Id.AsMemory(), cancellationToken).ConfigureAwait(false);
-
-                var letters = new char[sequence.Length];
-                var qualities = new char[sequence.Length];
-                var index = 0;
-                foreach (var basePair in sequence)
-                {
-                    letters[index] = basePair.Letter;
-                    qualities[index] = (char)basePair.ErrorProbability;
-                    index++;
-                }
-
-                await writer.WriteLineAsync(letters, cancellationToken).ConfigureAwait(false);
-                await writer.WriteAsync('+').ConfigureAwait(false);
-                await writer.WriteLineAsync(sequence.Id.AsMemory(), cancellationToken).ConfigureAwait(false);
-                await writer.WriteLineAsync(qualities, cancellationToken).ConfigureAwait(false);
+                await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
             }
 
-            await writer.FlushAsync().ConfigureAwait(false);
+            await _writer.FlushAsync().ConfigureAwait(false);
+        }
+
+        public async Task Write(IAsyncEnumerable<Sequence> sequences, CancellationToken cancellationToken = default)
+        {
+            await foreach (var sequence in sequences.WithCancellation(cancellationToken))
+            {
+                await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
+            }
+
+            await _writer.FlushAsync().ConfigureAwait(false);
+        }
+
+        private async Task WriteSingle(Sequence sequence, CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Writing {0} with length {1}", sequence.Id, sequence.Length);
+
+            await _writer.WriteAsync('@').ConfigureAwait(false);
+            await _writer.WriteLineAsync(sequence.Id.AsMemory(), cancellationToken).ConfigureAwait(false);
+            await _writer.WriteLineAsync(Encoding.ASCII.GetString(sequence.GetData().Span).AsMemory(), cancellationToken).ConfigureAwait(false);
+            await _writer.WriteAsync('+').ConfigureAwait(false);
+            await _writer.WriteLineAsync(Encoding.ASCII.GetString(sequence.GetQuality().Span).AsMemory(), cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <inheritdoc />
+        public async ValueTask DisposeAsync()
+        {
+            _writer.Close();
+            await _writer.DisposeAsync().ConfigureAwait(false);
+            await _gzip.DisposeAsync().ConfigureAwait(false);
+
+            GC.SuppressFinalize(this);
         }
     }
 }
