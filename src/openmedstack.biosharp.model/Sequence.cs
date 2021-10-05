@@ -10,18 +10,21 @@
         private readonly byte[] _data;
         private readonly byte[] _qualities;
 
-        internal Sequence(string id, byte[] data, byte[] qualities)
+        internal Sequence(string id, byte[] data, byte[] qualities, bool isIndexed = false)
         {
             if (data.Length != qualities.Length)
             {
                 throw new ArgumentException("Invalid data", nameof(qualities));
             }
             Id = id;
+            IsIndexed = isIndexed;
             _data = data;
             _qualities = qualities;
         }
 
         public string Id { get; }
+
+        public bool IsIndexed { get; }
 
         public int Length
         {
@@ -49,6 +52,11 @@
         public ReadOnlyMemory<byte> GetData()
         {
             return _data;
+        }
+
+        public ReadOnlyMemory<byte> GetQuality()
+        {
+            return _qualities;
         }
 
         /// <inheritdoc />

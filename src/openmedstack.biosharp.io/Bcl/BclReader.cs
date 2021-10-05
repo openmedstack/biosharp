@@ -46,8 +46,8 @@ namespace OpenMedStack.BioSharp.Io.Bcl
  */
     public class BclReader : IAsyncDisposable, IAsyncEnumerable<BclData>
     {
-        private static int EAMSS_M2_GE_THRESHOLD = 30;
-        private static int EAMSS_S1_LT_THRESHOLD = 15; //was 15
+        private static readonly int EAMSS_M2_GE_THRESHOLD = 30;
+        private static readonly int EAMSS_S1_LT_THRESHOLD = 15; //was 15
         public static byte MASKING_QUALITY = 0x02;
 
         /* Array of base values and quality values that are used to decode values from BCLs efficiently. */
@@ -236,7 +236,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
 
                 var bclDatas = bclDataArray.AsMemory(0, clustersRead);
                 // Process the data from the first cycle since we had to read it to know how many clusters we'd get
-                UpdateClusterBclDatas(bclDatas, 0, 0, buffer);
+                UpdateClusterBclDatas(bclDatas.Span, 0, 0, buffer);
                 totalCycleCount += 1;
 
                 for (var read = 0; read < NumReads; ++read)
@@ -259,11 +259,11 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                     }
                 }
 
-                foreach(var bclData in bclDataArray.Take(clustersRead).AsParallel())
+                foreach (var bclData in bclDataArray.Take(clustersRead))
                 {
                     if (_applyEamss)
                     {
-                        for (int i = 0; i < bclData.Bases.Length; i++)
+                        for (var i = 0; i < bclData.Bases.Length; i++)
                         {
                             RunEamssForReadInPlace(bclData.Bases[i], bclData.Qualities[i]);
                         }
@@ -274,8 +274,6 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                 ArrayPool<BclData>.Shared.Return(bclDataArray);
                 ArrayPool<byte>.Shared.Return(buffer);
             }
-
-            yield break;
         }
 
         private async Task ReadAndUpdateData(
@@ -288,16 +286,16 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         {
             _ = await Streams[totalCycleCount].ReadAsync(buffer.AsMemory(0, clustersRead)).ConfigureAwait(false);
 
-            UpdateClusterBclDatas(bclDatas, read, cycle, buffer);
+            UpdateClusterBclDatas(bclDatas.Span, read, cycle, buffer);
         }
 
         /** Inserts the bases and quals at `cycle` of `read` in all of the bclDatas, using data in this.buffer. */
-        private void UpdateClusterBclDatas(Memory<BclData> bclDatas, int read, int cycle, byte[] buffer)
+        private void UpdateClusterBclDatas(Span<BclData> bclDatas, int read, int cycle, Span<byte> buffer)
         {
             var numClusters = bclDatas.Length;
             for (var dataIdx = 0; dataIdx < numClusters; ++dataIdx)
             {
-                BclData data = bclDatas.Span[dataIdx];
+                BclData data = bclDatas[dataIdx];
                 var b = (uint)buffer[dataIdx];
                 DecodeBasecall(data, read, cycle, b);
             }
@@ -387,15 +385,15 @@ namespace OpenMedStack.BioSharp.Io.Bcl
          * @param bases     Bases for a single read in the cluster ( not the entire cluster )
          * @param qualities Qualities for a single read in the cluster ( not the entire cluster )
          */
-        private static void RunEamssForReadInPlace(byte[] bases, byte[] qualities)
+        private static void RunEamssForReadInPlace(Span<byte> bases, Span<byte> qualities)
         {
-            int eamssTally = 0;
-            int maxTally = int.MinValue;
-            int indexOfMax = -1;
+            var eamssTally = 0;
+            var maxTally = int.MinValue;
+            var indexOfMax = -1;
 
-            for (int i = bases.Length - 1; i >= 0; i--)
+            for (var i = bases.Length - 1; i >= 0; i--)
             {
-                int quality = (0xff & qualities[i]);
+                var quality = (0xff & qualities[i]);
 
                 if (quality >= EAMSS_M2_GE_THRESHOLD)
                 {
@@ -415,10 +413,10 @@ namespace OpenMedStack.BioSharp.Io.Bcl
 
             if (maxTally >= 1)
             {
-                int numGs = 0;
-                int exceptions = 0;
+                var numGs = 0;
+                var exceptions = 0;
 
-                for (int i = indexOfMax; i >= 0; i--)
+                for (var i = indexOfMax; i >= 0; i--)
                 {
                     if (bases[i] == 'G')
                     {
@@ -426,7 +424,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                     }
                     else
                     {
-                        int skip = SkipBy(i, numGs, exceptions, bases);
+                        var skip = SkipBy(i, numGs, exceptions, bases);
                         if (skip > -1)
                         {
                             exceptions += skip;
@@ -445,7 +443,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                     indexOfMax = (indexOfMax + 1) - numGs;
                 }
 
-                for (int i = indexOfMax; i < qualities.Length; i++)
+                for (var i = indexOfMax; i < qualities.Length; i++)
                 {
                     qualities[i] = MASKING_QUALITY;
                 }
@@ -464,12 +462,12 @@ namespace OpenMedStack.BioSharp.Io.Bcl
          * indices before the current index then return index - (index of next g), else return null  Null indicates this is
          * NOT a skippable region, if we run into index 0 without finding a g then NULL is also returned
          */
-        private static int SkipBy(int index, int numGs, int prevExceptions, byte[] bases)
+        private static int SkipBy(int index, int numGs, int prevExceptions, Span<byte> bases)
         {
-            int skip = -1;
-            for (int backup = 1; backup <= index; backup++)
+            var skip = -1;
+            for (var backup = 1; backup <= index; backup++)
             {
-                int exceptionLimit = Math.Max((numGs + backup) / 10, 1);
+                var exceptionLimit = Math.Max((numGs + backup) / 10, 1);
                 if (prevExceptions + backup > exceptionLimit)
                 {
                     break;
@@ -487,7 +485,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         /// <inheritdoc />
         public async ValueTask DisposeAsync()
         {
-            await Task.WhenAll(Streams.Select(x => x.DisposeAsync().AsTask().ContinueWith(_=>{}))).ConfigureAwait(false);
+            await Task.WhenAll(Streams.Select(x => x.DisposeAsync().AsTask().ContinueWith(_ => { }))).ConfigureAwait(false);
         }
 
         /// <inheritdoc />

@@ -31,7 +31,7 @@
             8, 12, 18, 23, 27, 2
     };
 
-        private byte[] QualsAsBytes()
+        private static byte[] QualsAsBytes()
         {
             var byteVals = new byte[ExpectedQuals.Length];
             for (var i = 0; i < byteVals.Length; i++)
@@ -76,7 +76,7 @@
         }
 
         [Theory]
-        [MemberData("FailingFiles")]
+        [MemberData(nameof(FailingFiles))]
         public async Task FailingFileTest(string failingFile)
         {
             _ = await Assert.ThrowsAnyAsync<Exception>(

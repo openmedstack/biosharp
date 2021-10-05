@@ -1,4 +1,4 @@
 ﻿namespace OpenMedStack.BioSharp.Model.Bcl
 {
-    public record BarcodeData(string Barcode);// : IBarcodeData;
+    public record BarcodeData(string Barcode);
 }

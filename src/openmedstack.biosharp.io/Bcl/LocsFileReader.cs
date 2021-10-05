@@ -1,7 +1,6 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Bcl
 {
     using System;
-    using System.Collections;
     using System.Collections.Generic;
     using System.IO;
     using System.Threading;
@@ -14,7 +13,7 @@
         private readonly int _tile;
         private readonly int _lane;
 
-        public LocsFileReader(FileInfo locsFile, int tile, int lane)
+        public LocsFileReader(FileInfo locsFile, int lane, int tile)
         {
             _locsFile = locsFile;
             _tile = tile;

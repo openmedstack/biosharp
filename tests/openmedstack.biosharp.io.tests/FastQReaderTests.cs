@@ -41,12 +41,12 @@ namespace OpenMedStack.BioSharp.Io.Tests
         [Fact]
         public async Task CanWrite()
         {
-            var reader = new FastQReader(NullLogger.Instance);
-            var writer = new FastQWriter(new NullLogger<FastQWriter>());
-
             var output = new MemoryStream();
+            var reader = new FastQReader(NullLogger.Instance);
+            var writer = new FastQWriter(new NullLogger<FastQWriter>(), output);
+
             var sequence = await reader.Read(FastQerr).FirstAsync().ConfigureAwait(false);
-            await writer.Write(sequence, output).ConfigureAwait(false);
+            await writer.Write(sequence).ConfigureAwait(false);
 
             Assert.True(output.Length > 0);
 

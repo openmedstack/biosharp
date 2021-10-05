@@ -1,6 +1,5 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Sam
 {
-    using System.Buffers.Text;
     using System.Collections.Generic;
     using System.IO;
     using System.Threading;

@@ -7,6 +7,4 @@
         public int XCoordinate { get; }
         public int YCoordinate { get; }
     }
-
-    public record PositionalData(int Tile, int Lane, int XCoordinate, int YCoordinate) : IPositionalData;
 }

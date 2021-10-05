@@ -24,10 +24,39 @@
         [Fact]
         public async Task CanRead()
         {
-            var sequences = _reader.Read();
+            var sequences = _reader.ReadSequences();
 
             var count = await sequences.CountAsync().ConfigureAwait(false);
-            Assert.Equal(6409617 ,count);
+            Assert.Equal(2136539, count);
+        }
+
+        [Fact]
+        public async Task CanGroup()
+        {
+            var sequences = _reader.ReadSequences();
+
+            var count = await sequences.Select(x => x.index[0])
+                .Distinct()
+                .CountAsync()
+                .ConfigureAwait(false);
+            Assert.Equal(5, count);
+        }
+
+        [Fact]
+        public async Task CanWriteDemultiplexed()
+        {
+            var tempPath = Path.GetTempPath();
+            var demuxWriter = new DemultiplexFastQWriter(
+                            (r, s) => Path.Combine(tempPath, $"{r.Instrument}_{s[..2]}.fastq.gz"),
+                            _reader.RunInfo());
+            await using (demuxWriter.ConfigureAwait(false))
+            {
+                var sequences = _reader.ReadSequences();
+                await demuxWriter.WriteDemultiplexed(sequences)
+                    .ConfigureAwait(false);
+            }
+
+            await demuxWriter.DisposeAsync().ConfigureAwait(false);
         }
     }
 }
