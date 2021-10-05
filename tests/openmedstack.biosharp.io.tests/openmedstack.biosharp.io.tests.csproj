@@ -16,6 +16,12 @@
         <None Include="..\..\data\*.vcf.gz">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Include="..\..\data\picard\**\*.*" LinkBase="data">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Include="..\..\data\sampledata\**\*.*" LinkBase="sampledata">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 
     <ItemGroup>
