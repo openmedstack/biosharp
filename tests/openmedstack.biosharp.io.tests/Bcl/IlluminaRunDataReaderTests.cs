@@ -20,21 +20,21 @@
                     new Read { IsIndexedRead = "Y", Number = 2, NumCycles = 8 },
                     new Read { IsIndexedRead = "N", Number = 3, NumCycles = 25 }));
         }
-        
+
         [Fact]
         public async Task CanRead()
         {
-            var sequences = _reader.ReadSequences();
+            var sequences = _reader.ReadClusterData();
 
             var count = await sequences.CountAsync().ConfigureAwait(false);
-            Assert.Equal(180, count);
+            Assert.Equal(180 * 3, count);
         }
 
         [Fact]
         public async Task CanGroup()
         {
-            var sequences = await _reader.ReadSequences()
-                .Select(x => x.index)
+            var sequences = await _reader.ReadClusterData()
+                .Select(x => x.Barcode)
                 .Distinct()
                 .CountAsync()
                 .ConfigureAwait(false);

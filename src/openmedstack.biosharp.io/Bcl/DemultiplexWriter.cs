@@ -25,10 +25,10 @@
         }
 
         public async Task WriteDemultiplexed(
-            IAsyncEnumerable<(string, Sequence[])> input,
+            IAsyncEnumerable<(string, Sequence)> input,
             CancellationToken cancellationToken = default)
         {
-            await foreach (var (index, sequences) in input.ConfigureAwait(false))
+            await foreach (var (index, sequence) in input.ConfigureAwait(false))
             {
                 var path = _pathResolver(_runInfo, index);
                 var writer = _files.GetOrAdd(
@@ -36,7 +36,7 @@
                     p => new FastQWriter(
                         NullLogger.Instance,
                         File.Open(p, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None)));
-                await writer.Write(sequences.Where(s => !s.IsIndexed), cancellationToken).ConfigureAwait(false);
+                await writer.Write(sequence, cancellationToken).ConfigureAwait(false);
             }
         }
 

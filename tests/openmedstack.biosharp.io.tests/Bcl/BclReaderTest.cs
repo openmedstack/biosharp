@@ -55,8 +55,8 @@
             {
                 await enumerator.MoveNextAsync().ConfigureAwait(false);
                 var bv = enumerator.Current;
-                Assert.Equal(ExpectedBases[readNum], (char)bv.Bases[0][0]); //" On num cluster: " + readNum);
-                Assert.Equal(quals[readNum], bv.Qualities[0][0]); //" On num cluster: " + readNum);
+                Assert.Equal(ExpectedBases[readNum], (char)bv[0].Bases[0]); //" On num cluster: " + readNum);
+                Assert.Equal(quals[readNum], bv[0].Qualities[0]); //" On num cluster: " + readNum);
             }
 
             bclQualityEvaluationStrategy.AssertMinimumQualities();

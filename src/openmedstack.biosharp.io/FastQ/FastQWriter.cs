@@ -27,7 +27,7 @@
             Sequence sequence,
             CancellationToken cancellationToken = default)
         {
-            return Write(new[] { sequence }, cancellationToken);
+            return WriteSingle(sequence, cancellationToken);
         }
 
         public async Task Write(IEnumerable<Sequence> sequences, CancellationToken cancellationToken = default)
