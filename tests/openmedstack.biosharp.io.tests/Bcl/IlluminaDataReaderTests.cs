@@ -12,7 +12,8 @@
 
         public IlluminaDataReaderTests()
         {
-            _reader = new IlluminaDataReader(new DirectoryInfo("sampledata"));
+            _reader = new IlluminaDataReader(
+                new DirectoryInfo("sampledata"));
         }
 
         [Fact]
@@ -33,21 +34,20 @@
         [Fact]
         public async Task CanGroup()
         {
-            var sequences = _reader.ReadSequences();
-
-            var count = await sequences.Select(x => x.index[0])
+            var sequences = await _reader.ReadSequences()
+                .Select(x => x.index)
                 .Distinct()
                 .CountAsync()
                 .ConfigureAwait(false);
-            Assert.Equal(5, count);
+            Assert.Equal(15749, sequences);
         }
 
-        [Fact]
+        [Fact(Skip = "IO")]
         public async Task CanWriteDemultiplexed()
         {
             var tempPath = Path.GetTempPath();
             var demuxWriter = new DemultiplexFastQWriter(
-                            (r, s) => Path.Combine(tempPath, $"{r.Instrument}_{s[..2]}.fastq.gz"),
+                            (r, s) => Path.Combine(tempPath, $"{r.Instrument}_{s}.fastq.gz"),
                             _reader.RunInfo());
             await using (demuxWriter.ConfigureAwait(false))
             {

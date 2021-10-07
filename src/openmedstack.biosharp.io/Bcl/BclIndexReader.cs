@@ -16,9 +16,8 @@ namespace OpenMedStack.BioSharp.Io.Bcl
     public class BclIndexReader
     {
         private static readonly int _bciHeaderSize = 8;
-        private static readonly int _bciVersion = 0;
+        //private static readonly int _bciVersion = 0;
 
-        //private BinaryFileIterator<Long> bciIterator;
         private readonly int _numTiles;
         private readonly FileInfo _bciFile;
         private readonly Stream _fileStream;
@@ -30,11 +29,11 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             _fileStream = File.OpenRead(_bciFile.FullName);
             var headerBytes = new byte[_bciHeaderSize];
             _fileStream.Read(headerBytes, 0, _bciHeaderSize);
-            var actualVersion = BitConverter.ToInt32(headerBytes.AsSpan(0, 4));
-            if (actualVersion != _bciVersion)
-            {
-                throw new Exception($"Unexpected version number {actualVersion} in {_bciFile.FullName}");
-            }
+            //var actualVersion = BitConverter.ToInt32(headerBytes.AsSpan(0, 4));
+            //if (actualVersion != _bciVersion)
+            //{
+            //    throw new Exception($"Unexpected version number {actualVersion} in {_bciFile.FullName}");
+            //}
 
             _numTiles = BitConverter.ToInt32(headerBytes.AsSpan(4, 4));
         }

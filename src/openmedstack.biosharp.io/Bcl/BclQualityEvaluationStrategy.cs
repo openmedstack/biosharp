@@ -25,7 +25,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
      */
     public class BclQualityEvaluationStrategy
     {
-        public static byte IlluminaAllegedMinimumQuality = 2;
+        public const byte IlluminaAllegedMinimumQuality = 2;
         private readonly int _minimumRevisedQuality;
 
         /** A thread-safe defaulting map that injects an Atomicint starting at 0 when a uninitialized key is get-ted. */
@@ -77,18 +77,13 @@ namespace OpenMedStack.BioSharp.Io.Bcl
          */
         public void AssertMinimumQualities()
         {
-            var errorTokens = new List<string>();
-            foreach (var entry in _qualityCountMap)
-            {
-                /**
-                 * We're comparing revised qualities here, not observed, but the qualities that are logged in qualityCountMap are observed
-                 * qualities.  So as we iterate through it, convert observed qualities into their revised value.
-                 */
-                if (GenerateRevisedQuality(entry.Key) < _minimumRevisedQuality)
-                {
-                    errorTokens.Add($"quality {entry.Key} observed {entry.Value} times");
-                }
-            }
+            /**
+             * We're comparing revised qualities here, not observed, but the qualities that are logged in qualityCountMap are observed
+             * qualities.  So as we iterate through it, convert observed qualities into their revised value.
+             */
+            var errorTokens = (from entry in _qualityCountMap
+                where GenerateRevisedQuality(entry.Key) < _minimumRevisedQuality
+                select $"quality {entry.Key} observed {entry.Value} times").ToList();
 
             if (errorTokens.Count > 0)
             {
