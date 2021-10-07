@@ -4,6 +4,7 @@
     using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.IO;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using FastQ;
@@ -35,7 +36,7 @@
                     p => new FastQWriter(
                         NullLogger.Instance,
                         File.Open(p, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None)));
-                await writer.Write(sequences, cancellationToken).ConfigureAwait(false);
+                await writer.Write(sequences.Where(s => !s.IsIndexed), cancellationToken).ConfigureAwait(false);
             }
         }
 

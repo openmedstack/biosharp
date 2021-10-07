@@ -15,7 +15,9 @@
 
     public class IlluminaDataReader
     {
-        private static readonly Regex LanefolderMatch = new("L(?<lane>\\d{3})", RegexOptions.Compiled);
+        private readonly ReadStructure? _readStructure;
+        private static readonly Regex LaneFolderMatch = new("L(?<lane>\\d{3})", RegexOptions.Compiled);
+        private static readonly Regex TileNumberMatch = new("(?<lane>(\\d+)_)?(?<tile>\\d+)", RegexOptions.Compiled);
         private readonly FileInfo? _runInfo;
         private readonly FileInfo? _sampleSheetInfo;
         private readonly DirectoryInfo _dataDir;
@@ -25,15 +27,16 @@
         private readonly DirectoryInfo[] _laneDirs;
         private Run? _run;
 
-        public IlluminaDataReader(DirectoryInfo runDir)
+        public IlluminaDataReader(DirectoryInfo runDir, ReadStructure? readStructure = null)
         {
+            _readStructure = readStructure;
             _runInfo = runDir.EnumerateFiles("RunInfo.xml", SearchOption.TopDirectoryOnly).SingleOrDefault();
             _dataDir = runDir.EnumerateDirectories("Data", SearchOption.TopDirectoryOnly).Single();
             _intensitiesDir = _dataDir.EnumerateDirectories("Intensities", SearchOption.TopDirectoryOnly).Single();
             _baseCallDir = _intensitiesDir.EnumerateDirectories("BaseCalls", SearchOption.TopDirectoryOnly).Single();
             _sampleSheetInfo = _baseCallDir.EnumerateFiles("SampleSheet.csv", SearchOption.TopDirectoryOnly).SingleOrDefault();
-            _baseCallLaneDirs = _baseCallDir.EnumerateDirectories().Where(x => LanefolderMatch.IsMatch(x.Name)).ToArray();
-            _laneDirs = _intensitiesDir.EnumerateDirectories().Where(x => LanefolderMatch.IsMatch(x.Name)).ToArray();
+            _baseCallLaneDirs = _baseCallDir.EnumerateDirectories().Where(x => LaneFolderMatch.IsMatch(x.Name)).ToArray();
+            _laneDirs = _intensitiesDir.EnumerateDirectories().Where(x => LaneFolderMatch.IsMatch(x.Name)).ToArray();
         }
 
         public Run RunInfo()
@@ -58,7 +61,8 @@
                         {
                             Tiles = new Tiles { Tile = _baseCallLaneDirs.SelectMany(GetTileSet).ToList() }
                         }
-                    }
+                    },
+                    Reads = new Reads { Read = _readStructure?.Reads }
                 };
                 return _run;
             }
@@ -73,8 +77,7 @@
 
         private static List<string> GetTileSet(DirectoryInfo dir)
         {
-            return dir.GetDirectories()
-                .Where(d => d.Name.StartsWith('C'))
+            return dir.GetDirectories("C*", SearchOption.TopDirectoryOnly)
                 .SelectMany(d => d.EnumerateFiles().Select(x => x.Name.Split('.')[0].Split('_')[2]))
                 .Distinct()
                 .ToList();
@@ -82,13 +85,18 @@
 
         public async IAsyncEnumerable<(string index, Sequence[] sequences)> ReadSequences([EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
+            static bool Predicate(Read r) => r.IsIndexedRead.Equals("Y", StringComparison.OrdinalIgnoreCase);
+
             var runInfo = RunInfo();
-            var readIndex =
-                runInfo.Reads.Read.FindIndex(r => r.IsIndexedRead.Equals("Y", StringComparison.OrdinalIgnoreCase));
+            var readIndex = _readStructure != null ? _readStructure.Reads.FindIndex(Predicate) : runInfo.Reads.Read?.FindIndex(Predicate);
+            if (!readIndex.HasValue)
+            {
+                throw new Exception("Read index could not be found");
+            }
             var laneReaders = CreateLaneReaders(runInfo).ToList();
             foreach (var reader in laneReaders.AsParallel())
             {
-                await foreach (var p in ReadBclData(reader, runInfo, readIndex, cancellationToken).ConfigureAwait(false))
+                await foreach (var p in ReadBclData(reader, runInfo, readIndex.Value, cancellationToken).ConfigureAwait(false))
                 {
                     yield return p;
                 }
@@ -100,37 +108,43 @@
         private IEnumerable<SampleReader> CreateLaneReaders(Run runInfo)
         {
             return from dir in _baseCallLaneDirs
-                   let lane = LanefolderMatch.Match(dir.Name).Groups["lane"].Value.Trim('0')
+                   let lane = LaneFolderMatch.Match(dir.Name).Groups["lane"].Value.Trim('0')
                    let laneNo = int.Parse(lane.AsSpan())
                    let tiles = runInfo.FlowcellLayout?.TileSet?.Tiles == null ? GetTileSet(dir) :
                        (from t in runInfo.FlowcellLayout.TileSet.Tiles.Tile
-                        where t.StartsWith(lane + '_')
-                        select t.Split('_')[1]).ToList()
+                        where !t.Contains('_') || t.StartsWith(lane + '_')
+                        select TileNumberMatch.Match(t).Groups["tile"].Value).ToList()
                    let cycleDirs = dir.GetDirectories().Length == 0 ? new[] { dir } : dir.EnumerateDirectories("C*", SearchOption.TopDirectoryOnly)
                    let files = GetReadFileInfos(cycleDirs, tiles).ToList()
                    let tileFiles = files.Any(file => file.Name.Split('.')[0].Contains('_'))
                    from tile in tileFiles ? tiles : tiles.Take(1)
                    let tileNo = int.Parse(tile.AsSpan())
-
+                   let filterFileName = tileFiles ? $"s_{lane}_{tile}.filter" : $"s_{lane}.filter"
+                   let filterFilePath = Path.Combine(dir.FullName, filterFileName)
                    select new SampleReader(
                        laneNo,
                        laneNo,
                        tileNo,
                        new BclReader(
                            files,
-                           runInfo.Reads.Read.OrderBy(x => x.Number).Select(r => r.NumCycles).ToArray(),
+                           runInfo.Reads.Read!.OrderBy(x => x.Number).Select(r => r.NumCycles).ToArray(),
                            new BclQualityEvaluationStrategy(2),
                            false),
-                       GetPositionReader(laneNo, tileNo, lane));
+                       GetPositionReader(laneNo, tileNo, lane),
+                       new FilterFileReader(new FileInfo(filterFilePath)));
         }
 
         private static IEnumerable<FileInfo> GetReadFileInfos(IEnumerable<DirectoryInfo> cycleDirs, List<string> tiles)
         {
             return from d in cycleDirs
                 orderby int.Parse(d.Name.Split('.')[0][1..])
-                from f in d.GetFiles("*.bgzf").Concat(d.GetFiles("*.gz")).Concat(d.GetFiles("*.bcl"))
+                from f in d.GetFiles("*.bgzf")
+                    .Concat(d.GetFiles("*.gz"))
+                    .Concat(d.GetFiles("*.bcl"))
                 let fileNameWithoutExtension = f.Name.Split('.')[0]
-                where !fileNameWithoutExtension.Contains('_') || tiles.Contains(fileNameWithoutExtension.Split('_')[2])
+                where tiles.Count == 0
+                      || !fileNameWithoutExtension.Contains('_')
+                      || tiles.Contains(fileNameWithoutExtension.Split('_')[2])
                 orderby f.Name
                 select f;
         }
@@ -144,6 +158,7 @@
             var enumerator = reader.PositionReader.GetAsyncEnumerator(cancellationToken);
             await using var positionEnumerator = enumerator.ConfigureAwait(false);
             var enumerable = (IAsyncEnumerable<BclData>)reader.Reader;
+            using var filter = reader.Filter.GetEnumerator();
             await foreach (var data in enumerable.ConfigureAwait(false))
             {
                 if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
@@ -151,6 +166,12 @@
                     throw new Exception("Could not read position for sequence read");
                 }
 
+                if (!filter.MoveNext())
+                {
+                    throw new Exception("Could not read filter for cluster");
+                }
+
+                var filtered = filter.Current;
                 var headerStart =
                     $"{runInfo.Instrument}:{runInfo.Number}:{runInfo.Flowcell}:{reader.Lane}:{reader.Tile}:{enumerator.Current.XCoordinate}:{enumerator.Current.YCoordinate}";
                 var sequences = new Sequence[data.Bases.Length];
@@ -159,12 +180,12 @@
                     : Encoding.ASCII.GetString(data.Bases[readIndex]);
                 for (var i = 0; i < data.Bases.Length; i++)
                 {
-                    var id = $"{headerStart} {reader.Sample}:{i}:N:0:{index}";
+                    var id = $"{headerStart} {reader.Sample}:{i}:{(filtered ? "Y" : "N")}:0:{index}";
                     sequences[i] = new Sequence(
                         id,
                         data.Bases[i],
                         Array.ConvertAll(data.Qualities[i], b => (byte)(b + 33)),
-                        runInfo.Reads.Read[i].IsIndexedRead == "Y");
+                        runInfo.Reads.Read?[i].IsIndexedRead == "Y");
                 }
 
                 yield return (index, sequences);
@@ -186,15 +207,26 @@
         }
     }
 
+    public class ReadStructure
+    {
+        public ReadStructure(params Read[] reads)
+        {
+            Reads = reads.ToList();
+        }
+
+        public List<Read> Reads { get; }
+    }
+
     public class SampleReader
     {
-        public SampleReader(int lane, int sample, int tile, BclReader reader, IAsyncEnumerable<IPositionalData> positionReader)
+        public SampleReader(int lane, int sample, int tile, BclReader reader, IAsyncEnumerable<IPositionalData> positionReader, IEnumerable<bool> filter)
         {
             Lane = lane;
             Sample = sample;
             Tile = tile;
             Reader = reader;
             PositionReader = positionReader;
+            Filter = filter;
         }
 
         public int Lane { get; }
@@ -204,5 +236,6 @@
         public int Tile { get; }
         public BclReader Reader { get; }
         public IAsyncEnumerable<IPositionalData> PositionReader { get; }
+        public IEnumerable<bool> Filter { get; }
     }
 }

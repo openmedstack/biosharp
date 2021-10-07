@@ -109,8 +109,6 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                 }
                 Streams[i] = stream;
                 StreamFileInfos[i] = bclFileInfo;
-                Array.Clear(byteBuffer, 0, HeaderSize);
-                // byteBuffer.clear();
             }
         }
 
@@ -118,8 +116,6 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         : this(new[] { 1 }, bclQualityEvaluationStrategy, applyEamss)
         {
             byte[] byteBuffer = new byte[HeaderSize];
-            //ByteBuffer byteBuffer = ByteBuffer.allocate(HEADER_SIZE);
-            //string filePath = bclFileInfo.getName();
             var isGzip = bclFileInfo.Extension.Equals(".gz", StringComparison.OrdinalIgnoreCase);
             var isBgzf = bclFileInfo.Extension.Equals(".bgzf", StringComparison.OrdinalIgnoreCase);
             Stream stream = Open(bclFileInfo, seekable, isGzip, isBgzf);
@@ -130,8 +126,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                 throw new IOException($"BCL {bclFileInfo.FullName} has invalid header structure.");
             }
 
-            //byteBuffer.order(ByteOrder.LITTLE_ENDIAN);
-            NumClustersPerCycle[0] = BitConverter.ToInt32(byteBuffer);// byteBuffer.getInt();
+            NumClustersPerCycle[0] = BitConverter.ToInt32(byteBuffer);
             if (!isBgzf && !isGzip)
             {
                 AssertProperFileInfoStructure(bclFileInfo, GetNumClusters(), stream);
@@ -194,7 +189,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             return File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         }
 
-        private void DecodeBasecall(BclData bclData, int read, int cycle, uint byteToDecode)
+        private void DecodeBaseCall(BclData bclData, int read, int cycle, uint byteToDecode)
         {
             bclData.Bases[read][cycle] = BclBaseLookup[byteToDecode];
             bclData.Qualities[read][cycle] = _bclQualityEvaluationStrategy.ReviseAndConditionallyLogQuality(BclQualLookup[byteToDecode]);
@@ -285,7 +280,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             {
                 BclData data = bclDatas[dataIdx];
                 var b = (uint)buffer[dataIdx];
-                DecodeBasecall(data, read, cycle, b);
+                DecodeBaseCall(data, read, cycle, b);
             }
         }
 

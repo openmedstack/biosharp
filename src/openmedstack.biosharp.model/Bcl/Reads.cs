@@ -6,6 +6,6 @@
     [XmlRoot(ElementName = "Reads")]
     public class Reads
     {
-        [XmlElement(ElementName = "Read")] public List<Read> Read { get; set; } = null!;
+        [XmlElement(ElementName = "Read")] public List<Read>? Read { get; set; }
     }
 }
