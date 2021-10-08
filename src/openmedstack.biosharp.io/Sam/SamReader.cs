@@ -4,17 +4,25 @@
     using System.IO;
     using System.Threading;
     using System.Threading.Tasks;
+    using Microsoft.Extensions.Logging;
     using Model;
 
     public class SamReader
     {
-        public Task<SamDefinition> Read(
-            string filePath,
-            Sequence baseSequence,
-            CancellationToken cancellationToken = default)
+        private readonly ILogger _logger;
+
+        public SamReader(ILogger logger)
         {
-            return Read(filePath, cancellationToken);
+            _logger = logger;
         }
+
+        //public Task<SamDefinition> Read(
+        //    string filePath,
+        //    Sequence baseSequence,
+        //    CancellationToken cancellationToken = default)
+        //{
+        //    return Read(filePath, cancellationToken);
+        //}
 
         public async Task<SamDefinition> Read(string filePath, CancellationToken cancellationToken = default)
         {
@@ -25,6 +33,7 @@
 
         public async Task<SamDefinition> Read(Stream file, CancellationToken cancellationToken = default)
         {
+            _logger.LogDebug("Start reading");
             using var reader = new StreamReader(file);
             var sq = new List<ReferenceSequence>();
             var alignmentSections = new List<AlignmentSection>();

@@ -4,27 +4,31 @@
     using System.Collections;
     using System.Collections.Generic;
     using System.Text;
+    using Bcl;
 
     public class Sequence : IEnumerable<BasePair>
     {
         private readonly byte[] _data;
         private readonly byte[] _qualities;
 
-        internal Sequence(string id, byte[] data, byte[] qualities, bool isIndexed = false)
+        public Sequence(ClusterData data, Run run)
+            : this(data.ToSequenceHeader(run), data.Bases, Array.ConvertAll(data.Qualities, b => (byte)(b + 33)))
+        {
+        }
+
+        internal Sequence(string id, byte[] data, byte[] qualities)
         {
             if (data.Length != qualities.Length)
             {
                 throw new ArgumentException("Invalid data", nameof(qualities));
             }
+
             Id = id;
-            IsIndexed = isIndexed;
             _data = data;
             _qualities = qualities;
         }
 
         public string Id { get; }
-
-        public bool IsIndexed { get; }
 
         public int Length
         {

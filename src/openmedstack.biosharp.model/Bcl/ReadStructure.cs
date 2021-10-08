@@ -7,15 +7,15 @@
 
     public enum ReadType : byte
     {
-        Template,
-        Barcode,
-        MolecularBarcode,
-        Skip
+        T,
+        B,
+        M,
+        S
     }
 
     public class ReadStructure
     {
-        private static readonly Regex ReadPattern = new Regex("(?<read>\\d{1,}[TBSM])", RegexOptions.Compiled);
+        private static readonly Regex ReadPattern = new("(?<read>\\d{1,}[TBSM])", RegexOptions.Compiled);
         public ReadStructure(params Read[] reads)
         {
             Reads = reads.ToList();

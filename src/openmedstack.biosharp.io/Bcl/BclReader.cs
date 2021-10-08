@@ -112,7 +112,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         }
 
         public BclReader(FileInfo bclFileInfo, BclQualityEvaluationStrategy bclQualityEvaluationStrategy, bool seekable, bool applyEamss = false)
-        : this(new[] { new Read { IsIndexedRead = "N", NumCycles = 1, Number = 1, Type = ReadType.Template } }, bclQualityEvaluationStrategy, applyEamss)
+        : this(new[] { new Read { IsIndexedRead = "N", NumCycles = 1, Number = 1, Type = ReadType.T } }, bclQualityEvaluationStrategy, applyEamss)
         {
             byte[] byteBuffer = new byte[HeaderSize];
             var isGzip = bclFileInfo.Extension.Equals(".gz", StringComparison.OrdinalIgnoreCase);
@@ -209,6 +209,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
 
         private async IAsyncEnumerable<ReadData[]> Read()
         {
+            int readIndex = 0;
             while (true)
             {
                 var totalCycleCount = 0;
@@ -255,10 +256,11 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                         }
                     }
 
+                    var ri = readIndex++;
                     var readData = new ReadData[bclData.Bases.Length];
                     for (var i = 0; i < bclData.Bases.Length; i++)
                     {
-                        readData[i] = new ReadData(ReadTypes[i], bclData.Bases[i], bclData.Qualities[i]);
+                        readData[i] = new ReadData(ReadTypes[i], bclData.Bases[i], bclData.Qualities[i], ri);
                     }
                     yield return readData;
                 }

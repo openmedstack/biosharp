@@ -22,9 +22,9 @@
                     .ToList(),
                 new[]
                 {
-                    new Read { IsIndexedRead = "N", NumCycles = 26, Number = 1, Type = ReadType.Template },
-                    new Read { IsIndexedRead = "Y", NumCycles = 8, Number = 2, Type = ReadType.Barcode },
-                    new Read { IsIndexedRead = "N", NumCycles = 98, Number = 3, Type = ReadType.Template }
+                    new Read { IsIndexedRead = "N", NumCycles = 26, Number = 1, Type = ReadType.T },
+                    new Read { IsIndexedRead = "Y", NumCycles = 8, Number = 2, Type = ReadType.B },
+                    new Read { IsIndexedRead = "N", NumCycles = 98, Number = 3, Type = ReadType.T }
                 },
                 new BclQualityEvaluationStrategy(2),
                 false);

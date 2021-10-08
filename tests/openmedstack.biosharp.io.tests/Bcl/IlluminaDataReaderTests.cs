@@ -6,6 +6,7 @@
     using System.Text;
     using System.Threading.Tasks;
     using Io.Bcl;
+    using Microsoft.Extensions.Logging.Abstractions;
     using Model;
     using Model.Bcl;
     using Xunit;
@@ -17,12 +18,6 @@
         public IlluminaDataReaderTests()
         {
             _reader = new IlluminaDataReader(new DirectoryInfo("sampledata"));
-        }
-
-        [Fact]
-        public void CanCreateInstance()
-        {
-            Assert.NotNull(_reader);
         }
 
         [Fact]
@@ -43,29 +38,6 @@
                 .CountAsync()
                 .ConfigureAwait(false);
             Assert.Equal(15749, sequences);
-        }
-
-        [Fact(Skip = "IO")]
-        public async Task CanWriteDemultiplexed()
-        {
-            var tempPath = Path.GetTempPath();
-            var demuxWriter = new DemultiplexFastQWriter(
-                (r, s) => Path.Combine(tempPath, $"{r.Instrument}_{s}.fastq.gz"),
-                _reader.RunInfo());
-            await using (demuxWriter.ConfigureAwait(false))
-            {
-                var sequences = _reader.ReadClusterData()
-                    .Where(c => c.Type == ReadType.Template)
-                    .Select(
-                        c => (c.Barcode,
-                            new Sequence(
-                                c.ToSequenceHeader("test", 1, "fc"),
-                                Encoding.ASCII.GetBytes(c.Bases),
-                                Array.ConvertAll(Encoding.ASCII.GetBytes(c.Qualities), b => (byte)(b + 33)))));
-                await demuxWriter.WriteDemultiplexed(sequences).ConfigureAwait(false);
-            }
-
-            await demuxWriter.DisposeAsync().ConfigureAwait(false);
         }
     }
 }

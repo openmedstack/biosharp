@@ -57,7 +57,7 @@
             await _writer.WriteAsync('@').ConfigureAwait(false);
             await _writer.WriteLineAsync(sequence.Id.AsMemory(), cancellationToken).ConfigureAwait(false);
             await _writer.WriteLineAsync(Encoding.ASCII.GetString(sequence.GetData().Span).AsMemory(), cancellationToken).ConfigureAwait(false);
-            await _writer.WriteAsync('+').ConfigureAwait(false);
+            await _writer.WriteLineAsync('+').ConfigureAwait(false);
             await _writer.WriteLineAsync(Encoding.ASCII.GetString(sequence.GetQuality().Span).AsMemory(), cancellationToken).ConfigureAwait(false);
         }
 

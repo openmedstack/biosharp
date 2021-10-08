@@ -1,0 +1,53 @@
+﻿using System;
+
+namespace openmedstack.preator
+{
+    using System.IO;
+    using System.Linq;
+    using System.Text;
+    using System.Threading.Tasks;
+    using Microsoft.Extensions.Logging;
+    using Microsoft.Extensions.Logging.Abstractions;
+    using Microsoft.Extensions.Logging.Console;
+    using Microsoft.Extensions.Options;
+    using OpenMedStack.BioSharp.Io.Bcl;
+    using OpenMedStack.BioSharp.Model;
+    using OpenMedStack.BioSharp.Model.Bcl;
+
+    class Program
+    {
+        static async Task Main(string[] args)
+        {
+            var logProvider = new ConsoleLoggerProvider(
+                new OptionsMonitor<ConsoleLoggerOptions>(
+                    new OptionsFactory<ConsoleLoggerOptions>(
+                        Array.Empty<IConfigureOptions<ConsoleLoggerOptions>>(),
+                        Array.Empty<IPostConfigureOptions<ConsoleLoggerOptions>>()),
+                    Array.Empty<IOptionsChangeTokenSource<ConsoleLoggerOptions>>(),
+                    new OptionsCache<ConsoleLoggerOptions>()));
+            var logger = logProvider.CreateLogger("logger");
+            var inputDir = new DirectoryInfo(args[0]);
+            var readStructure = args.Length > 1 ? ReadStructure.Parse(args[1]) : null;
+
+            logger.LogInformation("Reading from " + inputDir.FullName);
+            logger.LogInformation("Reading structure " + readStructure);
+
+            var reader = new IlluminaDataReader(inputDir, readStructure);
+            var runInfo = reader.RunInfo();
+
+            var outputDir = Directory.CreateDirectory(Path.Combine(inputDir.FullName, "Unaligned", runInfo.Id));
+
+            logger.LogInformation("Writing to " + outputDir.FullName);
+
+            var demuxWriter = new DemultiplexFastQWriter(
+                s => Path.Combine(outputDir.FullName, $"Sample_{s.Barcode}", $"{s.Barcode}_L{s.Lane.ToString().PadLeft(3, '0')}_R001.fastq.gz"),
+                runInfo,
+                logger);
+            await using (demuxWriter.ConfigureAwait(false))
+            {
+                var sequences = reader.ReadClusterData().Where(c => c.Type == ReadType.T);
+                await demuxWriter.WriteDemultiplexed(sequences).ConfigureAwait(false);
+            }
+        }
+    }
+}

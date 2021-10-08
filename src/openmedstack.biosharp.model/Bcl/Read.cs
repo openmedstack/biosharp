@@ -21,9 +21,9 @@
             set
             {
                 _isIndexedRead = value;
-                if (_isIndexedRead == "Y" && Type == ReadType.Skip)
+                if (_isIndexedRead == "Y" && Type == ReadType.S)
                 {
-                    Type = ReadType.Barcode;
+                    Type = ReadType.B;
                 }
             }
         }

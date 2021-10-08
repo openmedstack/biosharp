@@ -88,18 +88,12 @@
 
         public async IAsyncEnumerable<ClusterData> ReadClusterData([EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            static bool Predicate(Read r) => r.IsIndexedRead.Equals("Y", StringComparison.OrdinalIgnoreCase);
-
             var runInfo = RunInfo();
-            var readIndex = _readStructure != null ? _readStructure.Reads.FindIndex(Predicate) : runInfo.Reads.Read?.FindIndex(Predicate);
-            if (!readIndex.HasValue)
-            {
-                throw new Exception("Read index could not be found");
-            }
+
             var laneReaders = CreateLaneReaders(runInfo).ToList();
             foreach (var reader in laneReaders.AsParallel())
             {
-                await foreach (var p in ReadBclData(reader, runInfo, readIndex.Value, cancellationToken).ConfigureAwait(false))
+                await foreach (var p in reader.ReadBclData(cancellationToken).ConfigureAwait(false))
                 {
                     yield return p;
                 }
@@ -111,36 +105,36 @@
         private IEnumerable<SampleReader> CreateLaneReaders(Run runInfo)
         {
             return from dir in _baseCallLaneDirs
-                let lane = LaneFolderMatch.Match(dir.Name).Groups["lane"].Value.Trim('0')
-                let laneNo = int.Parse(lane.AsSpan())
-                let tiles =
-                    runInfo.FlowcellLayout?.TileSet?.Tiles == null
-                        ? GetTileSet(dir)
-                        : (from t in runInfo.FlowcellLayout.TileSet.Tiles.Tile
-                            where !t.Contains('_') || t.StartsWith(lane + '_')
-                            select TileNumberMatch.Match(t).Groups["tile"].Value).ToList()
-                let cycleDirs =
-                    dir.GetDirectories().Length == 0
-                        ? new[] { dir }
-                        : dir.EnumerateDirectories("C*", SearchOption.TopDirectoryOnly)
-                let files = GetReadFileInfos(cycleDirs, tiles).ToList()
-                let tileFiles = files.Any(file => file.Name.Split('.')[0].Contains('_'))
-                from tile in tileFiles ? tiles : tiles.Take(1)
-                let tileNo = int.Parse(tile.AsSpan())
-                orderby tileNo
-                let filterFileName = tileFiles ? $"s_{lane}_{tile}.filter" : $"s_{lane}.filter"
-                let filterFilePath = Path.Combine(dir.FullName, filterFileName)
-                let filterReader =
-                    File.Exists(filterFilePath)
-                        ? new FilterFileReader(new FileInfo(filterFilePath))
-                        : (IEnumerable<bool>)new PassThroughFilter()
-                select new SampleReader(
-                    laneNo,
-                    laneNo,
-                    tileNo,
-                    new BclReader(files, runInfo.Reads.Read!, new BclQualityEvaluationStrategy(2), false),
-                    GetPositionReader(laneNo, tileNo, lane),
-                    filterReader);
+                   let lane = LaneFolderMatch.Match(dir.Name).Groups["lane"].Value.Trim('0')
+                   let laneNo = int.Parse(lane.AsSpan())
+                   let tiles =
+                       runInfo.FlowcellLayout?.TileSet?.Tiles == null
+                           ? GetTileSet(dir)
+                           : (from t in runInfo.FlowcellLayout.TileSet.Tiles.Tile
+                              where !t.Contains('_') || t.StartsWith(lane + '_')
+                              select TileNumberMatch.Match(t).Groups["tile"].Value).ToList()
+                   let cycleDirs =
+                       dir.GetDirectories().Length == 0
+                           ? new[] { dir }
+                           : dir.EnumerateDirectories("C*", SearchOption.TopDirectoryOnly)
+                   let files = GetReadFileInfos(cycleDirs, tiles).ToList()
+                   let tileFiles = files.Any(file => file.Name.Split('.')[0].Contains('_'))
+                   from tile in tileFiles ? tiles : tiles.Take(1)
+                   let tileNo = int.Parse(tile.AsSpan())
+                   orderby tileNo
+                   let filterFileName = tileFiles ? $"s_{lane}_{tile}.filter" : $"s_{lane}.filter"
+                   let filterFilePath = Path.Combine(dir.FullName, filterFileName)
+                   let filterReader =
+                       File.Exists(filterFilePath)
+                           ? new FilterFileReader(new FileInfo(filterFilePath))
+                           : (IEnumerable<bool>)new PassThroughFilter()
+                   select new SampleReader(
+                       laneNo,
+                       laneNo,
+                       tileNo,
+                       new BclReader(files, runInfo.Reads.Read!, new BclQualityEvaluationStrategy(2), false),
+                       GetPositionReader(laneNo, tileNo, lane),
+                       filterReader);
         }
 
         private static IEnumerable<FileInfo> GetReadFileInfos(IEnumerable<DirectoryInfo> cycleDirs, List<string> tiles)
@@ -156,49 +150,6 @@
                          || tiles.Contains(fileNameWithoutExtension.Split('_')[2])
                    orderby f.Name
                    select f;
-        }
-
-        private static async IAsyncEnumerable<ClusterData> ReadBclData(
-            SampleReader reader,
-            Run runInfo,
-            int readIndex,
-            [EnumeratorCancellation] CancellationToken cancellationToken)
-        {
-            var enumerator = reader.PositionReader.GetAsyncEnumerator(cancellationToken);
-            await using var positionEnumerator = enumerator.ConfigureAwait(false);
-            var enumerable = (IAsyncEnumerable<ReadData[]>)reader.Reader;
-            using var filter = reader.Filter.GetEnumerator();
-            await foreach (var data in enumerable.ConfigureAwait(false))
-            {
-                if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
-                {
-                    throw new Exception("Could not read position for sequence read");
-                }
-
-                if (!filter.MoveNext())
-                {
-                    throw new Exception("Could not read filter for cluster");
-                }
-
-                var filtered = filter.Current;
-                var index = readIndex == -1
-                    ? reader.Sample.ToString()
-                    : Encoding.ASCII.GetString(data[readIndex].Bases);
-
-                for (var i = 0; i < data.Length; i++)
-                {
-                    yield return new ClusterData(
-                        index,
-                        data[i].Bases,
-                        Array.ConvertAll(data[i].Qualities, b => (byte)(b + 33)),
-                        data[i].Type,
-                        reader.Lane,
-                        reader.Tile,
-                        enumerator.Current,
-                        data.Count(x => x.Type == ReadType.Barcode) > 1,
-                        filtered);
-                }
-            }
         }
 
         private IAsyncEnumerable<IPositionalData> GetPositionReader(int lane, int tile, string sample)

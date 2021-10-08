@@ -18,7 +18,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "openmedstack.biosharp.calculations.tests", "tests\openmedstack.biosharp.calculations.tests\openmedstack.biosharp.calculations.tests.csproj", "{76F460BC-0333-4005-92E9-CFC0CFF4432A}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "openmedstack.biosharp.model.tests", "tests\openmedstack.biosharp.model.tests\openmedstack.biosharp.model.tests.csproj", "{B6DDBBA1-9260-4BD0-AB26-391FEFD23972}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "openmedstack.biosharp.model.tests", "tests\openmedstack.biosharp.model.tests\openmedstack.biosharp.model.tests.csproj", "{B6DDBBA1-9260-4BD0-AB26-391FEFD23972}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "openmedstack.preator", "src\openmedstack.preator\openmedstack.preator.csproj", "{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -102,6 +104,18 @@ Global
 		{B6DDBBA1-9260-4BD0-AB26-391FEFD23972}.Release|x64.Build.0 = Release|Any CPU
 		{B6DDBBA1-9260-4BD0-AB26-391FEFD23972}.Release|x86.ActiveCfg = Release|Any CPU
 		{B6DDBBA1-9260-4BD0-AB26-391FEFD23972}.Release|x86.Build.0 = Release|Any CPU
+		{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}.Debug|x64.Build.0 = Debug|Any CPU
+		{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}.Debug|x86.Build.0 = Debug|Any CPU
+		{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}.Release|x64.ActiveCfg = Release|Any CPU
+		{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}.Release|x64.Build.0 = Release|Any CPU
+		{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}.Release|x86.ActiveCfg = Release|Any CPU
+		{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
