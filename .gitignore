@@ -13,3 +13,4 @@ node_modules
 publish
 *.Cache
 artifacts
+data
