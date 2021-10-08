@@ -1,18 +1,14 @@
-﻿using System;
-
-namespace openmedstack.preator
+﻿namespace OpenMedStack.Preator
 {
+    using System;
     using System.IO;
     using System.Linq;
-    using System.Text;
     using System.Threading.Tasks;
+    using BioSharp.Io.Bcl;
+    using BioSharp.Model.Bcl;
     using Microsoft.Extensions.Logging;
-    using Microsoft.Extensions.Logging.Abstractions;
     using Microsoft.Extensions.Logging.Console;
     using Microsoft.Extensions.Options;
-    using OpenMedStack.BioSharp.Io.Bcl;
-    using OpenMedStack.BioSharp.Model;
-    using OpenMedStack.BioSharp.Model.Bcl;
 
     class Program
     {
