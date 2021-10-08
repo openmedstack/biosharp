@@ -16,10 +16,7 @@
         {
             _reader = new IlluminaDataReader(
                 new DirectoryInfo("data/illumina/25T8B25T"),
-                new ReadStructure(
-                    new Read { IsIndexedRead = "N", Number = 1, NumCycles = 25, Type = ReadType.T },
-                    new Read { IsIndexedRead = "Y", Number = 2, NumCycles = 8, Type = ReadType.B },
-                    new Read { IsIndexedRead = "N", Number = 3, NumCycles = 25, Type = ReadType.T }));
+                ReadStructure.Parse("25T8B25T"));
         }
 
         [Fact]
@@ -42,7 +39,7 @@
             Assert.Equal(40, sequences);
         }
 
-        [Fact]
+        [Fact(Skip = "IO")]
         public async Task CanWriteDemultiplexed()
         {
             var tempPath = Path.GetTempPath();

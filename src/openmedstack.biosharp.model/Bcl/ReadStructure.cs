@@ -5,14 +5,6 @@
     using System.Linq;
     using System.Text.RegularExpressions;
 
-    public enum ReadType : byte
-    {
-        S = 0,
-        T = 1,
-        B = 2,
-        M = 3
-    }
-
     public class ReadStructure
     {
         private static readonly Regex ReadPattern = new("(?<read>\\d{1,}[TBSM])", RegexOptions.Compiled);
@@ -29,7 +21,7 @@
                 return new Read
                 {
                     IsIndexedRead = value.EndsWith('B') ? "Y" : "N",
-                    Number = i,
+                    Number = i + 1,
                     NumCycles = int.Parse(value[..^1]),
                     Type = Enum.Parse<ReadType>(value[^1..], true)
                 };
