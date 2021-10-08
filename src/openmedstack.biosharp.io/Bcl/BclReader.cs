@@ -74,11 +74,11 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         }
 
         private static readonly int HeaderSize = 4;
-        private const int QueueSize = 128;
+        private int _queueSize;
 
         public BclReader(IReadOnlyList<FileInfo> bclsForOneTile, IEnumerable<Read> reads,
-                         BclQualityEvaluationStrategy bclQualityEvaluationStrategy, bool seekable, bool applyEamss = false)
-        : this(reads, bclQualityEvaluationStrategy, applyEamss)
+                         BclQualityEvaluationStrategy bclQualityEvaluationStrategy, bool seekable, bool applyEamss = false, int queueSize = 256)
+        : this(reads, bclQualityEvaluationStrategy, applyEamss, queueSize)
         {
             var byteBuffer = new byte[HeaderSize];
 
@@ -111,8 +111,8 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             }
         }
 
-        public BclReader(FileInfo bclFileInfo, BclQualityEvaluationStrategy bclQualityEvaluationStrategy, bool seekable, bool applyEamss = false)
-        : this(new[] { new Read { IsIndexedRead = "N", NumCycles = 1, Number = 1, Type = ReadType.T } }, bclQualityEvaluationStrategy, applyEamss)
+        public BclReader(FileInfo bclFileInfo, BclQualityEvaluationStrategy bclQualityEvaluationStrategy, bool seekable, bool applyEamss = false, int queueSize = 256)
+        : this(new[] { new Read { IsIndexedRead = "N", NumCycles = 1, Number = 1, Type = ReadType.T } }, bclQualityEvaluationStrategy, applyEamss, queueSize)
         {
             byte[] byteBuffer = new byte[HeaderSize];
             var isGzip = bclFileInfo.Extension.Equals(".gz", StringComparison.OrdinalIgnoreCase);
@@ -134,8 +134,9 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             StreamFileInfos[0] = bclFileInfo;
         }
 
-        private BclReader(IEnumerable<Read> reads, BclQualityEvaluationStrategy bclQualityEvaluationStrategy, bool applyEamss)
+        private BclReader(IEnumerable<Read> reads, BclQualityEvaluationStrategy bclQualityEvaluationStrategy, bool applyEamss, int queueSize = 256)
         {
+            _queueSize = queueSize;
             var r = reads.OrderBy(r => r.Number).ToArray();
             OutputLengths = r.Select(x => x.NumCycles).ToArray();
             ReadTypes = r.Select(x => x.Type).ToArray();
@@ -209,13 +210,14 @@ namespace OpenMedStack.BioSharp.Io.Bcl
 
         private async IAsyncEnumerable<ReadData[]> Read()
         {
-            int readIndex = 0;
+            var queue = ArrayPool<byte>.Shared.Rent(_queueSize);
+            BclData[] bclDataArray = ArrayPool<BclData>.Shared.Rent(_queueSize);
+            var readIndex = 0;
             while (true)
             {
                 var totalCycleCount = 0;
 
-                var queue = ArrayPool<byte>.Shared.Rent(QueueSize);
-                var buffer = queue.AsMemory(0, QueueSize);
+                var buffer = queue.AsMemory(0, _queueSize);
                 // See how many clusters we can read and then make BclData objects for them
                 var clustersRead = await Streams[0].ReadAsync(buffer).ConfigureAwait(false);
                 if (clustersRead == 0)
@@ -223,7 +225,6 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                     break;
                 }
 
-                BclData[] bclDataArray = ArrayPool<BclData>.Shared.Rent(clustersRead); // new BclData[clustersRead];
                 for (var i = 0; i < clustersRead; ++i)
                 {
                     bclDataArray[i] = new BclData(OutputLengths);
@@ -265,9 +266,9 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                     yield return readData;
                 }
 
-                ArrayPool<BclData>.Shared.Return(bclDataArray);
-                ArrayPool<byte>.Shared.Return(queue);
             }
+            ArrayPool<byte>.Shared.Return(queue);
+            ArrayPool<BclData>.Shared.Return(bclDataArray);
         }
 
         private async Task ReadAndUpdateData(

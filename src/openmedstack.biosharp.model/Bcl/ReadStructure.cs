@@ -7,10 +7,10 @@
 
     public enum ReadType : byte
     {
-        T,
-        B,
-        M,
-        S
+        S = 0,
+        T = 1,
+        B = 2,
+        M = 3
     }
 
     public class ReadStructure
@@ -38,5 +38,11 @@
         }
 
         public List<Read> Reads { get; }
+
+        /// <inheritdoc />
+        public override string ToString()
+        {
+            return string.Join("", Reads.Select(r => $"{r.NumCycles}{r.Type}"));
+        }
     }
 }

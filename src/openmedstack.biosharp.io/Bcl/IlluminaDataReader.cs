@@ -5,7 +5,6 @@
     using System.IO;
     using System.Linq;
     using System.Runtime.CompilerServices;
-    using System.Text;
     using System.Text.RegularExpressions;
     using System.Threading;
     using System.Threading.Tasks;
@@ -75,6 +74,21 @@
             {
                 _run.Reads.Read = _readStructure!.Reads;
             }
+            else if (_run.Reads.Read?.All(x => x.Type == ReadType.S) == true)
+            {
+                // If read types aren't set, assume that the shortest reads are barcodes and the rest are templates.
+                var first = true;
+                foreach (var group in _run.Reads.Read.GroupBy(r => r.NumCycles).OrderBy(x => x.Key))
+                {
+                    foreach (var read in group)
+                    {
+                        read.Type = first ? ReadType.B : ReadType.T;
+                    }
+
+                    first = false;
+                }
+            }
+
             return _run;
         }
 
@@ -86,20 +100,22 @@
                 .ToList();
         }
 
-        public async IAsyncEnumerable<ClusterData> ReadClusterData([EnumeratorCancellation] CancellationToken cancellationToken = default)
+        public async IAsyncEnumerable<ClusterData> ReadClusterData(
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             var runInfo = RunInfo();
-
-            var laneReaders = CreateLaneReaders(runInfo).ToList();
-            foreach (var reader in laneReaders.AsParallel())
+            var sampleReaders = CreateLaneReaders(runInfo).ToList();
+            var source = sampleReaders
+                .Select(r => r.ReadBclData(cancellationToken))
+                .Interleave(cancellationToken);
+            await foreach (var p in source.ConfigureAwait(false))
             {
-                await foreach (var p in reader.ReadBclData(cancellationToken).ConfigureAwait(false))
-                {
-                    yield return p;
-                }
-
-                await reader.Reader.DisposeAsync().ConfigureAwait(false);
+                yield return p;
             }
+
+            var tasks = Task.WhenAll(sampleReaders.Select(r => r.Reader.DisposeAsync().AsTask()));
+            await tasks.ConfigureAwait(false);
+            tasks.Dispose();
         }
 
         private IEnumerable<SampleReader> CreateLaneReaders(Run runInfo)
@@ -164,6 +180,31 @@
                 ".locs" => new LocsFileReader(positionFile, lane, tile),
                 _ => throw new NotSupportedException("Unsupported file extension " + Path.GetExtension(positionFile.Name))
             };
+        }
+    }
+
+    internal static class LinqExtensions
+    {
+        public static async IAsyncEnumerable<T> Interleave<T>(this IEnumerable<IAsyncEnumerable<T>> enumerables, [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            var enumerators = enumerables.Select(e => e.GetAsyncEnumerator(cancellationToken)).ToList();
+            while (enumerators.Count > 0)
+            {
+                var toCheck = enumerators.ToArray();
+                foreach (var enumerator in toCheck)
+                {
+                    if (!await enumerator.MoveNextAsync(cancellationToken).ConfigureAwait(false))
+                    {
+                        enumerators.Remove(enumerator);
+                        await enumerator.DisposeAsync().ConfigureAwait(false);
+                    }
+                }
+
+                foreach (var enumerator in enumerators)
+                {
+                    yield return enumerator.Current;
+                }
+            }
         }
     }
 }

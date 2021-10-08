@@ -3,6 +3,7 @@ namespace OpenMedStack.BioSharp.Io.Tests
     using System.IO;
     using System.Text;
     using System.Threading.Tasks;
+    using Microsoft.Extensions.Logging.Abstractions;
     using Sam;
     using Xunit;
 
@@ -23,7 +24,7 @@ r001  147  ref  37  30  9M  =  7  -39  CAGCGGCAT  *  NM:i:1
 
             var ms = new MemoryStream(Encoding.UTF8.GetBytes(file));
             await using var _ = ms.ConfigureAwait(false);
-            var reader = new SamReader();
+            var reader = new SamReader(NullLogger.Instance);
             var definition = await reader.Read(ms).ConfigureAwait(false);
 
             Assert.Equal(6, definition.AlignmentSections.Length);

@@ -31,12 +31,8 @@
             var reader = new IlluminaDataReader(inputDir, readStructure);
             var runInfo = reader.RunInfo();
 
-            var outputDir = Directory.CreateDirectory(Path.Combine(inputDir.FullName, "Unaligned", runInfo.Id));
-
-            logger.LogInformation("Writing to " + outputDir.FullName);
-
             var demuxWriter = new DemultiplexFastQWriter(
-                s => Path.Combine(outputDir.FullName, $"Sample_{s.Barcode}", $"{s.Barcode}_L{s.Lane.ToString().PadLeft(3, '0')}_R001.fastq.gz"),
+                s => Path.Combine(inputDir.FullName, "Unaligned", runInfo.Id, $"Sample_{s.Barcode}", $"{s.Barcode}_L{s.Lane.ToString().PadLeft(3, '0')}_R001.fastq.gz"),
                 runInfo,
                 logger);
             await using (demuxWriter.ConfigureAwait(false))

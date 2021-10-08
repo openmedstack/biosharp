@@ -51,7 +51,7 @@
                 throw new Exception("Invalid filter file");
             }
 
-            for (int i = 0; i < 4; i++)
+            for (var i = 0; i < 4; i++)
             {
                 if (headerBuf[i] != 0)
                 {
@@ -82,7 +82,7 @@
         {
             while (_currentCluster < NumClusters)
             {
-                byte value = (byte)_bbIterator.ReadByte();
+                var value = (byte)_bbIterator.ReadByte();
                 _currentCluster += 1;
                 yield return value switch
                 {
