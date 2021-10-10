@@ -8,42 +8,42 @@ namespace OpenMedStack.BioSharp.Io.Bcl
     using System.IO;
     using System.Threading.Tasks;
 
+    public interface IBclIndexReader
+    {
+        int NumTiles { get; }
+        Task<BlockOffsetRecord> Get(int recordNumber);
+    }
+
     /**
      * Annoyingly, there are two different files with extension .bci in NextSeq output.  This reader handles
      * the file that contains virtual file pointers into a .bcl.bgzf file.  After the header, there is a 64-bit record
      * per tile.
      */
-    public class BclIndexReader
+    public class BclIndexReader : IBclIndexReader
     {
-        private static readonly int _bciHeaderSize = 8;
-        //private static readonly int _bciVersion = 0;
+        private static readonly int BciHeaderSize = 8;
 
-        private readonly int _numTiles;
-        private readonly FileInfo _bciFile;
         private readonly Stream _fileStream;
-        private int _nextRecordNumber = 0;
+        private int _nextRecordNumber;
 
         public BclIndexReader(FileInfo bclFile)
         {
-            _bciFile = new FileInfo(bclFile.FullName + ".bci");
-            _fileStream = File.OpenRead(_bciFile.FullName);
-            var headerBytes = new byte[_bciHeaderSize];
-            _fileStream.Read(headerBytes, 0, _bciHeaderSize);
-            //var actualVersion = BitConverter.ToInt32(headerBytes.AsSpan(0, 4));
-            //if (actualVersion != _bciVersion)
-            //{
-            //    throw new Exception($"Unexpected version number {actualVersion} in {_bciFile.FullName}");
-            //}
+            var path = bclFile.FullName;
+            if (!Path.GetExtension(bclFile.Name).Equals(".bci", StringComparison.OrdinalIgnoreCase))
+            {
+                path += ".bci";
+            }
+            BciFile = new FileInfo(path);
+            _fileStream = File.OpenRead(BciFile.FullName);
+            var headerBytes = new byte[BciHeaderSize];
+            _fileStream.Read(headerBytes, 0, BciHeaderSize);
 
-            _numTiles = BitConverter.ToInt32(headerBytes.AsSpan(4, 4));
+            NumTiles = BitConverter.ToInt32(headerBytes.AsSpan(4, 4));
         }
 
-        public int NumTiles
-        {
-            get { return _numTiles; }
-        }
+        public int NumTiles { get; }
 
-        public async Task<long> Get(int recordNumber)
+        public async Task<BlockOffsetRecord> Get(int recordNumber)
         {
             if (recordNumber < _nextRecordNumber)
             {
@@ -60,12 +60,30 @@ namespace OpenMedStack.BioSharp.Io.Bcl
 
             byte[] element = new byte[8];
             _ = await _fileStream.ReadAsync(element).ConfigureAwait(false);
-            return BitConverter.ToInt64(element);
+            var virtualFilePointer = BitConverter.ToInt64(element);
+            var address = (virtualFilePointer >> ShiftAmount) & AddressMask;
+            var offset = (int)(virtualFilePointer & OffsetMask);
+            return new(address, offset);
         }
 
-        public FileInfo BciFile
+        private const int ShiftAmount = 16;
+        private const int OffsetMask = 0xffff;
+        private const long AddressMask = 0xFFFFFFFFFFFFL;
+
+        public FileInfo BciFile { get; }
+    }
+
+    public class NoOffsetIndexReader : IBclIndexReader
+    {
+        /// <inheritdoc />
+        public int NumTiles { get; } = 1;
+
+        /// <inheritdoc />
+        public Task<BlockOffsetRecord> Get(int recordNumber)
         {
-            get { return _bciFile; }
+            return Task.FromResult(new BlockOffsetRecord(0, 0));
         }
     }
+
+    public record BlockOffsetRecord(long BlockAddress, int BlockOffset);
 }

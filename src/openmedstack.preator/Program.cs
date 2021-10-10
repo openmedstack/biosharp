@@ -28,7 +28,7 @@
             logger.LogInformation("Reading from " + inputDir.FullName);
             logger.LogInformation("Reading structure " + readStructure);
 
-            var reader = new IlluminaDataReader(inputDir, readStructure);
+            var reader = new IlluminaDataReader(inputDir, logger, readStructure);
             var runInfo = reader.RunInfo();
 
             var demuxWriter = new DemultiplexFastQWriter(
@@ -37,7 +37,7 @@
                 logger);
             await using (demuxWriter.ConfigureAwait(false))
             {
-                var sequences = reader.ReadClusterData().Where(c => c.Type == ReadType.T);
+                var sequences = reader.ReadClusterData(1).Where(c => c.Type == ReadType.T);
                 await demuxWriter.WriteDemultiplexed(sequences).ConfigureAwait(false);
             }
         }

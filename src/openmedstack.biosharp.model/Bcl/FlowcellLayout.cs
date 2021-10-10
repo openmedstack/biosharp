@@ -5,7 +5,7 @@
     [XmlRoot(ElementName = "FlowcellLayout")]
     public class FlowcellLayout
     {
-        [XmlElement(ElementName = "TileSet")] public TileSet TileSet { get; set; } = null!;
+        [XmlElement(ElementName = "TileSet")] public TileSet? TileSet { get; set; }
 
         [XmlAttribute(AttributeName = "LaneCount")]
         public sbyte LaneCount { get; set; }

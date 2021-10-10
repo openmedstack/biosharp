@@ -10,14 +10,10 @@
     public class LocsFileReader : IAsyncEnumerable<IPositionalData>
     {
         private readonly FileInfo _locsFile;
-        private readonly int _tile;
-        private readonly int _lane;
 
-        public LocsFileReader(FileInfo locsFile, int lane, int tile)
+        public LocsFileReader(FileInfo locsFile)
         {
             _locsFile = locsFile;
-            _tile = tile;
-            _lane = lane;
             using var file = File.OpenRead(locsFile.FullName);
             var headerBuffer = new byte[12];
             _ = file.Read(headerBuffer);
@@ -48,8 +44,6 @@
                 if (read == 8)
                 {
                     yield return new PositionalData(
-                        _tile,
-                        _lane,
                         BitConverter.ToInt32(buffer.AsSpan(0, 4)),
                         BitConverter.ToInt32(buffer.AsSpan(4, 4)));
                 }

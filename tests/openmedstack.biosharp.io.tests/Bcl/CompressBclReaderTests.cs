@@ -4,15 +4,17 @@
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
+    using Divergic.Logging.Xunit;
     using Io.Bcl;
     using Model.Bcl;
     using Xunit;
+    using Xunit.Abstractions;
 
     public class CompressBclReaderTests
     {
         private readonly BclReader _reader;
 
-        public CompressBclReaderTests()
+        public CompressBclReaderTests(ITestOutputHelper outputHelper)
         {
             var dir = new DirectoryInfo("sampledata/Data/Intensities/BaseCalls/L001/");
             _reader = new BclReader(
@@ -20,14 +22,16 @@
                     .OrderBy(x => x)
                     .SelectMany(d => d.GetFiles("*.bcl.gz", SearchOption.AllDirectories))
                     .ToList(),
+                null,
                 new[]
                 {
                     new Read { IsIndexedRead = "N", NumCycles = 26, Number = 1, Type = ReadType.T },
                     new Read { IsIndexedRead = "Y", NumCycles = 8, Number = 2, Type = ReadType.B },
                     new Read { IsIndexedRead = "N", NumCycles = 98, Number = 3, Type = ReadType.T }
                 },
+                new TileIndexRecord(1, int.MaxValue, 0, 0),
                 new BclQualityEvaluationStrategy(2),
-                false);
+                new TestOutputLogger(nameof(CompressBclReaderTests), outputHelper));
         }
 
         [Fact]

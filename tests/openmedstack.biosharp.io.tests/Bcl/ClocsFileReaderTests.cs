@@ -12,7 +12,7 @@
 
         public ClocsFileReaderTests()
         {
-            _reader = new ClocsFileReader(new FileInfo("sampledata/Data/Intensities/L001/s_1_1101.clocs"), 1, 1101);
+            _reader = new ClocsFileReader(new FileInfo("sampledata/Data/Intensities/L001/s_1_1101.clocs"));
         }
 
         [Fact]

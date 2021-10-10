@@ -52,7 +52,7 @@
 
         private async Task WriteSingle(Sequence sequence, CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Writing {0} with length {1}", sequence.Id, sequence.Length);
+            //_logger.LogInformation("Writing {0} with length {1}", sequence.Id, sequence.Length);
 
             await _writer.WriteAsync('@').ConfigureAwait(false);
             await _writer.WriteLineAsync(sequence.Id.AsMemory(), cancellationToken).ConfigureAwait(false);

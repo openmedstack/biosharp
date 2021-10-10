@@ -42,7 +42,7 @@
                             File.Open(p, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None));
                     });
                 await writer.Write(new Sequence(clusterData, _runInfo), cancellationToken).ConfigureAwait(false);
-                _logger.LogInformation("L00{0}-{1} : Wrote {1} to {2}", clusterData.Lane, clusterData.ReadIndex, clusterData.Barcode, path);
+               // _logger.LogInformation("L00{0}-{1} : Wrote {1} to {2}", clusterData.Lane, clusterData.ReadIndex, clusterData.Barcode, path);
             }
         }
 

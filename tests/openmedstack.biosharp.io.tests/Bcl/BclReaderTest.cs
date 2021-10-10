@@ -5,6 +5,7 @@
     using System.Linq;
     using System.Threading.Tasks;
     using Io.Bcl;
+    using Microsoft.Extensions.Logging.Abstractions;
     using Xunit;
 
     public class BclReaderTest
@@ -44,8 +45,13 @@
         [Fact]
         public async Task ReadValidFileInfo()
         {
-            var bclQualityEvaluationStrategy = new BclQualityEvaluationStrategy(BclQualityEvaluationStrategy.IlluminaAllegedMinimumQuality);
-            var reader = new BclReader(new FileInfo(PassingBclFile), bclQualityEvaluationStrategy, false);
+            var bclQualityEvaluationStrategy =
+                new BclQualityEvaluationStrategy(BclQualityEvaluationStrategy.IlluminaAllegedMinimumQuality);
+            var reader = new BclReader(
+                new FileInfo(PassingBclFile),
+                new TileIndexRecord(1, int.MaxValue, 0, 0),
+                bclQualityEvaluationStrategy,
+                NullLogger.Instance);
             var quals = QualsAsBytes();
 
             Assert.Equal(reader.NumClustersPerCycle[0], ExpectedBases.Length);
@@ -80,19 +86,25 @@
         public async Task FailingFileTest(string failingFile)
         {
             _ = await Assert.ThrowsAnyAsync<Exception>(
-                async () =>
-                {
-                    var bclQualityEvaluationStrategy =
-                        new BclQualityEvaluationStrategy(BclQualityEvaluationStrategy.IlluminaAllegedMinimumQuality);
-                    var reader = new BclReader(new FileInfo(failingFile), bclQualityEvaluationStrategy, false);
-                    Assert.Equal(reader.NumClustersPerCycle[0], ExpectedBases.Length);
+                    async () =>
+                    {
+                        var bclQualityEvaluationStrategy =
+                            new BclQualityEvaluationStrategy(
+                                BclQualityEvaluationStrategy.IlluminaAllegedMinimumQuality);
+                        var reader = new BclReader(
+                            new FileInfo(failingFile),
+                            new TileIndexRecord(1, int.MaxValue, 0, 0),
+                            bclQualityEvaluationStrategy,
+                            NullLogger.Instance);
+                        Assert.Equal(reader.NumClustersPerCycle[0], ExpectedBases.Length);
 
-                    // Just loop through the data
-                    _ = await reader.CountAsync().ConfigureAwait(false);
+                        // Just loop through the data
+                        _ = await reader.CountAsync().ConfigureAwait(false);
 
-                    await reader.DisposeAsync().ConfigureAwait(false);
-                    bclQualityEvaluationStrategy.AssertMinimumQualities();
-                }).ConfigureAwait(false);
+                        await reader.DisposeAsync().ConfigureAwait(false);
+                        bclQualityEvaluationStrategy.AssertMinimumQualities();
+                    })
+                .ConfigureAwait(false);
         }
 
         /**
@@ -109,8 +121,9 @@
                 var evenI = i % 2 == 0;
                 var reader = new BclReader(
                     new FileInfo(evenI ? Qual1FailingBclFile : Qual0FailingBclFile),
+                    new TileIndexRecord(1, int.MaxValue, 0, 0),
                     bclQualityEvaluationStrategy,
-                    false);
+                    NullLogger.Instance);
                 Assert.Equal(reader.NumClustersPerCycle[0], ExpectedBases.Length);
 
                 // Just loop through the data
@@ -134,8 +147,9 @@
             {
                 var reader = new BclReader(
                     new FileInfo(i % 2 == 0 ? Qual1FailingBclFile : Qual0FailingBclFile),
+                    new TileIndexRecord(1, int.MaxValue, 0, 0),
                     bclQualityEvaluationStrategy,
-                    false);
+                    NullLogger.Instance);
                 Assert.Equal(ExpectedBases.Length, reader.NumClustersPerCycle[0]);
 
                 // Just loop through the data

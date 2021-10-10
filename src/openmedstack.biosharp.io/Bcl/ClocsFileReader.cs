@@ -38,48 +38,39 @@
     public class ClocsFileReader : IAsyncEnumerable<IPositionalData>
     {
         private readonly FileInfo _clocsFile; // extends AbstractIlluminaPositionFileReader {
-
-        private readonly int _lane;
-
-        private readonly int _tile;
-
-        //private static int HEADER_SIZE = 5;
-
-        private static readonly int IMAGE_WIDTH = 2048;
-        private static readonly int BLOCK_SIZE = 25;
-        private static readonly int NUM_BINS_IN_ROW = (int)Math.Ceiling(IMAGE_WIDTH / (double)BLOCK_SIZE);
+        private static readonly int ImageWidth = 2048;
+        private static readonly int BlockSize = 25;
+        private static readonly int NumBinsInRow = (int)Math.Ceiling(ImageWidth / (double)BlockSize);
 
         /** Total number of bins */
-        private readonly long numBins;
+        private readonly long _numBins;
 
         /** An iterator through clocsFile's bytes */
-        private readonly BinaryReader byteIterator;
+        private readonly BinaryReader _byteIterator;
 
         //mutable vars
-        private float xOffset;
-        private float yOffset;
-        private long currentBin;
-        private int numClustersInBin;   //MAX 255
-        private long currentClusterInBin;
+        private float _xOffset;
+        private float _yOffset;
+        private long _currentBin;
+        private int _numClustersInBin;   //MAX 255
+        private long _currentClusterInBin;
 
-        public ClocsFileReader(FileInfo clocsFile, int lane, int tile)
+        public ClocsFileReader(FileInfo clocsFile)
         {
             _clocsFile = clocsFile;
-            _lane = lane;
-            _tile = tile;
             //super(clocsFile);
 
-            byteIterator = new BinaryReader(File.OpenRead(clocsFile.FullName));// MMapBackedIteratorFactory.getByteIterator(HEADER_SIZE, clocsFile);
-            _ = byteIterator.ReadByte();
+            _byteIterator = new BinaryReader(File.OpenRead(clocsFile.FullName));// MMapBackedIteratorFactory.getByteIterator(HEADER_SIZE, clocsFile);
+            _ = _byteIterator.ReadByte();
 
-            numBins = byteIterator.ReadUInt32(); //UnsignedTypeUtil.uIntToLong(hbs.getInt());
+            _numBins = _byteIterator.ReadUInt32(); //UnsignedTypeUtil.uIntToLong(hbs.getInt());
 
-            xOffset = 0;
-            yOffset = 0;
-            currentBin = 0;
-            startBlock();
+            _xOffset = 0;
+            _yOffset = 0;
+            _currentBin = 0;
+            StartBlock();
 
-            checkAndAdvanceBin();
+            CheckAndAdvanceBin();
         }
 
         /**
@@ -90,9 +81,9 @@
         public async IAsyncEnumerator<IPositionalData> GetAsyncEnumerator(CancellationToken cancellationToken = default)
         {
             byte[] buffer = new byte[2];
-            while (hasNext())
+            while (HasNext())
             {
-                var read = await byteIterator.BaseStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                var read = await _byteIterator.BaseStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
                 if (read != buffer.Length)
                 {
                     throw new Exception("Missing position data");
@@ -100,53 +91,53 @@
                 var xByte = buffer[0];
                 var yByte = buffer[1];
 
-                var xPos = /*UnsignedTypeUtil.uByteToInt(xByte)*/ xByte / 10f + xOffset;
-                var yPos = /*UnsignedTypeUtil.uByteToInt(yByte)*/ yByte / 10f + yOffset;
-                ++currentClusterInBin;
-                checkAndAdvanceBin();
+                var xPos = /*UnsignedTypeUtil.uByteToInt(xByte)*/ xByte / 10f + _xOffset;
+                var yPos = /*UnsignedTypeUtil.uByteToInt(yByte)*/ yByte / 10f + _yOffset;
+                ++_currentClusterInBin;
+                CheckAndAdvanceBin();
 
-                yield return new PositionalData(_tile, _lane, (int)xPos, (int)yPos);
+                yield return new PositionalData((int)xPos, (int)yPos);
             }
         }
 
         /** Compute offset for next bin and then increment the bin number and reset block information*/
-        private void checkAndAdvanceBin()
+        private void CheckAndAdvanceBin()
         {
-            while (currentClusterInBin >= numClustersInBin && currentBin < numBins)
+            while (_currentClusterInBin >= _numClustersInBin && _currentBin < _numBins)
             { //While rather than if statement to skip empty blocks
-                if ((currentBin + 1) % NUM_BINS_IN_ROW == 0)
+                if ((_currentBin + 1) % NumBinsInRow == 0)
                 {
-                    xOffset = 0;
-                    yOffset += BLOCK_SIZE;
+                    _xOffset = 0;
+                    _yOffset += BlockSize;
                 }
                 else
                 {
-                    xOffset += BLOCK_SIZE;
+                    _xOffset += BlockSize;
                 }
 
-                currentBin += 1;
-                if (currentBin < numBins)
+                _currentBin += 1;
+                if (_currentBin < _numBins)
                 {
-                    startBlock();
+                    StartBlock();
                 }
             }
         }
 
         /** Start the next block by reading it's numBlocks byte and setting the currentBlock index to 0 */
-        private void startBlock()
+        private void StartBlock()
         {
-            numClustersInBin = byteIterator.ReadByte();// UnsignedTypeUtil.uByteToInt(byteIterator.next());
-            currentClusterInBin = 0;
+            _numClustersInBin = _byteIterator.ReadByte();// UnsignedTypeUtil.uByteToInt(byteIterator.next());
+            _currentClusterInBin = 0;
         }
 
         //@Override
-        public bool hasNext()
+        private bool HasNext()
         {
-            var valuesRemain = currentClusterInBin < numClustersInBin || currentBin < (numBins - 1);
-            if (!valuesRemain && byteIterator.PeekChar() > -1)
+            var valuesRemain = _currentClusterInBin < _numClustersInBin || _currentBin < (_numBins - 1);
+            if (!valuesRemain && _byteIterator.PeekChar() > -1)
             {
                 throw new Exception(
-                    $"Read the number of expected bins( {numBins}) but still had more elements in file( {_clocsFile.FullName}) ");
+                    $"Read the number of expected bins( {_numBins}) but still had more elements in file( {_clocsFile.FullName}) ");
             }
             return valuesRemain;
         }
