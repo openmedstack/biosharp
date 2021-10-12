@@ -4,6 +4,9 @@
     using System.Collections;
     using System.Collections.Generic;
     using System.IO;
+    using System.Linq;
+    using System.Threading;
+    using System.Threading.Tasks;
 
     /**
  * Illumina uses an algorithm described in "Theory of RTA" that determines whether or not a cluster passes filter("PF") or not.
@@ -27,7 +30,7 @@
         public int Version;
 
         /** The number of cluster's pf values stored in this file */
-        public long NumClusters { get; }
+        public long NumClusters { get; private set; }
 
         /** Byte representing a cluster failing filter(not a PF read), we test this exactly at
      * the moment but technically the standard  may be to check only lowest significant bit */
@@ -38,14 +41,21 @@
         private const byte PassedFilter = 0x01;
 
         /** The index of the current cluster within the file*/
-        private int _currentCluster;
+        //private int _currentCluster;
 
-        public FilterFileReader(FileInfo file)
+        private byte[] _data = Array.Empty<byte>();
+
+        private FilterFileReader(FileInfo file)
         {
             _bbIterator = File.Open(file.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
+        }
+
+        public static async Task<FilterFileReader> Create(FileInfo file, CancellationToken cancellationToken = default)
+        {
+            var instance = new FilterFileReader(file);
             // MMapBackedIteratorFactory.getByteIterator(HEADER_SIZE, file);
             byte[] headerBuf = new byte[HeaderSize]; //bbIterator.getHeaderBytes();
-            var read = _bbIterator.Read(headerBuf);
+            var read = await instance._bbIterator.ReadAsync(headerBuf, cancellationToken).ConfigureAwait(false);
             if (read != HeaderSize)
             {
                 throw new Exception("Invalid filter file");
@@ -60,37 +70,51 @@
                 }
             }
 
-            Version = BitConverter.ToInt32(headerBuf.AsSpan(4, 4));
-            if (Version != ExpectedVersion)
+            instance.Version = BitConverter.ToInt32(headerBuf.AsSpan(4, 4));
+            if (instance.Version != ExpectedVersion)
             {
                 throw new Exception(
-                    $"Expected version is {ExpectedVersion} but version found was {Version} in file {file.FullName}");
+                    $"Expected version is {ExpectedVersion} but version found was {instance.Version} in file {file.FullName}");
             }
 
-            NumClusters =
+            instance.NumClusters =
                 BitConverter.ToUInt32(headerBuf.AsSpan(8, 4)); // UnsignedTypeUtil.uIntToLong(headerBuf.getInt());
-            if (_bbIterator.Length != NumClusters + HeaderSize)
+            if (instance._bbIterator.Length != instance.NumClusters + HeaderSize)
             {
                 throw new Exception($"Filter file size mismatch in file {file.FullName}");
             }
 
-            _currentCluster = 0;
+            //instance._currentCluster = 0;
+            instance._data = new byte[instance._bbIterator.Length - HeaderSize];
+            await instance._bbIterator.ReadAsync(instance._data, cancellationToken).ConfigureAwait(false);
+            return instance;
         }
 
         /// <inheritdoc />
         public IEnumerator<bool> GetEnumerator()
         {
-            while (_currentCluster < NumClusters)
-            {
-                var value = (byte)_bbIterator.ReadByte();
-                _currentCluster += 1;
-                yield return value switch
-                {
-                    PassedFilter => true,
-                    FailedFilter => false,
-                    _ => throw new Exception($"Didn't recognized PF Byte (0x{value:X}) for element ({_currentCluster})")
-                };
-            }
+            return _data.Select(
+                    (value,i) =>
+                    {
+                        return value switch
+                        {
+                            PassedFilter => true,
+                            FailedFilter => false,
+                            _ => throw new Exception($"Didn't recognized PF Byte (0x{value:X}) for element ({i})")
+                        };
+                    })
+                .GetEnumerator();
+            //while (_currentCluster < NumClusters)
+            //{
+            //    var value = _data[_currentCluster];
+            //    _currentCluster += 1;
+            //    yield return value switch
+            //    {
+            //        PassedFilter => true,
+            //        FailedFilter => false,
+            //        _ => throw new Exception($"Didn't recognized PF Byte (0x{value:X}) for element ({_currentCluster})")
+            //    };
+            //}
         }
 
         /// <inheritdoc />

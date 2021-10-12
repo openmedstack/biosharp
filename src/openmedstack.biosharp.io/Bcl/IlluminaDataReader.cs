@@ -116,8 +116,7 @@
                     yield return read;
                 }
 
-                await reader.Reader.DisposeAsync().ConfigureAwait(false);
-                _logger.LogInformation($"Finished reading lane: {lane}");
+                await reader.DisposeAsync().ConfigureAwait(false);
             }
         }
 
@@ -141,7 +140,7 @@
                 .ToDictionary(f => f.FullName, f => (IBclIndexReader)new BclIndexReader(f));
             await foreach (var tileRecord in tiles.ConfigureAwait(false))
             {
-                var filterReader = GetFilterReader(lane, dir, tileRecord);
+                var filterReader = await GetFilterReader(lane, dir, tileRecord).ConfigureAwait(false);
                 var positionReader = GetPositionReader(lane, tileRecord.Tile, laneName);
                 yield return new SampleReader(
                     lane,
@@ -160,14 +159,14 @@
             }
         }
 
-        private static IEnumerable<bool> GetFilterReader(int lane, DirectoryInfo dir, TileIndexRecord tileRecord)
+        private static async Task<IEnumerable<bool>> GetFilterReader(int lane, DirectoryInfo dir, TileIndexRecord tileRecord)
         {
             var filterFileName = File.Exists(Path.Combine(dir.FullName, $"s_{lane}_{tileRecord}.filter"))
                 ? $"s_{lane}_{tileRecord}.filter"
                 : $"s_{lane}.filter";
             var filterFilePath = Path.Combine(dir.FullName, filterFileName);
             var filterReader = File.Exists(filterFilePath)
-                ? new FilterFileReader(new FileInfo(filterFilePath))
+                ? await FilterFileReader.Create(new FileInfo(filterFilePath))
                 : (IEnumerable<bool>)new PassThroughFilter();
             return filterReader;
         }
@@ -196,7 +195,7 @@
                    select f;
         }
 
-        private IAsyncEnumerable<IPositionalData> GetPositionReader(int lane, int tile, string sample)
+        private ILocationReader GetPositionReader(int lane, int tile, string sample)
         {
             var files = _laneDirs.Single(d => d.Name[^1..].Equals(lane.ToString()))
                 .GetFiles();

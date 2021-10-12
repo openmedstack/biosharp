@@ -17,6 +17,9 @@
         public IlluminaRunDataReaderTests(ITestOutputHelper outputHelper)
         {
             _reader = new IlluminaDataReader(
+                //new DirectoryInfo(@"Z:\sequencing\200129_NB551214_0127_AH7CMYBGXF"),
+                //new TestOutputLogger(nameof(IlluminaRunDataReaderTests), outputHelper),
+                //ReadStructure.Parse("151T8B8B151T"));
                 new DirectoryInfo(@"data/illumina/25T8B25T"),
                 new TestOutputLogger(nameof(IlluminaRunDataReaderTests), outputHelper),
                 ReadStructure.Parse("25T8B25T"));

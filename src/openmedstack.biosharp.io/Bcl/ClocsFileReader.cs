@@ -4,6 +4,7 @@
     using System.Collections.Generic;
     using System.IO;
     using System.Threading;
+    using System.Threading.Tasks;
     using Model.Bcl;
 
     /**
@@ -35,8 +36,9 @@
  *            xOffset = 0; yOffset += blockSize
  *         } else xOffset += blockSize
  */
-    public class ClocsFileReader : IAsyncEnumerable<IPositionalData>
+    public class ClocsFileReader : ILocationReader
     {
+        private MemoryStream _fileContent = new ();
         private readonly FileInfo _clocsFile; // extends AbstractIlluminaPositionFileReader {
         private static readonly int ImageWidth = 2048;
         private static readonly int BlockSize = 25;
@@ -58,12 +60,13 @@
         public ClocsFileReader(FileInfo clocsFile)
         {
             _clocsFile = clocsFile;
-            //super(clocsFile);
-
-            _byteIterator = new BinaryReader(File.OpenRead(clocsFile.FullName));// MMapBackedIteratorFactory.getByteIterator(HEADER_SIZE, clocsFile);
+            using var fs = File.OpenRead(clocsFile.FullName);
+            fs.CopyTo(_fileContent);
+            _fileContent.Position = 0;
+            _byteIterator = new BinaryReader(_fileContent);
             _ = _byteIterator.ReadByte();
 
-            _numBins = _byteIterator.ReadUInt32(); //UnsignedTypeUtil.uIntToLong(hbs.getInt());
+            _numBins = _byteIterator.ReadUInt32();
 
             _xOffset = 0;
             _yOffset = 0;
@@ -140,6 +143,13 @@
                     $"Read the number of expected bins( {_numBins}) but still had more elements in file( {_clocsFile.FullName}) ");
             }
             return valuesRemain;
+        }
+
+        /// <inheritdoc />
+        public async ValueTask DisposeAsync()
+        {
+            await _fileContent.DisposeAsync().ConfigureAwait(false);
+            GC.SuppressFinalize(this);
         }
     }
 

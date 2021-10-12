@@ -9,18 +9,18 @@
     using System.Threading.Tasks;
     using Model.Bcl;
 
-    public class SampleReader
+    public class SampleReader :IAsyncDisposable
     {
         private readonly int _lane;
         private readonly int _sample;
-        private readonly IAsyncEnumerable<IPositionalData> _positionReader;
+        private readonly ILocationReader _positionReader;
         private readonly IEnumerable<bool> _filter;
 
         public SampleReader(
             int lane,
             int sample,
             BclReader reader,
-            IAsyncEnumerable<IPositionalData> positionReader,
+            ILocationReader positionReader,
             IEnumerable<bool> filter)
         {
             _lane = lane;
@@ -79,6 +79,14 @@
             }
 
             filter.Dispose();
+        }
+
+        /// <inheritdoc />
+        public async ValueTask DisposeAsync()
+        {
+            await Reader.DisposeAsync().ConfigureAwait(false);
+            await _positionReader.DisposeAsync().ConfigureAwait(false);
+            GC.SuppressFinalize(this);
         }
     }
 }

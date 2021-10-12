@@ -22,25 +22,6 @@
             _tileIndexFile = tileIndexFile;
         }
 
-        private static async Task<bool> ReadTileIndexRecord(
-            byte[] buf,
-            int numBytes,
-            Stream input,
-            CancellationToken cancellationToken = default)
-        {
-            var bytesRead = await input.ReadAsync(buf, cancellationToken).ConfigureAwait(false);
-            return bytesRead == numBytes;
-        }
-
-        //public IAsyncEnumerable<string> Verify(
-        //    IEnumerable<int> expectedTiles,
-        //    CancellationToken cancellationToken = default)
-        //{
-        //    return expectedTiles.ToAsyncEnumerable()
-        //        .Except(this.Select(t => t.Tile))
-        //        .Select(expectedTile => $"Tile {expectedTile} not found in {_tileIndexFile.FullName}");
-        //}
-
         /// <inheritdoc />
         public async IAsyncEnumerator<TileIndexRecord> GetAsyncEnumerator(CancellationToken cancellationToken = default)
         {
@@ -50,7 +31,7 @@
 
             var absoluteRecordIndex = 0;
             var numTiles = 0;
-            while (await ReadTileIndexRecord(buf, buf.Length, input, cancellationToken).ConfigureAwait(false))
+            while (buf.Length == await input.ReadAsync(buf, cancellationToken).ConfigureAwait(false))
             {
                 var tile = BitConverter.ToInt32(buf.AsSpan(0, 4));
 
@@ -85,7 +66,7 @@
 
         /// <inheritdoc />
         public async IAsyncEnumerator<TileIndexRecord> GetAsyncEnumerator(
-            CancellationToken cancellationToken = new CancellationToken())
+            CancellationToken cancellationToken = new ())
         {
             await Task.Yield();
             foreach (var tile in _tiles)

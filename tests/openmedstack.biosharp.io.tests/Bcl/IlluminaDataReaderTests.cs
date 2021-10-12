@@ -1,5 +1,6 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Tests.Bcl
 {
+    using System.Diagnostics;
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
@@ -10,10 +11,12 @@
 
     public class IlluminaDataReaderTests
     {
+        private readonly ITestOutputHelper _outputHelper;
         private readonly IlluminaDataReader _reader;
 
         public IlluminaDataReaderTests(ITestOutputHelper outputHelper)
         {
+            _outputHelper = outputHelper;
             _reader = new IlluminaDataReader(
                 new DirectoryInfo("sampledata"),
                 new TestOutputLogger(nameof(IlluminaDataReaderTests), outputHelper));
@@ -22,10 +25,14 @@
         [Fact]
         public async Task CanRead()
         {
+            var stopwatch = new Stopwatch();
+            stopwatch.Start();
             var sequences = _reader.ReadClusterData(1);
 
             var count = await sequences.CountAsync().ConfigureAwait(false);
+            stopwatch.Stop();
             Assert.Equal(2136539 * 3, count);
+            _outputHelper.WriteLine(stopwatch.Elapsed.ToString());
         }
 
         [Fact]
@@ -36,7 +43,7 @@
                 .Distinct()
                 .CountAsync()
                 .ConfigureAwait(false);
-            Assert.Equal(15749, sequences);
+            Assert.Equal(114725, sequences);
         }
     }
 }

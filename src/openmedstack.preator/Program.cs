@@ -32,7 +32,7 @@
             var runInfo = reader.RunInfo();
 
             var demuxWriter = new DemultiplexFastQWriter(
-                s => Path.Combine(inputDir.FullName, "Unaligned", runInfo.Id, $"Sample_{s.Barcode}", $"{s.Barcode}_L{s.Lane.ToString().PadLeft(3, '0')}_R001.fastq.gz"),
+                s => Path.Combine(inputDir.FullName, "Unaligned", runInfo.Id, $"L{s.Lane.ToString().PadLeft(3, '0')}_R001.fastq.gz"),
                 runInfo,
                 logger);
             await using (demuxWriter.ConfigureAwait(false))

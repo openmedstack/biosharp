@@ -14,3 +14,4 @@ publish
 *.Cache
 artifacts
 data
+PublishProfiles

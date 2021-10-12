@@ -6,6 +6,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
 {
     using System;
     using System.Buffers;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.IO;
     using System.IO.Compression;
@@ -46,7 +47,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
     public class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
     {
         private readonly ILogger _logger;
-        private const int DefaultQueueSize = 512;
+        private const int DefaultQueueSize = 4096;
         private const int EamssM2GeThreshold = 30;
         private const int EamssS1LtThreshold = 15; //was 15
         private const byte MaskingQuality = 0x02;
@@ -203,8 +204,6 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             var readIndex = 0;
             while (readIndex < _tileIndexRecord.NumClustersInTile)
             {
-                var totalCycleCount = 0;
-
                 var buffer = queue.AsMemory(0, _queueSize);
                 // See how many clusters we can read and then make BclData objects for them
                 var clustersRead = await Streams[0].ReadAsync(buffer).ConfigureAwait(false);
@@ -220,13 +219,15 @@ namespace OpenMedStack.BioSharp.Io.Bcl
 
                 var bclDatas = bclDataArray.AsMemory(0, clustersRead);
                 // Process the data from the first cycle since we had to read it to know how many clusters we'd get
-                UpdateClusterBclDatas(bclDatas.Span, 0, 0, buffer.Span);
-                totalCycleCount += 1;
+                UpdateClusterBclDatas(bclDatas.Span, 0, 0, buffer[..clustersRead].Span);
+                var totalCycleCount = 1;
 
                 for (var read = 0; read < NumReads; ++read)
                 {
                     var readLen = OutputLengths[read];
                     var firstCycle = (read == 0) ? 1 : 0; // For the first read we already did the first cycle above
+
+                    var tasks = ArrayPool<Task>.Shared.Rent(readLen - firstCycle);
                     for (var cycle = firstCycle; cycle < readLen; ++cycle)
                     {
                         using var task = ReadAndUpdateData(buffer[..clustersRead], bclDatas, read, cycle, totalCycleCount);

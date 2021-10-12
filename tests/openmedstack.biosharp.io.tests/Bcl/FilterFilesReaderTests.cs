@@ -2,18 +2,13 @@
 {
     using System.IO;
     using System.Linq;
+    using System.Threading.Tasks;
     using Io.Bcl;
     using Xunit;
 
-    public class FilterFilesReaderTests
+    public class FilterFilesReaderTests:IAsyncLifetime
     {
-        private readonly FilterFileReader _reader;
-
-        public FilterFilesReaderTests()
-        {
-            _reader = new FilterFileReader(new FileInfo(
-                @"data/illumina/25T8B8B25T/Data/Intensities/BaseCalls/L001/s_1_1101.filter"));
-        }
+        private FilterFileReader _reader;
 
         [Fact]
         public void CanRead()
@@ -21,6 +16,20 @@
             var amount = _reader.Count();
 
             Assert.Equal(_reader.NumClusters, amount);
+        }
+
+        /// <inheritdoc />
+        public async Task InitializeAsync()
+        {
+            _reader = await FilterFileReader
+                .Create(new FileInfo(@"data/illumina/25T8B8B25T/Data/Intensities/BaseCalls/L001/s_1_1101.filter"))
+                .ConfigureAwait(false);
+        }
+
+        /// <inheritdoc />
+        public Task DisposeAsync()
+        {
+            return Task.CompletedTask;
         }
     }
 }

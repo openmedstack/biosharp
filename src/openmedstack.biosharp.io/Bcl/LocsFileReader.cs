@@ -7,13 +7,12 @@
     using System.Threading.Tasks;
     using Model.Bcl;
 
-    public class LocsFileReader : IAsyncEnumerable<IPositionalData>
+    public class LocsFileReader : ILocationReader
     {
-        private readonly FileInfo _locsFile;
+        private readonly Stream _locsFile = new MemoryStream();
 
         public LocsFileReader(FileInfo locsFile)
         {
-            _locsFile = locsFile;
             using var file = File.OpenRead(locsFile.FullName);
             var headerBuffer = new byte[12];
             _ = file.Read(headerBuffer);
@@ -28,6 +27,8 @@
             }
 
             NumClusters = BitConverter.ToInt32(headerBuffer.AsSpan(8, 4));
+            file.CopyTo(_locsFile);
+            _locsFile.Position = 0;
         }
 
         public int NumClusters { get; }
@@ -35,12 +36,10 @@
         /// <inheritdoc />
         public async IAsyncEnumerator<IPositionalData> GetAsyncEnumerator(CancellationToken cancellationToken = default)
         {
-            var file = new FileStream(_locsFile.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
-            await using var _ = file.ConfigureAwait(false);
             var buffer = new byte[8];
             while (true)
             {
-                var read = await file.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                var read = await _locsFile.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
                 if (read == 8)
                 {
                     yield return new PositionalData(
@@ -49,6 +48,13 @@
                 }
                 else { yield break; }
             }
+        }
+
+        /// <inheritdoc />
+        public async ValueTask DisposeAsync()
+        {
+            await _locsFile.DisposeAsync().ConfigureAwait(false);
+            GC.SuppressFinalize(this);
         }
     }
 

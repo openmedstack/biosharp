@@ -12,6 +12,7 @@
 
     public class FastQWriter : IAsyncDisposable
     {
+        private readonly SemaphoreSlim _semaphore = new(1);
         private readonly ILogger _logger;
         private readonly GZipStream _gzip;
         private readonly StreamWriter _writer;
@@ -36,8 +37,6 @@
             {
                 await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
             }
-
-            await _writer.FlushAsync().ConfigureAwait(false);
         }
 
         public async Task Write(IAsyncEnumerable<Sequence> sequences, CancellationToken cancellationToken = default)
@@ -46,12 +45,11 @@
             {
                 await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
             }
-
-            await _writer.FlushAsync().ConfigureAwait(false);
         }
 
         private async Task WriteSingle(Sequence sequence, CancellationToken cancellationToken)
         {
+            await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             //_logger.LogInformation("Writing {0} with length {1}", sequence.Id, sequence.Length);
 
             await _writer.WriteAsync('@').ConfigureAwait(false);
@@ -59,11 +57,14 @@
             await _writer.WriteLineAsync(Encoding.ASCII.GetString(sequence.GetData().Span).AsMemory(), cancellationToken).ConfigureAwait(false);
             await _writer.WriteLineAsync('+').ConfigureAwait(false);
             await _writer.WriteLineAsync(Encoding.ASCII.GetString(sequence.GetQuality().Span).AsMemory(), cancellationToken).ConfigureAwait(false);
+
+            _semaphore.Release();
         }
 
         /// <inheritdoc />
         public async ValueTask DisposeAsync()
         {
+            await _writer.FlushAsync().ConfigureAwait(false);
             _writer.Close();
             await _writer.DisposeAsync().ConfigureAwait(false);
             await _gzip.DisposeAsync().ConfigureAwait(false);
