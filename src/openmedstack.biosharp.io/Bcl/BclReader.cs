@@ -11,6 +11,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
     using System.IO;
     using System.IO.Compression;
     using System.Linq;
+    using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.Extensions.Logging;
@@ -194,7 +195,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             return stream;
         }
 
-        private async IAsyncEnumerable<ReadData[]> Read()
+        private async IAsyncEnumerable<ReadData[]> Read([EnumeratorCancellation] CancellationToken cancellationToken)
         {
             _logger.LogInformation(
                 $"Start reading {(_tileIndexRecord.NumClustersInTile == int.MaxValue ? "all" : _tileIndexRecord.NumClustersInTile)} clusters from tile {_tileIndexRecord.Tile}");
@@ -202,11 +203,11 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             var queue = ArrayPool<byte>.Shared.Rent(_queueSize);
             BclData[] bclDataArray = ArrayPool<BclData>.Shared.Rent(_queueSize);
             var readIndex = 0;
-            while (readIndex < _tileIndexRecord.NumClustersInTile)
+            while (readIndex < _tileIndexRecord.NumClustersInTile && !cancellationToken.IsCancellationRequested)
             {
                 var buffer = queue.AsMemory(0, _queueSize);
                 // See how many clusters we can read and then make BclData objects for them
-                var clustersRead = await Streams[0].ReadAsync(buffer).ConfigureAwait(false);
+                var clustersRead = await Streams[0].ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
                 if (clustersRead == 0)
                 {
                     break;
@@ -227,10 +228,9 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                     var readLen = OutputLengths[read];
                     var firstCycle = (read == 0) ? 1 : 0; // For the first read we already did the first cycle above
 
-                    var tasks = ArrayPool<Task>.Shared.Rent(readLen - firstCycle);
                     for (var cycle = firstCycle; cycle < readLen; ++cycle)
                     {
-                        using var task = ReadAndUpdateData(buffer[..clustersRead], bclDatas, read, cycle, totalCycleCount);
+                        using var task = ReadAndUpdateData(buffer[..clustersRead], bclDatas, read, cycle, totalCycleCount, cancellationToken);
                         await task.ConfigureAwait(false);
                         totalCycleCount++;
                     }
@@ -272,9 +272,10 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             Memory<BclData> bclDatas,
             int read,
             int cycle,
-            int totalCycleCount)
+            int totalCycleCount,
+            CancellationToken cancellationToken)
         {
-            _ = await Streams[totalCycleCount].ReadAsync(buffer).ConfigureAwait(false);
+            _ = await Streams[totalCycleCount].ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
 
             UpdateClusterBclDatas(bclDatas.Span, read, cycle, buffer.Span);
         }
@@ -480,9 +481,31 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         }
 
         /// <inheritdoc />
-        public IAsyncEnumerator<ReadData[]> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        public async IAsyncEnumerator<ReadData[]> GetAsyncEnumerator(CancellationToken cancellationToken = default)
         {
-            return Read().GetAsyncEnumerator(cancellationToken);
+            var collection = new BlockingCollection<ReadData[]>();
+            using var readTask = Task.Run(
+                 async () =>
+                 {
+                     await foreach (var data in Read(cancellationToken).ConfigureAwait(false))
+                     {
+                         collection.Add(data, cancellationToken);
+                     }
+                     collection.CompleteAdding();
+                 },
+                 cancellationToken);
+
+            while (!collection.IsCompleted)
+            {
+                if (!collection.TryTake(out var item))
+                {
+                    continue;
+                }
+
+                yield return item;
+            }
+
+            await readTask.ConfigureAwait(false);
         }
 
         /// <summary>
