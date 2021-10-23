@@ -6,17 +6,12 @@
     using System.Text;
     using Bcl;
 
-    public class Sequence : IEnumerable<BasePair>
+    public struct Sequence : IEnumerable<BasePair>
     {
-        private readonly byte[] _data;
-        private readonly byte[] _qualities;
+        private readonly Memory<byte> _data;
+        private readonly Memory<byte> _qualities;
 
-        public Sequence(ClusterData data, Run run)
-            : this(data.ToSequenceHeader(run), data.Bases, Array.ConvertAll(data.Qualities, b => (byte)(b + 33)))
-        {
-        }
-
-        internal Sequence(string id, byte[] data, byte[] qualities)
+        internal Sequence(string id, Memory<byte> data, Memory<byte> qualities)
         {
             if (data.Length != qualities.Length)
             {
@@ -28,6 +23,11 @@
             _qualities = qualities;
         }
 
+        public static Sequence FromCluster(ClusterData data, Run run)
+        {
+            return new Sequence(data.ToSequenceHeader(run), data.Bases, Array.ConvertAll(data.Qualities.ToArray(), b => (byte)(b + 33)));
+        }
+
         public string Id { get; }
 
         public int Length
@@ -37,14 +37,14 @@
 
         public char this[int index]
         {
-            get { return (char)_data[index]; }
+            get { return (char)_data.Span[index]; }
         }
 
         public IEnumerator<BasePair> GetEnumerator()
         {
-            for (var i = 0; i < _qualities.Length; i++)
+            for (int i = 0; i < _data.Length; i++)
             {
-                yield return new BasePair(_data[i], _qualities[i]);
+                yield return new BasePair(_data.Span[i], _qualities.Span[i]);
             }
         }
 
@@ -68,9 +68,9 @@
         {
             return $"{Id}:{Length}"
                    + Environment.NewLine
-                   + Encoding.ASCII.GetString(_data)
+                   + Encoding.ASCII.GetString(_data.Span)
                    + Environment.NewLine
-                   + Encoding.ASCII.GetString(_qualities);
+                   + Encoding.ASCII.GetString(_qualities.Span);
         }
     }
 }

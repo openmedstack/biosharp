@@ -9,9 +9,8 @@
     using System.Threading.Tasks;
     using Model.Bcl;
 
-    public class SampleReader :IAsyncDisposable
+    public class SampleReader : IAsyncDisposable
     {
-        private readonly int _lane;
         private readonly int _sample;
         private readonly ILocationReader _positionReader;
         private readonly IEnumerable<bool> _filter;
@@ -23,7 +22,7 @@
             ILocationReader positionReader,
             IEnumerable<bool> filter)
         {
-            _lane = lane;
+            Lane = lane;
             _sample = sample;
             _positionReader = positionReader;
             _filter = filter;
@@ -31,6 +30,10 @@
         }
 
         public BclReader Reader { get; }
+
+        public int Tile => Reader.Tile;
+
+        public int Lane { get; }
 
         public async IAsyncEnumerable<ClusterData> ReadBclData(
             [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -54,7 +57,7 @@
 
                 var index = string.Join(
                     "-",
-                    data.Where(x => x.Type == ReadType.B).Select(x => Encoding.ASCII.GetString(x.Bases)));
+                    data.Where(x => x.Type == ReadType.B).Select(x => Encoding.ASCII.GetString(x.Bases.Span)));
                 if (string.IsNullOrWhiteSpace(index))
                 {
                     index = _sample.ToString();
@@ -67,9 +70,9 @@
                     yield return new ClusterData(
                         index,
                         bytes,
-                        Array.ConvertAll(qualities, b => (byte)(b + 33)),
+                        qualities,
                         readType,
-                        _lane,
+                        Lane,
                         tile,
                         positionalEnumerator.Current,
                         pairedEndRead,

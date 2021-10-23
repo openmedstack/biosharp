@@ -43,7 +43,7 @@
         /** The index of the current cluster within the file*/
         //private int _currentCluster;
 
-        private byte[] _data = Array.Empty<byte>();
+        //private byte[] _data = Array.Empty<byte>();
 
         private FilterFileReader(FileInfo file)
         {
@@ -85,36 +85,24 @@
             }
 
             //instance._currentCluster = 0;
-            instance._data = new byte[instance._bbIterator.Length - HeaderSize];
-            await instance._bbIterator.ReadAsync(instance._data, cancellationToken).ConfigureAwait(false);
+            //instance._data = new byte[instance._bbIterator.Length - HeaderSize];
+            //await instance._bbIterator.ReadAsync(instance._data, cancellationToken).ConfigureAwait(false);
             return instance;
         }
 
         /// <inheritdoc />
         public IEnumerator<bool> GetEnumerator()
         {
-            return _data.Select(
-                    (value,i) =>
-                    {
-                        return value switch
-                        {
-                            PassedFilter => true,
-                            FailedFilter => false,
-                            _ => throw new Exception($"Didn't recognized PF Byte (0x{value:X}) for element ({i})")
-                        };
-                    })
-                .GetEnumerator();
-            //while (_currentCluster < NumClusters)
-            //{
-            //    var value = _data[_currentCluster];
-            //    _currentCluster += 1;
-            //    yield return value switch
-            //    {
-            //        PassedFilter => true,
-            //        FailedFilter => false,
-            //        _ => throw new Exception($"Didn't recognized PF Byte (0x{value:X}) for element ({_currentCluster})")
-            //    };
-            //}
+            int current;
+            while((current =_bbIterator.ReadByte()) != -1)
+            {
+                yield return current switch
+                {
+                    PassedFilter => true,
+                    FailedFilter => false,
+                    _ => throw new Exception($"Didn't recognized PF Byte (0x{current:X})")
+                };
+            }
         }
 
         /// <inheritdoc />

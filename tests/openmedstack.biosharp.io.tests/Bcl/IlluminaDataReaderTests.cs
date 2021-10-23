@@ -3,6 +3,7 @@
     using System.Diagnostics;
     using System.IO;
     using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
     using Divergic.Logging.Xunit;
     using Io.Bcl;
@@ -39,6 +40,7 @@
         public async Task CanGroup()
         {
             var sequences = await _reader.ReadClusterData(1)
+                .SelectMany(x => x.ReadBclData(CancellationToken.None))
                 .Select(x => x.Barcode)
                 .Distinct()
                 .CountAsync()

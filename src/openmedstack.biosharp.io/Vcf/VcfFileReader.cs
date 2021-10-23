@@ -3,12 +3,12 @@
     using System;
     using System.Collections.Generic;
     using System.IO;
+    using System.IO.Compression;
     using System.Linq;
     using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
     using Model;
-    using SharpCompress.Archives.GZip;
 
     public class VcfFileReader
     {
@@ -25,8 +25,9 @@
         {
             if (Path.HasExtension(".gz"))
             {
-                var zip = GZipArchive.Open(path);
-                var stream = zip.Entries.First().OpenEntryStream();
+                var fileContent = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                var zip = new ZipArchive(fileContent);
+                var stream = zip.Entries.First().Open();
                 return await Read(zip, stream, cancellationToken).ConfigureAwait(false);
             }
 

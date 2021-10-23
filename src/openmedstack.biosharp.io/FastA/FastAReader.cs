@@ -10,7 +10,6 @@
     using System.Threading;
     using System.Threading.Tasks;
     using Model;
-    using SharpCompress.Archives.GZip;
 
     public class FastAReader
     {
@@ -97,11 +96,11 @@
         {
             if (compressedFile)
             {
-                var archive = GZipArchive.Open(file);
+                var archive = new ZipArchive(file);
 
                 foreach (var entry in archive.Entries)
                 {
-                    var entryStream = entry.OpenEntryStream();
+                    var entryStream = entry.Open();
                     await using var _ = entryStream.ConfigureAwait(false);
 
                     await foreach (var sequence in Read(entryStream, cancellationToken).ConfigureAwait(false))

@@ -38,7 +38,7 @@
  */
     public class ClocsFileReader : ILocationReader
     {
-        private MemoryStream _fileContent = new ();
+        private readonly MemoryStream _fileContent = new ();
         private readonly FileInfo _clocsFile; // extends AbstractIlluminaPositionFileReader {
         private static readonly int ImageWidth = 2048;
         private static readonly int BlockSize = 25;
@@ -136,7 +136,7 @@
         //@Override
         private bool HasNext()
         {
-            var valuesRemain = _currentClusterInBin < _numClustersInBin || _currentBin < (_numBins - 1);
+            var valuesRemain = _currentClusterInBin < _numClustersInBin || _currentBin < _numBins - 1;
             if (!valuesRemain && _byteIterator.PeekChar() > -1)
             {
                 throw new Exception(

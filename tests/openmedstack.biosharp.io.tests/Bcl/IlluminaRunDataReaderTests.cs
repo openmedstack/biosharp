@@ -2,6 +2,7 @@
 {
     using System.IO;
     using System.Linq;
+    using System.Threading;
     using System.Threading.Tasks;
     using Divergic.Logging.Xunit;
     using Io.Bcl;
@@ -38,6 +39,7 @@
         public async Task CanGroup()
         {
             var sequences = await _reader.ReadClusterData(1)
+                .SelectMany(x => x.ReadBclData(CancellationToken.None))
                 .Select(x => x.Barcode)
                 .Distinct()
                 .CountAsync()
@@ -45,22 +47,23 @@
             Assert.Equal(40, sequences);
         }
 
-        [Fact(Skip = "IO")]
-        public async Task CanWriteDemultiplexed()
-        {
-            var tempPath = Path.GetTempPath();
-            var runInfo = _reader.RunInfo();
-            var demuxWriter = new DemultiplexFastQWriter(
-                c => Path.Combine(tempPath, $"{c.Barcode}_L{c.Lane.ToString().PadLeft(3, '0')}_{c.Tile}.fastq.gz"),
-                runInfo,
-                NullLogger.Instance);
-            await using (demuxWriter.ConfigureAwait(false))
-            {
-                await demuxWriter.WriteDemultiplexed(_reader.ReadClusterData(1)
-                    .Where(c => c.Type == ReadType.T)).ConfigureAwait(false);
-            }
+        //[Fact]//(Skip = "IO")]
+        //public async Task CanWriteDemultiplexed()
+        //{
+        //    var tempPath = Path.GetTempPath();
+        //    var runInfo = _reader.RunInfo();
+        //    var demuxWriter = new DemultiplexFastQWriter(
+        //        c => Path.Combine(tempPath, $"{c.Barcode[..1]}.fastq.gz"),
+        //        runInfo,
+        //        NullLogger.Instance);
+        //    await using (demuxWriter.ConfigureAwait(false))
+        //    {
+        //        await demuxWriter.WriteDemultiplexed(_reader.ReadClusterData(1)
+        //        .SelectMany(x => x.ReadBclData(CancellationToken.None))
+        //            .Where(c => c.Type == ReadType.T)).ConfigureAwait(false);
+        //    }
 
-            await demuxWriter.DisposeAsync().ConfigureAwait(false);
-        }
+        //    await demuxWriter.DisposeAsync().ConfigureAwait(false);
+        //}
     }
 }

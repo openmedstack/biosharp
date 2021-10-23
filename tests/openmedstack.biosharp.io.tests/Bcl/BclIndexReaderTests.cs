@@ -2,10 +2,10 @@
 {
     using System;
     using System.IO;
+    using System.IO.Compression;
     using System.Linq;
     using System.Threading.Tasks;
     using Io.Bcl;
-    using SharpCompress.Archives.GZip;
     using Xunit;
 
     public class BclIndexReaderTests
@@ -31,9 +31,10 @@
             Assert.True(blockAddress < file.Length);
             var fileStream = File.OpenRead(file.FullName);
             fileStream.Seek(blockAddress, SeekOrigin.Begin);
-            var archive = GZipArchive.Open(fileStream);
+            using var archive = new ZipArchive(fileStream);
             var ms = new MemoryStream();
-            var entryStream = archive.Entries.First().OpenEntryStream();
+            await using var _ = ms.ConfigureAwait(false);
+            var entryStream = archive.Entries.First().Open();
             await entryStream.CopyToAsync(ms).ConfigureAwait(false);
             var data = Array.ConvertAll(ms.ToArray().AsMemory(blockOffset).ToArray(), b => (char)b);
         }

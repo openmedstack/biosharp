@@ -1,13 +1,13 @@
 ﻿namespace OpenMedStack.BioSharp.Model.Bcl
 {
-    using System.Text;
+    using System;
 
-    public record ClusterData
+    public record struct ClusterData
     {
         public ClusterData(
             string barcode,
-            byte[] bases,
-            byte[] qualities,
+            Memory<byte> bases,
+            Memory<byte> qualities,
             ReadType type,
             int lane,
             int tile,
@@ -29,8 +29,8 @@
         }
 
         public string Barcode { get; }
-        public byte[] Bases { get; }
-        public byte[] Qualities { get; }
+        public Memory<byte> Bases { get; }
+        public Memory<byte> Qualities { get; }
         public ReadType Type { get; }
         public int Lane { get; }
         public int Tile { get; }

@@ -73,7 +73,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                 // TODO: If we can remove the use of BclQualityEvaluationStrategy then in the lookup we
                 // TODO: can just set the QUAL to max(2, (i >>> 2)) instead.
                 BclBaseLookup[i] = BaseLookup[i & BaseMask];
-                BclQualLookup[i] = (byte)Math.Max(0, (i >> 2));
+                BclQualLookup[i] = (byte)Math.Max(0, i >> 2);
             }
         }
 
@@ -171,6 +171,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         private ReadType[] ReadTypes { get; }
         private int NumReads { get; }
         public int[] NumClustersPerCycle { get; }
+        public int Tile => _tileIndexRecord.Tile;
         private int Cycles { get; }
 
         private static Stream Open(FileInfo file, BlockOffsetRecord offset)
@@ -198,7 +199,9 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         private async IAsyncEnumerable<ReadData[]> Read([EnumeratorCancellation] CancellationToken cancellationToken)
         {
             _logger.LogInformation(
-                $"Start reading {(_tileIndexRecord.NumClustersInTile == int.MaxValue ? "all" : _tileIndexRecord.NumClustersInTile)} clusters from tile {_tileIndexRecord.Tile}");
+                "Start reading {0} clusters from tile {1}",
+                _tileIndexRecord.NumClustersInTile == int.MaxValue ? "all" : _tileIndexRecord.NumClustersInTile,
+                _tileIndexRecord.Tile);
 
             var queue = ArrayPool<byte>.Shared.Rent(_queueSize);
             BclData[] bclDataArray = ArrayPool<BclData>.Shared.Rent(_queueSize);
@@ -226,7 +229,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                 for (var read = 0; read < NumReads; ++read)
                 {
                     var readLen = OutputLengths[read];
-                    var firstCycle = (read == 0) ? 1 : 0; // For the first read we already did the first cycle above
+                    var firstCycle = read == 0 ? 1 : 0; // For the first read we already did the first cycle above
 
                     for (var cycle = firstCycle; cycle < readLen; ++cycle)
                     {
@@ -258,13 +261,17 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                         break;
                     }
                 }
-
             }
             ArrayPool<byte>.Shared.Return(queue);
             ArrayPool<BclData>.Shared.Return(bclDataArray);
 
             _logger.LogInformation(
-                $"Finished reading {readIndex} clusters from tile {_tileIndexRecord.Tile} out of {(_tileIndexRecord.NumClustersInTile == int.MaxValue ? "whole file" : _tileIndexRecord.NumClustersInTile)}");
+                "Finished reading {readIndex} clusters from tile {tile} out of {numberOfClusters}",
+                readIndex,
+                _tileIndexRecord.Tile,
+                _tileIndexRecord.NumClustersInTile == int.MaxValue
+                    ? "whole file"
+                    : _tileIndexRecord.NumClustersInTile);
         }
 
         private async Task ReadAndUpdateData(
@@ -384,7 +391,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
 
             for (var i = bases.Length - 1; i >= 0; i--)
             {
-                var quality = (0xff & qualities[i]);
+                var quality = 0xff & qualities[i];
 
                 if (quality >= EamssM2GeThreshold)
                 {
@@ -420,7 +427,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                         {
                             exceptions += skip;
                             numGs += skip;
-                            i -= (skip - 1);
+                            i -= skip - 1;
                         }
                         else
                         {
@@ -431,7 +438,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
 
                 if (numGs >= 10)
                 {
-                    indexOfMax = (indexOfMax + 1) - numGs;
+                    indexOfMax = indexOfMax + 1 - numGs;
                 }
 
                 for (var i = indexOfMax; i < qualities.Length; i++)
@@ -476,36 +483,24 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         /// <inheritdoc />
         public async ValueTask DisposeAsync()
         {
-            await Task.WhenAll(Streams.Select(x => x.DisposeAsync().AsTask().ContinueWith(_ => { }))).ConfigureAwait(false);
+            await Task.WhenAll(Streams.Select(x => x.DisposeAsync().AsTask().ContinueWith(t =>
+            {
+                if (t.Exception is not null)
+                {
+                    _logger.LogError(t.Exception, "{0}", t.Exception.Message);
+                    foreach (var innerException in t.Exception.InnerExceptions)
+                    {
+                        _logger.LogError(innerException, "{0}", innerException.Message);
+                    }
+                }
+            }))).ConfigureAwait(false);
             GC.SuppressFinalize(this);
         }
 
         /// <inheritdoc />
-        public async IAsyncEnumerator<ReadData[]> GetAsyncEnumerator(CancellationToken cancellationToken = default)
+        public IAsyncEnumerator<ReadData[]> GetAsyncEnumerator(CancellationToken cancellationToken = default)
         {
-            var collection = new BlockingCollection<ReadData[]>();
-            using var readTask = Task.Run(
-                 async () =>
-                 {
-                     await foreach (var data in Read(cancellationToken).ConfigureAwait(false))
-                     {
-                         collection.Add(data, cancellationToken);
-                     }
-                     collection.CompleteAdding();
-                 },
-                 cancellationToken);
-
-            while (!collection.IsCompleted)
-            {
-                if (!collection.TryTake(out var item))
-                {
-                    continue;
-                }
-
-                yield return item;
-            }
-
-            await readTask.ConfigureAwait(false);
+            return Read(cancellationToken).GetAsyncEnumerator(cancellationToken);
         }
 
         /// <summary>

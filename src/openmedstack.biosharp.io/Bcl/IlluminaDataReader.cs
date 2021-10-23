@@ -74,7 +74,7 @@
             _run = info?.Run ?? throw new Exception("Could not read " + _runInfo.FullName);
             if (_readStructure?.Reads != null)
             {
-                _logger.LogInformation("Substituting read structures with manual overrides: " + _readStructure);
+                _logger.LogInformation("Substituting read structures with manual overrides: {structure}", _readStructure);
                 _run.Reads.Read = _readStructure!.Reads;
             }
             else if (_run.Reads.Read?.All(x => x.Type == ReadType.S) == true)
@@ -103,24 +103,18 @@
                 .ToList();
         }
 
-        public async IAsyncEnumerable<ClusterData> ReadClusterData(
+        public async IAsyncEnumerable<SampleReader> ReadClusterData(
             int lane,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
             var runInfo = RunInfo();
-            await foreach (var reader in CreateLaneReaders(lane, runInfo).ConfigureAwait(false))
+            await foreach (var reader in CreateLaneReaders(lane, runInfo, cancellationToken).ConfigureAwait(false))
             {
-                _logger.LogInformation($"Reading data for lane: {lane}");
-                await foreach (var read in reader.ReadBclData(cancellationToken).ConfigureAwait(false))
-                {
-                    yield return read;
-                }
-
-                await reader.DisposeAsync().ConfigureAwait(false);
+                yield return reader!;
             }
         }
 
-        private async IAsyncEnumerable<SampleReader> CreateLaneReaders(int lane, Run runInfo)
+        private async IAsyncEnumerable<SampleReader> CreateLaneReaders(int lane, Run runInfo, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             var laneName = lane.ToString();
             var dir = _baseCallLaneDirs.Single(
@@ -140,23 +134,49 @@
                 .ToDictionary(f => f.FullName, f => (IBclIndexReader)new BclIndexReader(f));
             await foreach (var tileRecord in tiles.ConfigureAwait(false))
             {
-                var filterReader = await GetFilterReader(lane, dir, tileRecord).ConfigureAwait(false);
-                var positionReader = GetPositionReader(lane, tileRecord.Tile, laneName);
-                yield return new SampleReader(
-                    lane,
-                    lane,
-                    new BclReader(
-                        files,
-                        indexReaders,
-                        runInfo.Reads.Read!,
+                yield return await CreateSampleReader(
+                        lane,
+                        runInfo,
+                        dir,
                         tileRecord,
-                        new BclQualityEvaluationStrategy(2),
-                        _logger),
-                    positionReader,
-                    filterReader);
-                _logger.LogInformation(
-                    $"Created reader for lane: {lane}, tile: {tileRecord.Tile} with {(tileRecord.NumClustersInTile == int.MaxValue ? "all clusters in file" : (tileRecord.NumClustersInTile + " clusters"))}");
+                        laneName,
+                        files,
+                        indexReaders)
+                    .ConfigureAwait(false);
             }
+        }
+
+        private async Task<SampleReader> CreateSampleReader(
+            int lane,
+            Run runInfo,
+            DirectoryInfo dir,
+            TileIndexRecord tileRecord,
+            string laneName,
+            List<FileInfo> files,
+            Dictionary<string, IBclIndexReader> indexReaders)
+        {
+            var filterReader = await GetFilterReader(lane, dir, tileRecord).ConfigureAwait(false);
+            var positionReader = GetPositionReader(lane, tileRecord.Tile, laneName);
+            _logger.LogInformation(
+                "Created reader for lane: {lane}, tile: {tile} with {clusterCount} on {thread}",
+                lane,
+                tileRecord.Tile,
+                tileRecord.NumClustersInTile == int.MaxValue
+                    ? "all clusters in file"
+                    : tileRecord.NumClustersInTile + " clusters",
+                Environment.CurrentManagedThreadId);
+            return new SampleReader(
+                lane,
+                lane,
+                new BclReader(
+                    files,
+                    indexReaders,
+                    runInfo.Reads.Read!,
+                    tileRecord,
+                    new BclQualityEvaluationStrategy(2),
+                    _logger),
+                positionReader,
+                filterReader);
         }
 
         private static async Task<IEnumerable<bool>> GetFilterReader(int lane, DirectoryInfo dir, TileIndexRecord tileRecord)
