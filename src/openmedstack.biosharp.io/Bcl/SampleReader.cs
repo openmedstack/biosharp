@@ -36,6 +36,7 @@
         public int Lane { get; }
 
         public async IAsyncEnumerable<ClusterData> ReadBclData(
+            IQualityTrimmer qualityTrimmer,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             var positionalEnumerator = _positionReader.GetAsyncEnumerator(cancellationToken);
@@ -65,7 +66,7 @@
 
                 var filtered = filter.Current;
                 var pairedEndRead = index.Contains('_');
-                foreach (var (tile, readType, bytes, qualities, readIndex) in data)
+                foreach (var (tile, readType, bytes, qualities, readIndex) in await qualityTrimmer.Trim(data))
                 {
                     yield return new ClusterData(
                         index,
