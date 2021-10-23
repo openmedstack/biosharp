@@ -1,4 +1,4 @@
-﻿namespace OpenMedStack.BioSharp.Model
+﻿namespace OpenMedStack.BioSharp.Model.Vcf
 {
     using System.Linq;
 

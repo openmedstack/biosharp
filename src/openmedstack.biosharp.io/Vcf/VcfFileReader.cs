@@ -9,6 +9,7 @@
     using System.Threading;
     using System.Threading.Tasks;
     using Model;
+    using OpenMedStack.BioSharp.Model.Vcf;
 
     public class VcfFileReader
     {

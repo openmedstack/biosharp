@@ -39,7 +39,7 @@
         public async Task CanGroup()
         {
             var sequences = await _reader.ReadClusterData(1)
-                .SelectMany(x => x.ReadBclData(CancellationToken.None))
+                .SelectMany(x => x.ReadBclData(DefaultQualityTrimmer.Default,CancellationToken.None))
                 .Select(x => x.Barcode)
                 .Distinct()
                 .CountAsync()
