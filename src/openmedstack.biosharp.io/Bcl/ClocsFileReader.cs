@@ -60,7 +60,15 @@
         public ClocsFileReader(FileInfo clocsFile)
         {
             _clocsFile = clocsFile;
-            using var fs = File.OpenRead(clocsFile.FullName);
+            using var fs = File.Open(
+                clocsFile.FullName,
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Read,
+                    Mode = FileMode.Open,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                    Share = FileShare.Read
+                });
             fs.CopyTo(_fileContent);
             _fileContent.Position = 0;
             _byteIterator = new BinaryReader(_fileContent);
@@ -83,7 +91,7 @@
         //@Override
         public async IAsyncEnumerator<IPositionalData> GetAsyncEnumerator(CancellationToken cancellationToken = default)
         {
-            byte[] buffer = new byte[2];
+            var buffer = new byte[2];
             while (HasNext())
             {
                 var read = await _byteIterator.BaseStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);

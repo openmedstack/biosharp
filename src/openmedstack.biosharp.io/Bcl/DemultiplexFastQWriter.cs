@@ -44,6 +44,15 @@
 //                        }
 
 //                        return new FastQWriter(_logger, File.Open(p, FileMode.OpenOrCreate, FileAccess.Write, FileShare.None));
+//File.Open(
+//    filePath,
+//    new FileStreamOptions
+//    {
+//        Access = FileAccess.Read,
+//        Mode = FileMode.Open,
+//        Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+//        Share = FileShare.Read
+//    })
 //                    });
 //                await writer.Write(clusterData.Select(x => new Sequence(x, _runInfo)), cancellationToken).ConfigureAwait(false);
 //                if (clusterData is IDisposable disposable)

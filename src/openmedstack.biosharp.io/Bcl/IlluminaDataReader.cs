@@ -68,7 +68,15 @@
 
             _logger.LogInformation("Deserializing RunInfo.xml");
             var serializer = new XmlSerializer(typeof(RunInfo));
-            using var runFile = File.OpenRead(_runInfo!.FullName);
+            using var runFile = File.Open(
+                _runInfo.FullName,
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Read,
+                    Mode = FileMode.Open,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                    Share = FileShare.Read
+                });
             var info = serializer.Deserialize(runFile) as RunInfo;
 
             _run = info?.Run ?? throw new Exception("Could not read " + _runInfo.FullName);
@@ -110,7 +118,7 @@
             var runInfo = RunInfo();
             await foreach (var reader in CreateLaneReaders(lane, runInfo, cancellationToken).ConfigureAwait(false))
             {
-                yield return reader!;
+                yield return reader;
             }
         }
 

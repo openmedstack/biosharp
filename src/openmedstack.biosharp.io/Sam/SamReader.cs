@@ -5,7 +5,6 @@
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.Extensions.Logging;
-    using Model;
 
     public class SamReader
     {
@@ -15,18 +14,18 @@
         {
             _logger = logger;
         }
-
-        //public Task<SamDefinition> Read(
-        //    string filePath,
-        //    Sequence baseSequence,
-        //    CancellationToken cancellationToken = default)
-        //{
-        //    return Read(filePath, cancellationToken);
-        //}
-
+        
         public async Task<SamDefinition> Read(string filePath, CancellationToken cancellationToken = default)
         {
-            var file = File.OpenRead(filePath);
+            var file = File.Open(
+                filePath,
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Read,
+                    Mode = FileMode.Open,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                    Share = FileShare.Read
+                });
             await using var _ = file.ConfigureAwait(false);
             return await Read(file, cancellationToken).ConfigureAwait(false);
         }

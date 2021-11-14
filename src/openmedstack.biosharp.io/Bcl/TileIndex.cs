@@ -3,7 +3,6 @@
     using System;
     using System.Collections.Generic;
     using System.IO;
-    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
 
@@ -25,9 +24,17 @@
         /// <inheritdoc />
         public async IAsyncEnumerator<TileIndexRecord> GetAsyncEnumerator(CancellationToken cancellationToken = default)
         {
-            var input = File.Open(_tileIndexFile.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var input = File.Open(
+                _tileIndexFile.FullName,
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Read,
+                    Mode = FileMode.Open,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                    Share = FileShare.Read
+                });
             await using var _ = input.ConfigureAwait(false);
-            byte[] buf = new byte[8];
+            var buf = new byte[8];
 
             var absoluteRecordIndex = 0;
             var numTiles = 0;
@@ -54,32 +61,4 @@
         }
 
     }
-
-    public class FileStuctureTileIndex : IAsyncEnumerable<TileIndexRecord>
-    {
-        private readonly IEnumerable<int> _tiles;
-
-        public FileStuctureTileIndex(IEnumerable<int> tiles)
-        {
-            _tiles = tiles.ToList();
-        }
-
-        /// <inheritdoc />
-        public async IAsyncEnumerator<TileIndexRecord> GetAsyncEnumerator(
-            CancellationToken cancellationToken = new ())
-        {
-            await Task.Yield();
-            foreach (var tile in _tiles)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                yield return new TileIndexRecord(tile, int.MaxValue, 0, 0);
-            }
-        }
-    }
-
-    public record TileIndexRecord(
-        int Tile,
-        int NumClustersInTile,
-        int IndexOfFirstClusterInTile,
-        int ZeroBasedTileNumber);
 }

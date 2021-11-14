@@ -21,14 +21,22 @@
 
         public async IAsyncEnumerable<Sequence> Read(string path, [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            var file = File.OpenRead(path);
+            var file = File.Open(
+                path,
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Read,
+                    Mode = FileMode.Open,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                    Share = FileShare.Read
+                });
             await using var _ = file.ConfigureAwait(false);
             var gzip = new GZipStream(file, CompressionMode.Decompress, false);
             await using var __ = gzip.ConfigureAwait(false);
             using var reader = new StreamReader(gzip);
             while (file.Position < file.Length)
             {
-                _logger.LogInformation($"Read {file} to {file.Position}/{file.Length}");
+                _logger.LogInformation("Read {file} to {position}/{length}", file, file.Position, file.Length);
                 cancellationToken.ThrowIfCancellationRequested();
                 var id = await reader.ReadLineAsync().ConfigureAwait(false);
                 var letters = await reader.ReadLineAsync().ConfigureAwait(false);

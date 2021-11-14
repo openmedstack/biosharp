@@ -17,7 +17,15 @@
             string path,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            var file = File.OpenRead(path);
+            var file = File.Open(
+                path,
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Read,
+                    Mode = FileMode.Open,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                    Share = FileShare.Read
+                });
             await using var _ = file.ConfigureAwait(false);
             await foreach (var sequence in Read(file, cancellationToken).ConfigureAwait(false))
             {
@@ -69,7 +77,15 @@
             bool compressedFile = false,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            var file = File.OpenRead(path);
+            var file = File.Open(
+                path,
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Read,
+                    Mode = FileMode.Open,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                    Share = FileShare.Read
+                });
             await using var _ = file.ConfigureAwait(false);
             var zip = new GZipStream(file, CompressionMode.Decompress);
             await using var __ = zip.ConfigureAwait(false);

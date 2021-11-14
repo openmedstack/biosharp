@@ -18,9 +18,6 @@
         public IlluminaRunDataReaderTests(ITestOutputHelper outputHelper)
         {
             _reader = new IlluminaDataReader(
-                //new DirectoryInfo(@"Z:\sequencing\200129_NB551214_0127_AH7CMYBGXF"),
-                //new TestOutputLogger(nameof(IlluminaRunDataReaderTests), outputHelper),
-                //ReadStructure.Parse("151T8B8B151T"));
                 new DirectoryInfo(@"data/illumina/25T8B25T"),
                 new TestOutputLogger(nameof(IlluminaRunDataReaderTests), outputHelper),
                 ReadStructure.Parse("25T8B25T"));
@@ -30,8 +27,8 @@
         public async Task CanRead()
         {
             var sequences = _reader.ReadClusterData(1);
-
-            var count = await sequences.CountAsync().ConfigureAwait(false);
+            var count = await sequences.SelectAwait(async sequence => await sequence.ReadBclData(DefaultQualityTrimmer.Instance, CancellationToken.None).CountAsync().ConfigureAwait(false)).SumAsync();
+            
             Assert.Equal(180 * 3, count);
         }
 
@@ -39,7 +36,7 @@
         public async Task CanGroup()
         {
             var sequences = await _reader.ReadClusterData(1)
-                .SelectMany(x => x.ReadBclData(DefaultQualityTrimmer.Default,CancellationToken.None))
+                .SelectMany(x => x.ReadBclData(DefaultQualityTrimmer.Instance, CancellationToken.None))
                 .Select(x => x.Barcode)
                 .Distinct()
                 .CountAsync()

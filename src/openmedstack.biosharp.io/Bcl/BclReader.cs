@@ -94,7 +94,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         {
             for (var i = 0; i < Cycles; ++i)
             {
-                FileInfo bclFileInfo = bclsForOneTile[i];
+                var bclFileInfo = bclsForOneTile[i];
                 if (!File.Exists(bclFileInfo.FullName))
                 {
                     DisposeAsync().AsTask().Wait();
@@ -126,8 +126,8 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                 queueSize,
                 logger)
         {
-            byte[] byteBuffer = new byte[HeaderSize];
-            Stream stream = Open(bclFileInfo, new BlockOffsetRecord(0, 0));
+            var byteBuffer = new byte[HeaderSize];
+            var stream = Open(bclFileInfo, new BlockOffsetRecord(0, 0));
             var read = stream.Read(byteBuffer.AsSpan());
 
             if (read != HeaderSize)
@@ -176,11 +176,19 @@ namespace OpenMedStack.BioSharp.Io.Bcl
 
         private static Stream Open(FileInfo file, BlockOffsetRecord offset)
         {
-            string filePath = file.FullName;
+            var filePath = file.FullName;
 
             var isGzip = Path.GetExtension(filePath).Equals(".gz", StringComparison.OrdinalIgnoreCase);
             var isBgzf = Path.GetExtension(filePath).Equals(".bgzf", StringComparison.OrdinalIgnoreCase);
-            var sourceFile = File.Open(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            var sourceFile = File.Open(
+                filePath,
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Read,
+                    Mode = FileMode.Open,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                    Share = FileShare.Read
+                });
             sourceFile.Seek(offset.BlockAddress, SeekOrigin.Begin);
             Stream stream = isGzip || isBgzf ? new GZipStream(sourceFile, CompressionMode.Decompress) : sourceFile;
 
@@ -204,7 +212,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                 _tileIndexRecord.Tile);
 
             var queue = ArrayPool<byte>.Shared.Rent(_queueSize);
-            BclData[] bclDataArray = ArrayPool<BclData>.Shared.Rent(_queueSize);
+            var bclDataArray = ArrayPool<BclData>.Shared.Rent(_queueSize);
             var readIndex = 0;
             while (readIndex < _tileIndexRecord.NumClustersInTile && !cancellationToken.IsCancellationRequested)
             {
@@ -293,7 +301,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             var numClusters = bclDatas.Length;
             for (var dataIdx = 0; dataIdx < numClusters; ++dataIdx)
             {
-                BclData data = bclDatas[dataIdx];
+                var data = bclDatas[dataIdx];
                 var b = (uint)buffer[dataIdx];
                 data.Bases[read][cycle] = BclBaseLookup[b];
                 data.Qualities[read][cycle] = _bclQualityEvaluationStrategy.ReviseAndConditionallyLogQuality(BclQualLookup[b]);

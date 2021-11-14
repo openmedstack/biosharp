@@ -8,12 +8,6 @@ namespace OpenMedStack.BioSharp.Io.Bcl
     using System.IO;
     using System.Threading.Tasks;
 
-    public interface IBclIndexReader
-    {
-        int NumTiles { get; }
-        Task<BlockOffsetRecord> Get(int recordNumber);
-    }
-
     /**
      * Annoyingly, there are two different files with extension .bci in NextSeq output.  This reader handles
      * the file that contains virtual file pointers into a .bcl.bgzf file.  After the header, there is a 64-bit record
@@ -34,7 +28,13 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                 path += ".bci";
             }
             BciFile = new FileInfo(path);
-            _fileStream = File.OpenRead(BciFile.FullName);
+            _fileStream = new FileStream(
+                BciFile.FullName,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.Read,
+                4096,
+                FileOptions.Asynchronous | FileOptions.SequentialScan);
             var headerBytes = new byte[BciHeaderSize];
             _fileStream.Read(headerBytes, 0, BciHeaderSize);
 
@@ -58,7 +58,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
 
             ++_nextRecordNumber;
 
-            byte[] element = new byte[8];
+            var element = new byte[8];
             _ = await _fileStream.ReadAsync(element).ConfigureAwait(false);
             var virtualFilePointer = BitConverter.ToInt64(element);
             var address = (virtualFilePointer >> ShiftAmount) & AddressMask;
@@ -72,18 +72,4 @@ namespace OpenMedStack.BioSharp.Io.Bcl
 
         public FileInfo BciFile { get; }
     }
-
-    public class NoOffsetIndexReader : IBclIndexReader
-    {
-        /// <inheritdoc />
-        public int NumTiles { get; } = 1;
-
-        /// <inheritdoc />
-        public Task<BlockOffsetRecord> Get(int recordNumber)
-        {
-            return Task.FromResult(new BlockOffsetRecord(0, 0));
-        }
-    }
-
-    public record BlockOffsetRecord(long BlockAddress, int BlockOffset);
 }

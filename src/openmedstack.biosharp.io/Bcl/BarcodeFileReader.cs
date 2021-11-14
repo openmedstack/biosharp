@@ -37,7 +37,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             while (!streamReader.EndOfStream && !cancellationToken.IsCancellationRequested)
             {
                 var line = await streamReader.ReadLineAsync().ConfigureAwait(false);
-                string[] fields = line!.Split('\t');
+                var fields = line!.Split('\t');
                 yield return fields[Y_OR_N_COLUMN].Equals("Y") ? new BarcodeData(fields[BARCODE_COLUMN]) : null;
             }
         }

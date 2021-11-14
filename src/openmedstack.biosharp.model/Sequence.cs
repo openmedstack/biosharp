@@ -6,7 +6,7 @@
     using System.Text;
     using Bcl;
 
-    public struct Sequence : IEnumerable<BasePair>
+    public class Sequence : IEnumerable<BasePair>
     {
         private readonly Memory<byte> _data;
         private readonly Memory<byte> _qualities;
@@ -25,7 +25,9 @@
 
         public static Sequence FromCluster(ClusterData data, Run run)
         {
-            return new Sequence(data.ToSequenceHeader(run), data.Bases, Array.ConvertAll(data.Qualities.ToArray(), b => (byte)(b + 33)));
+            var bytes = Array.ConvertAll(data.Qualities.ToArray(), b => (byte)(b + 33));
+            var header = data.ToSequenceHeader(run);
+            return new Sequence(header, data.Bases, bytes);
         }
 
         public string Id { get; }
@@ -42,7 +44,7 @@
 
         public IEnumerator<BasePair> GetEnumerator()
         {
-            for (int i = 0; i < _data.Length; i++)
+            for (var i = 0; i < _data.Length; i++)
             {
                 yield return new BasePair(_data.Span[i], _qualities.Span[i]);
             }

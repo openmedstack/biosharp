@@ -29,7 +29,15 @@
             var reader = new BclIndexReader(file);
             var (blockAddress, blockOffset) = await reader.Get(200).ConfigureAwait(false);
             Assert.True(blockAddress < file.Length);
-            var fileStream = File.OpenRead(file.FullName);
+            var fileStream =File.Open(
+                file.FullName,
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Read,
+                    Mode = FileMode.Open,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                    Share = FileShare.Read
+                });
             fileStream.Seek(blockAddress, SeekOrigin.Begin);
             using var archive = new ZipArchive(fileStream);
             var ms = new MemoryStream();

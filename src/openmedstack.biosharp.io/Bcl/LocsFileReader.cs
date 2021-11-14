@@ -13,7 +13,15 @@
 
         public LocsFileReader(FileInfo locsFile)
         {
-            _stream = File.OpenRead(locsFile.FullName);
+            _stream = File.Open(
+                locsFile.FullName,
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Read,
+                    Mode = FileMode.Open,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                    Share = FileShare.Read
+                });
             var headerBuffer = new byte[12];
             _ = _stream.Read(headerBuffer);
             if (!BitConverter.ToInt32(headerBuffer.AsSpan(0, 4)).Equals(1))

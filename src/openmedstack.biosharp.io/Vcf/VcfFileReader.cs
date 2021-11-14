@@ -26,13 +26,29 @@
         {
             if (Path.HasExtension(".gz"))
             {
-                var fileContent = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+                var fileContent = File.Open(
+                    path,
+                    new FileStreamOptions
+                    {
+                        Access = FileAccess.Read,
+                        Mode = FileMode.Open,
+                        Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                        Share = FileShare.Read
+                    });;
                 var zip = new ZipArchive(fileContent);
                 var stream = zip.Entries.First().Open();
                 return await Read(zip, stream, cancellationToken).ConfigureAwait(false);
             }
 
-            var file = File.OpenRead(path);
+            var file = File.Open(
+                path,
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Read,
+                    Mode = FileMode.Open,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                    Share = FileShare.Read
+                });
             await using var _ = file.ConfigureAwait(false);
             return await Read(new NoopDisposable(), file, cancellationToken).ConfigureAwait(false);
         }

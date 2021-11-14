@@ -12,7 +12,7 @@
 
         }
 
-        public static IQualityTrimmer Default => _trimmer;
+        public static IQualityTrimmer Instance => _trimmer;
 
         public Task<ReadData[]> Trim(ReadData[] data)
         {

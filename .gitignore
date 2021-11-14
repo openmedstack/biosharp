@@ -15,3 +15,5 @@ publish
 artifacts
 data
 PublishProfiles
+.vscode
+launchSettings.json

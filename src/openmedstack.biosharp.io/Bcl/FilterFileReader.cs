@@ -47,14 +47,22 @@
 
         private FilterFileReader(FileInfo file)
         {
-            _bbIterator = File.Open(file.FullName, FileMode.Open, FileAccess.Read, FileShare.Read);
+            _bbIterator = File.Open(
+                file.FullName,
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Read,
+                    Mode = FileMode.Open,
+                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                    Share = FileShare.Read
+                });
         }
 
         public static async Task<FilterFileReader> Create(FileInfo file, CancellationToken cancellationToken = default)
         {
             var instance = new FilterFileReader(file);
             // MMapBackedIteratorFactory.getByteIterator(HEADER_SIZE, file);
-            byte[] headerBuf = new byte[HeaderSize]; //bbIterator.getHeaderBytes();
+            var headerBuf = new byte[HeaderSize]; //bbIterator.getHeaderBytes();
             var read = await instance._bbIterator.ReadAsync(headerBuf, cancellationToken).ConfigureAwait(false);
             if (read != HeaderSize)
             {
