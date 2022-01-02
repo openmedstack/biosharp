@@ -8,6 +8,7 @@
     public class ReadStructure
     {
         private static readonly Regex ReadPattern = new("(?<read>\\d{1,}[TBSM])", RegexOptions.Compiled);
+
         public ReadStructure(params Read[] reads)
         {
             Reads = reads.ToList();

@@ -1,10 +1,10 @@
 <Project>
     <PropertyGroup>
         <Version>1.0.0</Version>
-        <Authors>Jacob Reimers</Authors>
-        <Company>Reimers.dk</Company>
-        <Product>OpenMedStack</Product>
-        <Copyright>Reimers.dk © 2016 - 2021</Copyright>
+        <Authors>OpenMedStack;Jacob Reimers</Authors>
+        <Company>OpenMedStack</Company>
+        <Product>OpenMedStack BioSharp</Product>
+        <Copyright>OpenMedStack © 2016 - 2022</Copyright>
         <RepositoryType>git</RepositoryType>
         <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
