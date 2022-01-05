@@ -1,7 +1,7 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.31410.357
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.32014.148
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "openmedstack.biosharp.io", "src\openmedstack.biosharp.io\openmedstack.biosharp.io.csproj", "{67880BDA-97C7-488A-8BD0-9B90FD7BEF74}"
 EndProject
@@ -20,7 +20,14 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "openmedstack.biosharp.calcu
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "openmedstack.biosharp.model.tests", "tests\openmedstack.biosharp.model.tests\openmedstack.biosharp.model.tests.csproj", "{B6DDBBA1-9260-4BD0-AB26-391FEFD23972}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "openmedstack.preator", "src\openmedstack.preator\openmedstack.preator.csproj", "{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "openmedstack.preator", "src\openmedstack.preator\openmedstack.preator.csproj", "{A3784B4D-DAEF-4E5E-BBD3-1DF9E4337307}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "specs", "specs", "{6026C0CD-033B-49E7-AD87-332C9AF4A6D1}"
+	ProjectSection(SolutionItems) = preProject
+		specs\FileFormats_part2.pdf = specs\FileFormats_part2.pdf
+		specs\SAMv1.pdf = specs\SAMv1.pdf
+		specs\VCFv4.2.pdf = specs\VCFv4.2.pdf
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
