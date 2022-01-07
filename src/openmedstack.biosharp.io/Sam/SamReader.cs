@@ -44,7 +44,7 @@
                 cancellationToken.ThrowIfCancellationRequested();
                 var line = await reader.ReadLineAsync().ConfigureAwait(false);
                 if (string.IsNullOrWhiteSpace(line)) { break; }
-
+                
                 if (line[0] == '@')
                 {
                     var span = line.Substring(1, 2);

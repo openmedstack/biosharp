@@ -21,8 +21,8 @@
     /// </summary>
     public record AlignmentSection
     {
-        private AlignmentSection(string qname, AlignmentFlag flag, string rname, int position, int mapq, string cigar, string rnext, int pnext, int templatelength,
-            string sequence, string quality)
+        internal AlignmentSection(string qname, AlignmentFlag flag, string rname, int position, int mapq, string cigar, int rnext, int pnext, int templatelength,
+            string sequence, string quality, int index = -1)
         {
             QName = qname;
             Flag = flag;
@@ -35,6 +35,7 @@
             TemplateLength = templatelength;
             Sequence = sequence;
             Quality = quality;
+            Index = index;
         }
 
         public string QName { get; }
@@ -49,7 +50,7 @@
 
         public string Cigar { get; }
 
-        public string RNext { get; }
+        public int RNext { get; }
 
         public int PNext { get; }
 
@@ -58,6 +59,8 @@
         public string Sequence { get; }
 
         public string Quality { get; }
+
+        public int Index { get; }
 
         public static AlignmentSection Parse(string line)
         {
@@ -69,7 +72,7 @@
                 int.Parse(parts[3], NumberStyles.Integer),
                 int.Parse(parts[4], NumberStyles.Integer),
                 parts[5],
-                parts[6],
+                int.Parse(parts[6]),
                 int.Parse(parts[7], NumberStyles.Integer),
                 int.Parse(parts[8], NumberStyles.Integer),
                 parts[9],

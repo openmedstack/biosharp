@@ -4,7 +4,7 @@
 
     public record ReadGroup
     {
-        private ReadGroup(string id)
+        internal ReadGroup(string id)
         {
             Id = id;
         }

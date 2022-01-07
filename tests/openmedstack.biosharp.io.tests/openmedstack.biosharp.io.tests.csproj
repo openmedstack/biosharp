@@ -4,9 +4,16 @@
         <TargetFramework>net6.0</TargetFramework>
         <IsPackable>false</IsPackable>
         <RootNamespace>OpenMedStack.BioSharp.Io.Tests</RootNamespace>
+        <IsPublishable>False</IsPublishable>
     </PropertyGroup>
 
     <ItemGroup>
+        <None Include="..\..\data\*.bam.bai">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Include="..\..\data\*.bam">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
         <None Include="..\..\data\*.fastq.gz">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>

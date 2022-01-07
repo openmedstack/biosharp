@@ -5,7 +5,7 @@
 
     public record FileMetadata
     {
-        private FileMetadata(string vn, SortingOrder so, AlignmentGrouping go)
+        internal FileMetadata(string vn, SortingOrder so, AlignmentGrouping go)
         {
             if (!Regex.IsMatch(vn, "^[0-9]+\\.[0-9]+$"))
             {
@@ -28,7 +28,7 @@
             var parts = line[4..].Split('\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
             return new FileMetadata(
                 parts[0][3..],
-                Enum.Parse<SortingOrder>(parts[1][3..], true),
+                parts.Length == 1 ? SortingOrder.unknown : Enum.Parse<SortingOrder>(parts[1][3..], true),
                 AlignmentGrouping.none);
         }
 

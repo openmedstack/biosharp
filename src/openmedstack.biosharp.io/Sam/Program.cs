@@ -4,7 +4,7 @@
 
     public record Program
     {
-        private Program(string id)
+        internal Program(string id)
         {
             Id = id;
         }
