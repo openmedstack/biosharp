@@ -5,6 +5,7 @@
     using System.Collections.Generic;
     using System.IO;
     using System.IO.Compression;
+    using System.Linq;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
@@ -91,7 +92,6 @@
                 refSeqs.Add(referenceSequence);
             }
 
-            //var sq = new List<ReferenceSequence>();
             FileMetadata fmd = null!;
             Program pg = null!;
             ReadGroup rg = null!;
@@ -153,12 +153,16 @@
             var sequenceLength = (baseSeqLength + 1) / 2;
             var templateLength = BitConverter.ToInt32(block.Slice(28, 4).Span);
             var cigarStart = 32 + nameLength;
-            var qStart = cigarStart + cigarLength + sequenceLength;
+            var sequenceStart = cigarStart + cigarLength * 4;
+            var qStart = sequenceStart + sequenceLength;
             var cigar = new char[cigarLength];
+            var tagStart = qStart + baseSeqLength;
             for (var i = 0; i < cigarLength; i++)
             {
                 cigar[i] = (char)BitConverter.ToUInt32(block.Slice(cigarStart + (i * 4), 4).Span);
             }
+
+            var tags = ReadTags(block[tagStart..]).ToArray();
 
             return new AlignmentSection(
                 "",
@@ -170,22 +174,102 @@
                 BitConverter.ToInt32(block.Slice(20, 4).Span),
                 BitConverter.ToInt32(block.Slice(24, 4).Span),
                 templateLength,
-               Encoding.UTF8.GetString(block.Slice(cigarStart + cigarLength, sequenceLength).Span),
-                new string(Array.ConvertAll(block.Slice(qStart, baseSeqLength).ToArray(), b => (char)b)));
-            //{
-            //    ReferenceSequenceId = BitConverter.ToInt32(block[..4].Span),
-            //    LeftMostCoordinate = ,
-            //    MappingQuality = ,
-            //    Index = BitConverter.ToUInt16(block.Slice(10, 2).Span),
-            //    Flags = ,
-            //    NextReferenceId = ,
-            //    NextSegmentPosition = ,
-            //    TemplateLength = templateLength,
-            //    ReadName = ,
-            //    Cigar = ,
-            //    Sequence = ,
-            //    Qualities = 
-            //};
+                Encoding.UTF8.GetString(block.Slice(sequenceStart, sequenceLength).Span),
+                new string(Array.ConvertAll(block.Slice(qStart, baseSeqLength).ToArray(), b => (char)b)),
+                tags);
+        }
+
+        private static IEnumerable<AlignmentTag> ReadTags(Memory<byte> memory)
+        {
+            var position = 0;
+            while (position < memory.Length)
+            {
+                var key = Encoding.UTF8.GetString(memory.Span[..2]);
+                var type = (char)memory.Span[2];
+                var (length, value) = ReadTagValue(memory.Span[3..], type);
+
+                position += (3 + length);
+                yield return new AlignmentTag(key, type, value);
+            }
+        }
+
+        private static (int length, object value) ReadTagValue(Span<byte> span, char type)
+        {
+            switch (type)
+            {
+                case 'A':
+                    return (1, (char)span[0]);
+                case 'Z':
+                    {
+                        var length = span.IndexOf((byte)'\0');
+                        return (length + 1, Encoding.UTF8.GetString(span[..(length)]));
+                    }
+                case 'i':
+                    {
+                        return (4, BitConverter.ToInt32(span[..4]));
+                    }
+                case 'I':
+                    {
+                        return (4, BitConverter.ToUInt32(span[..4]));
+                    }
+                case 's':
+                    {
+                        return (2, BitConverter.ToInt16(span[..2]));
+                    }
+                case 'S':
+                    {
+                        return (2, BitConverter.ToUInt16(span[..2]));
+                    }
+                case 'c':
+                    {
+                        return (1, (sbyte)(span[0]));
+                    }
+                case 'C':
+                    {
+                        return (1, span[0]);
+                    }
+                case 'f':
+                    {
+                        return (4, BitConverter.ToSingle(span[..4]));
+                    }
+                case 'H':
+                    {
+                        return (2, Encoding.UTF8.GetString(span[..2]));
+                    }
+                case 'B':
+                    {
+                        var subtype = (char)span[0];
+                        var count = BitConverter.ToInt32(span.Slice(1, 4));
+                        var total = 5;
+                        var array = Array.CreateInstance(GetTagType(type), count);
+                        for (var i = 0; i < count; i++)
+                        {
+                            var (length, value) = ReadTagValue(span[5..], subtype);
+                            total += length;
+                            array.SetValue(value, i);
+                        }
+                        return (total, array);
+                    }
+                default: throw new InvalidDataException("Invalid tag type: " + type);
+            }
+        }
+
+        private static Type GetTagType(char type)
+        {
+            return type switch
+            {
+                'A' => typeof(char),
+                'i' => typeof(int),
+                'I' => typeof(uint),
+                'f' => typeof(float),
+                'Z' => typeof(string),
+                'H' => typeof(char[]),
+                'c' => typeof(sbyte),
+                'C' => typeof(byte),
+                's' => typeof(short),
+                'S' => typeof(ushort),
+                _ => throw new InvalidDataException("Invalid tag value")
+            };
         }
 
         //private static int Reg2Bin(int beg, int end)
@@ -197,5 +281,34 @@
         //    if (beg>>26 == end>>26) return ((1<<3)-1)/7 + (beg>>26);
         //    return 0;
         //}
+
+        //private int Reg2Bins(int beg, int end, ushort[] list)
+        //{
+        //    if (list.Length != (((1 << 18) - 1) / 7))
+        //    {
+        //        throw new ArgumentException("Wrong list length", nameof(list));
+        //    }
+        //    int i = 0;
+        //    ushort k;
+        //    --end;
+        //    list[i++] = 0;
+        //    for (k = (ushort)(1 + (beg>>26)); k <= 1 + (end>>26); ++k) list[i++] = k;
+        //    for (k = (ushort)(9 + (beg>>23)); k <= 9 + (end>>23); ++k) list[i++] = k;
+        //    for (k = (ushort)(73 + (beg>>20)); k <= 73 + (end>>20); ++k) list[i++] = k;
+        //    for (k = (ushort)(585 + (beg>>17)); k <= 585 + (end>>17); ++k) list[i++] = k;
+        //    for (k = (ushort)(4681 + (beg>>14)); k <= 4681 + (end>>14); ++k) list[i++] = k;
+        //    return i;
+        //}
+        
+        private static int CalculateBlockSize(AlignmentSection section)
+        {
+            return 8 * 4
+                   + section.ReadName.Length
+                   + 1
+                   + section.Cigar.Length * 4
+                   + (section.Sequence.Length + 1) / 2
+                   + section.Quality.Length
+                   + section.Tags.Sum(t => t.GetSize());
+        }
     }
 }

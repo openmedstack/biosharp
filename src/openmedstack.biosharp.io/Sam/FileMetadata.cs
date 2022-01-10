@@ -1,11 +1,13 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Sam
 {
     using System;
+    using System.Linq;
+    using System.Text;
     using System.Text.RegularExpressions;
 
     public record FileMetadata
     {
-        internal FileMetadata(string vn, SortingOrder so, AlignmentGrouping go)
+        internal FileMetadata(string vn, SortingOrder so, AlignmentGrouping go, string? subSort = null)
         {
             if (!Regex.IsMatch(vn, "^[0-9]+\\.[0-9]+$"))
             {
@@ -15,6 +17,7 @@
             Vn = vn;
             So = so;
             Go = go;
+            SubSort = subSort;
         }
 
         public string Vn { get; }
@@ -22,14 +25,19 @@
         public SortingOrder So { get; }
 
         public AlignmentGrouping Go { get; }
+        public string? SubSort { get; }
 
         public static FileMetadata Parse(string line)
         {
-            var parts = line[4..].Split('\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var parts = line[4..]
+                .Split('\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(x => x.Split(':'))
+                .ToDictionary(x => x[0], x => string.Join(':', x.Skip(1)));
             return new FileMetadata(
-                parts[0][3..],
-                parts.Length == 1 ? SortingOrder.unknown : Enum.Parse<SortingOrder>(parts[1][3..], true),
-                AlignmentGrouping.none);
+                parts["VN"],
+                parts.TryGetValue("SO", out var so) ? Enum.Parse<SortingOrder>(so, true) : SortingOrder.unknown,
+                parts.TryGetValue("GO", out var go) ? Enum.Parse<AlignmentGrouping>(go, true) : AlignmentGrouping.none,
+                parts.TryGetValue("SS", out var ss) ? ss : null);
         }
 
         public enum SortingOrder : byte
@@ -59,6 +67,18 @@
             ///  alignments are grouped by RNAME/POS
             /// </summary>
             reference = 2
+        }
+
+        /// <inheritdoc />
+        public override string ToString()
+        {
+            var builder = new StringBuilder( $"@HD\tVN:{Vn}\tSO:{So.ToString().ToLowerInvariant()}");
+            if (SubSort != null)
+            {
+                builder.Append($"\tSS:{SubSort}");
+            }
+
+            return builder.ToString();
         }
     }
 }

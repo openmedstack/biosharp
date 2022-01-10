@@ -2,43 +2,17 @@
 {
     using System;
 
-    public record struct ClusterData
+    public record struct ClusterData(string Barcode,
+        Memory<byte> Bases,
+        Memory<byte> Qualities,
+        ReadType Type,
+        int Lane,
+        int Tile,
+        IPositionalData Position,
+        bool PairedEndRead,
+        bool Filtered,
+        int ReadIndex)
     {
-        public ClusterData(
-            string barcode,
-            Memory<byte> bases,
-            Memory<byte> qualities,
-            ReadType type,
-            int lane,
-            int tile,
-            IPositionalData position,
-            bool pairedEndRead,
-            bool filtered,
-            int readIndex)
-        {
-            Barcode = barcode;
-            Bases = bases;
-            Qualities = qualities;
-            Type = type;
-            Lane = lane;
-            Tile = tile;
-            Position = position;
-            PairedEndRead = pairedEndRead;
-            Filtered = filtered;
-            ReadIndex = readIndex;
-        }
-
-        public string Barcode { get; }
-        public Memory<byte> Bases { get; }
-        public Memory<byte> Qualities { get; }
-        public ReadType Type { get; }
-        public int Lane { get; }
-        public int Tile { get; }
-        public IPositionalData Position { get; }
-        public bool PairedEndRead { get; }
-        public bool Filtered { get; }
-        public int ReadIndex { get; }
-
         public string ToSequenceHeader(Run run)
         {
             return ToSequenceHeader(run.Instrument, run.Number, run.Flowcell);

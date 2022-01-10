@@ -1,7 +1,10 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Sam
 {
     using System;
+    using System.Collections.Generic;
+    using System.Collections.Immutable;
     using System.Globalization;
+    using System.Linq;
 
     /// <summary>
     /// <para>
@@ -21,20 +24,33 @@
     /// </summary>
     public record AlignmentSection
     {
-        internal AlignmentSection(string qname, AlignmentFlag flag, string rname, int position, int mapq, string cigar, int rnext, int pnext, int templatelength,
-            string sequence, string quality, int index = -1)
+        internal AlignmentSection(
+            string qname,
+            AlignmentFlag flag,
+            string rname,
+            int position,
+            int mapq,
+            string cigar,
+            int rnext,
+            int pnext,
+            int templatelength,
+            string sequence,
+            string quality,
+            IEnumerable<AlignmentTag> tags,
+            int index = -1)
         {
             QName = qname;
             Flag = flag;
-            RName = rname;
+            ReadName = rname;
             Position = position;
-            MapQ = mapq;
+            MappingQuality = mapq;
             Cigar = cigar;
-            RNext = rnext;
-            PNext = pnext;
+            ReferenceIdOfNextSegment = rnext;
+            NextPosition = pnext;
             TemplateLength = templatelength;
             Sequence = sequence;
             Quality = quality;
+            Tags = ImmutableArray<AlignmentTag>.Empty.AddRange(tags);
             Index = index;
         }
 
@@ -42,23 +58,25 @@
 
         public AlignmentFlag Flag { get; }
 
-        public string RName { get; }
+        public string ReadName { get; }
 
         public int Position { get; }
 
-        public int MapQ { get; }
+        public int MappingQuality { get; }
 
         public string Cigar { get; }
 
-        public int RNext { get; }
+        public int ReferenceIdOfNextSegment { get; }
 
-        public int PNext { get; }
+        public int NextPosition { get; }
 
         public int TemplateLength { get; }
 
         public string Sequence { get; }
 
         public string Quality { get; }
+
+        public ImmutableArray<AlignmentTag> Tags { get; }
 
         public int Index { get; }
 
@@ -76,7 +94,8 @@
                 int.Parse(parts[7], NumberStyles.Integer),
                 int.Parse(parts[8], NumberStyles.Integer),
                 parts[9],
-                parts[10]);
+                parts[10],
+                parts.Skip(11).Select(AlignmentTag.Parse));
         }
 
         /// <summary>

@@ -6,7 +6,6 @@
     using System.Threading.Tasks;
     using Divergic.Logging.Xunit;
     using Io.Bcl;
-    using Microsoft.Extensions.Logging.Abstractions;
     using Model.Bcl;
     using Xunit;
     using Xunit.Abstractions;
