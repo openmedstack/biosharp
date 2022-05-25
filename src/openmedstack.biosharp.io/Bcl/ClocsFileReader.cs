@@ -38,7 +38,7 @@
  */
     public class ClocsFileReader : ILocationReader
     {
-        private readonly MemoryStream _fileContent = new ();
+        private readonly MemoryStream _fileContent = new();
         private readonly FileInfo _clocsFile; // extends AbstractIlluminaPositionFileReader {
         private static readonly int ImageWidth = 2048;
         private static readonly int BlockSize = 25;
@@ -94,16 +94,16 @@
             var buffer = new byte[2];
             while (HasNext())
             {
-                var read = await _byteIterator.BaseStream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-                if (read != buffer.Length)
+                var mem = await _byteIterator.BaseStream.FillBuffer(buffer, cancellationToken);
+                if (mem.Length != buffer.Length)
                 {
                     throw new Exception("Missing position data");
                 }
                 var xByte = buffer[0];
                 var yByte = buffer[1];
 
-                var xPos = /*UnsignedTypeUtil.uByteToInt(xByte)*/ xByte / 10f + _xOffset;
-                var yPos = /*UnsignedTypeUtil.uByteToInt(yByte)*/ yByte / 10f + _yOffset;
+                var xPos = xByte / 10f + _xOffset;
+                var yPos = yByte / 10f + _yOffset;
                 ++_currentClusterInBin;
                 CheckAndAdvanceBin();
 

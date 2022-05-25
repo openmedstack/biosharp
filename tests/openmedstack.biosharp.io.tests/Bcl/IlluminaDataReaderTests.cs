@@ -30,7 +30,10 @@
             stopwatch.Start();
             var sequences = _reader.ReadClusterData(1);
 
-            var count = await sequences.CountAsync().ConfigureAwait(false);
+            var count = await sequences
+                .SelectMany(x => x.ReadBclData(DefaultQualityTrimmer.Instance, CancellationToken.None))
+                .CountAsync()
+                .ConfigureAwait(false);
             stopwatch.Stop();
             Assert.Equal(2136539 * 3, count);
             _outputHelper.WriteLine(stopwatch.Elapsed.ToString());
@@ -45,7 +48,7 @@
                 .Distinct()
                 .CountAsync()
                 .ConfigureAwait(false);
-            Assert.Equal(114725, sequences);
+            Assert.Equal(15749, sequences);
         }
     }
 }

@@ -78,7 +78,9 @@ public class BamIndexReader
         {
             memory.Span[i] = 0;
         }
-        var numberOfUnmapped = BitConverter.ToUInt64((await file.FillBuffer(memory, true, cancellationToken)).Span);
+
+        var fillBuffer = await file.FillBuffer(memory, true, cancellationToken);
+        var numberOfUnmapped = fillBuffer.Length == 0 ? 0 : BitConverter.ToUInt64(fillBuffer.Span);
         return new BamIndex(content, numberOfUnmapped);
     }
 }

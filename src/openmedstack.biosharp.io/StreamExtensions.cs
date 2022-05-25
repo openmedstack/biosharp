@@ -1,4 +1,4 @@
-﻿namespace OpenMedStack.BioSharp.Io.Bam;
+﻿namespace OpenMedStack.BioSharp.Io;
 
 using System;
 using System.IO;
@@ -29,7 +29,7 @@ internal static class StreamExtensions
             {
                 if (allowEmpty)
                 {
-                    return buffer;
+                    return buffer[..totalRead];
                 }
                 throw new IOException("Nothing read. End of stream?");
             }

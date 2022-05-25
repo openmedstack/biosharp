@@ -10,6 +10,7 @@
         int Tile,
         IPositionalData Position,
         bool PairedEndRead,
+        ReadDirection Direction,
         bool Filtered,
         int ReadIndex)
     {
@@ -23,5 +24,11 @@
             return
                 $"{instrument}:{runNumber}:{flowCell}:{Lane}:{Tile}:{Position.XCoordinate}:{Position.YCoordinate} {(PairedEndRead ? 2 : 1)}:{(Filtered ? "Y" : "N")}:0:{Barcode}";
         }
+    }
+
+    public enum ReadDirection:byte
+    {
+        Forward,
+        Reverse
     }
 }

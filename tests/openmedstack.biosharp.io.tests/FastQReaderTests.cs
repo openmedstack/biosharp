@@ -47,7 +47,7 @@ namespace OpenMedStack.BioSharp.Io.Tests
 
             var sequence = await reader.Read(FastQerr).FirstAsync().ConfigureAwait(false);
             await writer.Write(sequence).ConfigureAwait(false);
-
+            
             Assert.True(output.Length > 0);
 
             await output.DisposeAsync().ConfigureAwait(false);

@@ -10,7 +10,7 @@
         <ProjectReference Include="..\openmedstack.biosharp.model\openmedstack.biosharp.model.csproj" />
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Include="System.Linq.Async" Version="5.1.0" />
+        <PackageReference Include="System.Linq.Async" Version="6.0.1" />
     </ItemGroup>
 
 </Project>

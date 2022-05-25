@@ -5,6 +5,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Io.Bam;
 using Microsoft.Extensions.Logging.Abstractions;
+using Newtonsoft.Json;
 using Xunit;
 
 public class BamIndexReaderTests

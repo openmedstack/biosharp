@@ -23,7 +23,7 @@
         public const int ExpectedVersion = 3;
 
         /** Iterator over each cluster in the FilterFile */
-        private readonly Stream _bbIterator;
+        private readonly Stream _filterFile;
 
         /** Version number found in the FilterFile, this should equal 3 */
         public int Version;
@@ -46,7 +46,7 @@
 
         private FilterFileReader(FileInfo file)
         {
-            _bbIterator = File.Open(
+            _filterFile = File.Open(
                 file.FullName,
                 new FileStreamOptions
                 {
@@ -62,7 +62,7 @@
             var instance = new FilterFileReader(file);
             // MMapBackedIteratorFactory.getByteIterator(HEADER_SIZE, file);
             var headerBuf = new byte[HeaderSize]; //bbIterator.getHeaderBytes();
-            var read = await instance._bbIterator.ReadAsync(headerBuf, cancellationToken).ConfigureAwait(false);
+            var read = await instance._filterFile.ReadAsync(headerBuf, cancellationToken).ConfigureAwait(false);
             if (read != HeaderSize)
             {
                 throw new Exception("Invalid filter file");
@@ -85,15 +85,13 @@
             }
 
             instance.NumClusters =
-                BitConverter.ToUInt32(headerBuf.AsSpan(8, 4)); // UnsignedTypeUtil.uIntToLong(headerBuf.getInt());
-            if (instance._bbIterator.Length != instance.NumClusters + HeaderSize)
+                BitConverter.ToUInt32(headerBuf.AsSpan(8, 4));
+            
+            if (instance._filterFile.Length != instance.NumClusters + HeaderSize)
             {
                 throw new Exception($"Filter file size mismatch in file {file.FullName}");
             }
-
-            //instance._currentCluster = 0;
-            //instance._data = new byte[instance._bbIterator.Length - HeaderSize];
-            //await instance._bbIterator.ReadAsync(instance._data, cancellationToken).ConfigureAwait(false);
+            
             return instance;
         }
 
@@ -101,7 +99,7 @@
         public IEnumerator<bool> GetEnumerator()
         {
             int current;
-            while((current =_bbIterator.ReadByte()) != -1)
+            while((current =_filterFile.ReadByte()) != -1)
             {
                 yield return current switch
                 {

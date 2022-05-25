@@ -90,7 +90,7 @@
                 int.Parse(parts[3], NumberStyles.Integer),
                 int.Parse(parts[4], NumberStyles.Integer),
                 parts[5],
-                int.Parse(parts[6]),
+                int.TryParse(parts[6], out var rnext) ? rnext : 0,
                 int.Parse(parts[7], NumberStyles.Integer),
                 int.Parse(parts[8], NumberStyles.Integer),
                 parts[9],

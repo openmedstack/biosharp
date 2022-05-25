@@ -272,7 +272,7 @@
             };
         }
 
-        //private static int Reg2Bin(int beg, int end)
+        //private static int Region2Bin(int beg, int end)
         //{
         //    if (beg>>14 == end>>14) return ((1<<15)-1)/7 + (beg>>14);
         //    if (beg>>17 == end>>17) return ((1<<12)-1)/7 + (beg>>17);
@@ -282,7 +282,7 @@
         //    return 0;
         //}
 
-        //private int Reg2Bins(int beg, int end, ushort[] list)
+        //private int Region2Bins(int beg, int end, ushort[] list)
         //{
         //    if (list.Length != (((1 << 18) - 1) / 7))
         //    {

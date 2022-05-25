@@ -1,11 +1,15 @@
 namespace OpenMedStack.BioSharp.Calculations.Tests
 {
     using System;
+    using System.IO;
     using System.Linq;
     using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using DeBruijn;
+    using Divergic.Logging.Xunit;
+    using Io.FastA;
+    using Io.FastQ;
     using Model;
     using Xunit;
     using Xunit.Abstractions;
@@ -81,6 +85,22 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
             }
 
             Assert.True(sequencesFound > 0);
+        }
+
+        [Fact]
+        public async Task CanAssembleFromFiles()
+        {
+            await using var output = File.OpenWrite("output.log");
+            await using var writer = new StreamWriter(output, Encoding.UTF8);
+            var reader = new FastQReader(new TestOutputLogger("test", _output));
+            var graph = new DeBruijnGraph(
+                100,
+                reader.Read(
+                    "..\\..\\..\\..\\..\\..\\200129_NB551214_0127_AH7CMYBGXF\\Unaligned\\200129_NB551214_0127_AH7CMYBGXF\\L001_TGGCTAGT_R002.fastq.gz"));
+            await foreach (var seq in graph.Assemble(CancellationToken.None))
+            {
+                await writer.WriteLineAsync(seq).ConfigureAwait(false);
+            }
         }
     }
 }

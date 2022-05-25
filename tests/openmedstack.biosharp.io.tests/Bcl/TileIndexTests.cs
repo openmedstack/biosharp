@@ -11,7 +11,7 @@
         [Fact]
         public async Task CanRead()
         {
-            var tileIndex = new TileIndex(new FileInfo(@"Z:\sequencing\200129_NB551214_0127_AH7CMYBGXF\Data\Intensities\BaseCalls\L001\s_1.bci"));
+            var tileIndex = new TileIndex(new FileInfo(@"N:\sequencing\200129_NB551214_0127_AH7CMYBGXF\Data\Intensities\BaseCalls\L001\s_1.bci"));
             var tiles = await tileIndex.ToArrayAsync().ConfigureAwait(false);
 
             Assert.Equal(216, tiles.Length);

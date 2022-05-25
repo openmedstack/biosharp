@@ -59,17 +59,11 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             ++_nextRecordNumber;
 
             var element = new byte[8];
-            _ = await _fileStream.ReadAsync(element).ConfigureAwait(false);
-            var virtualFilePointer = BitConverter.ToInt64(element);
-            var address = (virtualFilePointer >> ShiftAmount) & AddressMask;
-            var offset = (int)(virtualFilePointer & OffsetMask);
-            return new(address, offset);
+            var mem = await _fileStream.FillBuffer(element.AsMemory(), false).ConfigureAwait(false);
+            var virtualFilePointer = BitConverter.ToUInt64(mem.Span);
+            return new BlockOffsetRecord(virtualFilePointer);
         }
-
-        private const int ShiftAmount = 16;
-        private const int OffsetMask = 0xffff;
-        private const long AddressMask = 0xFFFFFFFFFFFFL;
-
+        
         public FileInfo BciFile { get; }
     }
 }

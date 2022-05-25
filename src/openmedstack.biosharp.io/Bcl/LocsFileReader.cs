@@ -45,12 +45,15 @@
             var buffer = new byte[8];
             while (true)
             {
-                var read = await _stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-                if (read == 8)
+                var read = await _stream.FillBuffer(buffer, cancellationToken).ConfigureAwait(false);
+                //.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+                if (read.Length == 8)
                 {
+                    var xCoordinate = BitConverter.ToInt32(read.Span[..4]);
+                    var yCoordinate = BitConverter.ToInt32(read.Span[4..]);
                     yield return new PositionalData(
-                        BitConverter.ToInt32(buffer.AsSpan(0, 4)),
-                        BitConverter.ToInt32(buffer.AsSpan(4, 4)));
+                        xCoordinate,
+                        yCoordinate);
                 }
                 else { yield break; }
             }

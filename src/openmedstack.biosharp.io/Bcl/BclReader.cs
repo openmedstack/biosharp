@@ -188,7 +188,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                     Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
                     Share = FileShare.Read
                 });
-            sourceFile.Seek(offset.BlockAddress, SeekOrigin.Begin);
+            sourceFile.Seek((long)offset.BlockAddress, SeekOrigin.Begin);
             Stream stream = isGzip || isBgzf ? new GZipStream(sourceFile, CompressionMode.Decompress) : sourceFile;
 
             var arrayPool = ArrayPool<byte>.Shared;
@@ -206,7 +206,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         private async IAsyncEnumerable<ReadData[]> Read([EnumeratorCancellation] CancellationToken cancellationToken)
         {
             _logger.LogInformation(
-                "Start reading {0} clusters from tile {1}",
+                "Start reading {clusters} clusters from tile {tile}",
                 _tileIndexRecord.NumClustersInTile == int.MaxValue ? "all" : _tileIndexRecord.NumClustersInTile,
                 _tileIndexRecord.Tile);
 
@@ -217,20 +217,21 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             {
                 var buffer = queue.AsMemory(0, _queueSize);
                 // See how many clusters we can read and then make BclData objects for them
-                var clustersRead = await Streams[0].ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-                if (clustersRead == 0)
+                var clustersRead = await Streams[0].FillBuffer(buffer, true, cancellationToken).ConfigureAwait(false);
+                if (clustersRead.Length == 0)
                 {
                     break;
                 }
 
-                for (var i = 0; i < clustersRead; ++i)
+                for (var i = 0; i < clustersRead.Length; ++i)
                 {
                     bclDataArray[i] = new BclData(OutputLengths);
                 }
 
-                var bclDatas = bclDataArray.AsMemory(0, clustersRead);
+                var bclDatas = bclDataArray.AsMemory(0, clustersRead.Length);
                 // Process the data from the first cycle since we had to read it to know how many clusters we'd get
-                UpdateClusterBclDatas(bclDatas.Span, 0, 0, buffer[..clustersRead].Span);
+                //UpdateClusterBclDatas(bclDatas.Span, 0, 0, buffer[..clustersRead].Span);
+                UpdateClusterBclDatas(bclDatas.Span, 0, 0, clustersRead.Span); //buffer[..clustersRead].Span);
                 var totalCycleCount = 1;
 
                 for (var read = 0; read < NumReads; ++read)
@@ -240,13 +241,14 @@ namespace OpenMedStack.BioSharp.Io.Bcl
 
                     for (var cycle = firstCycle; cycle < readLen; ++cycle)
                     {
-                        using var task = ReadAndUpdateData(buffer[..clustersRead], bclDatas, read, cycle, totalCycleCount, cancellationToken);
+                        //using var task = ReadAndUpdateData(buffer[..clustersRead], bclDatas, read, cycle, totalCycleCount, cancellationToken);
+                        using var task = ReadAndUpdateData(clustersRead, bclDatas, read, cycle, totalCycleCount, cancellationToken);
                         await task.ConfigureAwait(false);
                         totalCycleCount++;
                     }
                 }
 
-                foreach (var bclData in bclDataArray.Take(clustersRead))
+                foreach (var bclData in bclDataArray.Take(clustersRead.Length))
                 {
                     if (_applyEamss)
                     {
@@ -289,9 +291,9 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             int totalCycleCount,
             CancellationToken cancellationToken)
         {
-            _ = await Streams[totalCycleCount].ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
-
-            UpdateClusterBclDatas(bclDatas.Span, read, cycle, buffer.Span);
+            var mem = await Streams[totalCycleCount].FillBuffer(buffer, cancellationToken);
+            
+            UpdateClusterBclDatas(bclDatas.Span, read, cycle, mem.Span);
         }
 
         /** Inserts the bases and quals at `cycle` of `read` in all of the bclDatas, using data in this.buffer. */
@@ -494,10 +496,10 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             {
                 if (t.Exception is not null)
                 {
-                    _logger.LogError(t.Exception, "{0}", t.Exception.Message);
+                    _logger.LogError(t.Exception, "{msg}", t.Exception.Message);
                     foreach (var innerException in t.Exception.InnerExceptions)
                     {
-                        _logger.LogError(innerException, "{0}", innerException.Message);
+                        _logger.LogError(innerException, "{msg}", innerException.Message);
                     }
                 }
             }))).ConfigureAwait(false);

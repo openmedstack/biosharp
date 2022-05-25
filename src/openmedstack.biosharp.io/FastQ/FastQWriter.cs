@@ -17,10 +17,10 @@
         private readonly GZipStream _gzip;
         private readonly StreamWriter _writer;
 
-        public FastQWriter(ILogger logger, Stream output)
+        public FastQWriter(ILogger logger, Stream output, CompressionLevel compressionLevel = CompressionLevel.Optimal)
         {
             _logger = logger;
-            _gzip = new GZipStream(output, CompressionLevel.Optimal, false);
+            _gzip = new GZipStream(output, compressionLevel, false);
             _writer = new StreamWriter(_gzip, Encoding.UTF8);
         }
 
@@ -31,9 +31,7 @@
             await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
             await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
-
             await _writer.FlushAsync().ConfigureAwait(false);
-
             _semaphore.Release();
         }
 

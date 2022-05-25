@@ -1,10 +1,13 @@
 ﻿namespace OpenMedStack.Preator
 {
     using System;
+    using System.Collections.Concurrent;
     using System.Collections.Generic;
     using System.Diagnostics;
     using System.IO;
     using System.Linq;
+    using System.Text.Json;
+    using System.Text.Json.Serialization;
     using System.Threading;
     using System.Threading.Tasks;
     using BioSharp.Io.Bcl;
@@ -50,6 +53,10 @@
             var outputDir = !string.IsNullOrWhiteSpace(options.OutputFolder)
                 ? Path.GetFullPath(options.OutputFolder)
                 : Path.Combine(inputDir.FullName, "Unaligned", runInfo.Id);
+            if (!Directory.Exists(outputDir))
+            {
+                Directory.CreateDirectory(outputDir);
+            }
             foreach (var s in Directory.EnumerateFiles(outputDir))
             {
                 File.Delete(s);
@@ -85,7 +92,11 @@
                 task.Dispose();
             }
             tasks.Clear();
-
+            foreach (var fastQWriter in Files.Values)
+            {
+                await fastQWriter.Value.DisposeAsync();
+            }
+            
             stopwatch.Stop();
             logger.LogInformation("Processing took {elapsed}", stopwatch.Elapsed);
         }
@@ -105,26 +116,40 @@
             IQualityTrimmer trimmer,
             CancellationToken cancellationToken)
         {
-            var path = Path.Combine(outputDir, $"L{r.Lane.ToString().PadLeft(3, '0')}_{r.Tile}_R001.fastq.gz");
             await Task.Yield();
             logger.LogInformation("Reading cluster data on thread {thread}", Environment.CurrentManagedThreadId);
-            await using var file = File.Open(
-                path,
-                new FileStreamOptions
-                {
-                    Access = FileAccess.Write,
-                    Mode = FileMode.Create,
-                    Options = FileOptions.Asynchronous,
-                    Share = FileShare.Read,
-                });
-            await using (var writer = new FastQWriter(logger, file))
+
+            await foreach (var data in r.ReadBclData(trimmer, cancellationToken)
+                               .Where(x => x.Type == ReadType.T)
+                               .WithCancellation(cancellationToken))
             {
-                var sequences = r.ReadBclData(trimmer, cancellationToken).Where(c => c.Type == ReadType.T);
-                await writer.Write(sequences.Select(c => Sequence.FromCluster(c, run)), cancellationToken)
-                    .ConfigureAwait(false);
+                var c = (data.Direction == ReadDirection.Forward ? '1' : '2');
+                var path = Path.Combine(
+                    outputDir,
+                    $"L{r.Lane.ToString().PadLeft(3, '0')}_{data.Barcode}_R00{c}.fastq.gz");
+
+                var writer = Files.GetOrAdd(
+                    path,
+                    static (p, l) => new Lazy<FastQWriter>(
+                        () => new FastQWriter(
+                            l,
+                            File.Open(
+                                p,
+                                new FileStreamOptions
+                                {
+                                    Access = FileAccess.Write,
+                                    Mode = FileMode.Create,
+                                    Options = FileOptions.Asynchronous,
+                                    Share = FileShare.Read,
+                                })),
+                        LazyThreadSafetyMode.ExecutionAndPublication),
+                    logger);
+                await writer.Value.Write(Sequence.FromCluster(data, run), cancellationToken).ConfigureAwait(false);
             }
 
             semaphore.Release();
         }
+
+        private static readonly ConcurrentDictionary<string, Lazy<FastQWriter>> Files = new();
     }
 }

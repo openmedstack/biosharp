@@ -34,10 +34,10 @@
                         Mode = FileMode.Open,
                         Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
                         Share = FileShare.Read
-                    });;
-                var zip = new ZipArchive(fileContent);
-                var stream = zip.Entries.First().Open();
-                return await Read(zip, stream, cancellationToken).ConfigureAwait(false);
+                    }); ;
+                //var zip = new ZipArchive(fileContent);
+                var stream = new GZipStream(fileContent, CompressionMode.Decompress); //zip.Entries.First().Open();
+                return await Read(stream, cancellationToken).ConfigureAwait(false);
             }
 
             var file = File.Open(
@@ -50,18 +50,10 @@
                     Share = FileShare.Read
                 });
             await using var _ = file.ConfigureAwait(false);
-            return await Read(new NoopDisposable(), file, cancellationToken).ConfigureAwait(false);
+            return await Read(file, cancellationToken).ConfigureAwait(false);
         }
 
-        public Task<IHeaderedDisposableAsyncEnumerable<IVariantMetaInformation[], VcfVariant>> Read(
-            Stream file,
-            CancellationToken cancellationToken = default)
-        {
-            return Read(new NoopDisposable(), file, cancellationToken);
-        }
-
-        private async Task<IHeaderedDisposableAsyncEnumerable<IVariantMetaInformation[], VcfVariant>> Read(
-            IDisposable archive,
+        public async Task<IHeaderedDisposableAsyncEnumerable<IVariantMetaInformation[], VcfVariant>> Read(
             Stream file,
             CancellationToken cancellationToken = default)
         {
@@ -81,9 +73,20 @@
                     else if (line?.StartsWith("#CHROM") == true)
                     {
                         headerLength += line.Length + 1;
-                        var buffer = new char[file.Position - headerLength];
-                        await reader.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
-                        residualText = new string(buffer);
+                        var filePosition = file is GZipStream g ? g.BaseStream.Position : file.Position;
+                        var buffer = new char[filePosition - headerLength];
+                        var read = 0;
+                        while (read < buffer.Length)
+                        {
+                            var r = await reader.ReadAsync(buffer, read, buffer.Length - read).ConfigureAwait(false);
+                            read += r;
+                            if (r <= 0)
+                            {
+                                break;
+                            }
+                        }
+
+                        residualText = new string(buffer).TrimEnd();
                         break;
                     }
                     else
@@ -95,12 +98,12 @@
 
             return new HeaderedAsyncZipReader<IVariantMetaInformation[], VcfVariant>(
                 headers.ToArray(),
-                archive,
+                new NoopDisposable(),
                 file,
                 () => ReadVariants(residualText, file, cancellationToken));
         }
 
-        private async IAsyncEnumerable<VcfVariant> ReadVariants(
+        private static async IAsyncEnumerable<VcfVariant> ReadVariants(
             string buffer,
             Stream stream,
             [EnumeratorCancellation] CancellationToken cancellationToken)

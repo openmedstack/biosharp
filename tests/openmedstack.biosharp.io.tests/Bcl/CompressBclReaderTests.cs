@@ -17,11 +17,12 @@
         public CompressBclReaderTests(ITestOutputHelper outputHelper)
         {
             var dir = new DirectoryInfo("sampledata/Data/Intensities/BaseCalls/L001/");
+            var fileInfos = dir.GetDirectories()
+                .OrderBy(x => x.Name)
+                .SelectMany(d => d.GetFiles("*.bcl.gz", SearchOption.AllDirectories))
+                .ToList();
             _reader = new BclReader(
-                dir.GetDirectories()
-                    .OrderBy(x => x)
-                    .SelectMany(d => d.GetFiles("*.bcl.gz", SearchOption.AllDirectories))
-                    .ToList(),
+                fileInfos,
                 null,
                 new[]
                 {

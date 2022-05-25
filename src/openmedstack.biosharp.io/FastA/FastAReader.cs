@@ -112,17 +112,13 @@
         {
             if (compressedFile)
             {
-                var archive = new ZipArchive(file);
+                var archive = new GZipStream(file, CompressionMode.Decompress);
 
-                foreach (var entry in archive.Entries)
+                await using var _ = archive.ConfigureAwait(false);
+
+                await foreach (var sequence in Read(archive, cancellationToken).ConfigureAwait(false))
                 {
-                    var entryStream = entry.Open();
-                    await using var _ = entryStream.ConfigureAwait(false);
-
-                    await foreach (var sequence in Read(entryStream, cancellationToken).ConfigureAwait(false))
-                    {
-                        yield return sequence;
-                    }
+                    yield return sequence;
                 }
             }
             else

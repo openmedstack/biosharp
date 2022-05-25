@@ -18,7 +18,7 @@ namespace OpenMedStack.BioSharp.Io.Tests
             await using var headeredContent = await reader.Read(path).ConfigureAwait(false);
 
             Assert.NotNull(headeredContent.Header);
-            Assert.Equal(5655124, await headeredContent.CountAsync().ConfigureAwait(false));
+            Assert.Equal(5655127, await headeredContent.CountAsync().ConfigureAwait(false));
         }
 
         [Fact]
