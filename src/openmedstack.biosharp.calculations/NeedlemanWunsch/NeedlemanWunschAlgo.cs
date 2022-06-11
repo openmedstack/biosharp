@@ -481,8 +481,8 @@
         public static Task<(string first, string second)> Align(this Sequence first, Sequence second, sbyte penalty)
         {
             return Align(
-                Encoding.ASCII.GetString(first.GetData().Span),
-                Encoding.ASCII.GetString(second.GetData().Span),
+                new string(first.GetData().Span),
+                new string(second.GetData().Span),
                 penalty);
         }
 
@@ -555,8 +555,8 @@
             var basePairs = first.Take(index).Concat(second).ToList();
             return new Sequence(
                 newId,
-                basePairs.Select(x => (byte)x.Letter).ToArray(),
-                basePairs.Select(x => (byte)x.ErrorProbability).ToArray());
+                basePairs.Select(x => x.Letter).ToArray(),
+                basePairs.Select(x => x.ErrorProbability).ToArray());
         }
     }
 }

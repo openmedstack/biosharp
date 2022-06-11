@@ -4,7 +4,6 @@
     using System.Collections.Generic;
     using System.Linq;
     using System.Runtime.CompilerServices;
-    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using Model.Bcl;
@@ -57,7 +56,7 @@
 
                 var barcode = _sample.ToString();
                 var barcodes = data.Where(x => x.Type == ReadType.B)
-                    .Select(x => Encoding.ASCII.GetString(x.Bases.Span))
+                    .Select(x => new string(x.Bases.Span))
                     .ToArray();
 
                 var pairedEndRead = barcodes.Length > 1;

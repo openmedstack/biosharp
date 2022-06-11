@@ -2,5 +2,5 @@
 {
     using System;
 
-    public record struct ReadData(int Tile, ReadType Type, Memory<byte> Bases, Memory<byte> Qualities, int ReadIndex);
+    public record struct ReadData(int Tile, ReadType Type, Memory<char> Bases, Memory<char> Qualities, int ReadIndex);
 }

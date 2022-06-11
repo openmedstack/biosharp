@@ -4,7 +4,6 @@
     using System.IO;
     using System.IO.Compression;
     using System.Runtime.CompilerServices;
-    using System.Text;
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.Extensions.Logging;
@@ -46,10 +45,8 @@
                 {
                     q = await reader.ReadLineAsync().ConfigureAwait(false);
                 }
-                var qualities = Encoding.ASCII.GetBytes(q!);
-                var data = Encoding.ASCII.GetBytes(letters!);
 
-                yield return new Sequence(id![1..], data, qualities);
+                yield return new Sequence(id![1..], letters!.ToCharArray(), q!.ToCharArray());
             }
         }
     }

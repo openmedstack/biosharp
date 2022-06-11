@@ -3,15 +3,14 @@
     using System;
     using System.Collections;
     using System.Collections.Generic;
-    using System.Text;
     using Bcl;
 
     public class Sequence : IEnumerable<BasePair>
     {
-        private readonly Memory<byte> _data;
-        private readonly Memory<byte> _qualities;
+        private readonly ReadOnlyMemory<char> _data;
+        private readonly ReadOnlyMemory<char> _qualities;
 
-        internal Sequence(string id, Memory<byte> data, Memory<byte> qualities)
+        internal Sequence(string id, ReadOnlyMemory<char> data, ReadOnlyMemory<char> qualities)
         {
             if (data.Length != qualities.Length)
             {
@@ -25,7 +24,7 @@
 
         public static Sequence FromCluster(ClusterData data, Run run)
         {
-            var bytes = Array.ConvertAll(data.Qualities.ToArray(), b => (byte)(b + 33));
+            var bytes = Array.ConvertAll(data.Qualities.ToArray(), b => (char)(b + 33));
             var header = data.ToSequenceHeader(run);
             return new Sequence(header, data.Bases, bytes);
         }
@@ -55,12 +54,12 @@
             return GetEnumerator();
         }
 
-        public ReadOnlyMemory<byte> GetData()
+        public ReadOnlyMemory<char> GetData()
         {
             return _data;
         }
 
-        public ReadOnlyMemory<byte> GetQuality()
+        public ReadOnlyMemory<char> GetQuality()
         {
             return _qualities;
         }
@@ -70,9 +69,9 @@
         {
             return $"{Id}:{Length}"
                    + Environment.NewLine
-                   + Encoding.ASCII.GetString(_data.Span)
+                   + new string(_data.Span)
                    + Environment.NewLine
-                   + Encoding.ASCII.GetString(_qualities.Span);
+                   + new string(_qualities.Span);
         }
     }
 }

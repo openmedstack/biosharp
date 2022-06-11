@@ -3,7 +3,6 @@ namespace OpenMedStack.BioSharp.Io.Tests
     using System.IO;
     using System.IO.Compression;
     using System.Linq;
-    using System.Text;
     using System.Threading.Tasks;
     using FastA;
     using Microsoft.Extensions.Logging.Abstractions;
@@ -15,7 +14,7 @@ namespace OpenMedStack.BioSharp.Io.Tests
         [Fact]
         public async Task CanWriteSingleLineSequence()
         {
-            var sequence = new Sequence("test", Encoding.ASCII.GetBytes("GAC"), new byte[3]);
+            var sequence = new Sequence("test", "GAC".ToCharArray(), new char[3]);
             var writer = new FastAWriter(new NullLogger<FastAWriter>());
             var ms = new MemoryStream();
             await using var _ = ms.ConfigureAwait(false);
@@ -33,8 +32,8 @@ namespace OpenMedStack.BioSharp.Io.Tests
         {
             var sequence = new Sequence(
                 "test",
-                Encoding.ASCII.GetBytes(Enumerable.Repeat("ACGT", 20).SelectMany(x => x).ToArray()),
-                new byte[80]);
+                Enumerable.Repeat("ACGT", 20).SelectMany(x => x).ToArray(),
+                new char[80]);
             var writer = new FastAWriter(new NullLogger<FastAWriter>());
             var ms = new MemoryStream();
             await using var _ = ms.ConfigureAwait(false);

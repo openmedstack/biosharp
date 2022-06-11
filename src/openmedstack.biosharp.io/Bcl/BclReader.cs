@@ -50,15 +50,15 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         private const int DefaultQueueSize = 4096;
         private const int EamssM2GeThreshold = 30;
         private const int EamssS1LtThreshold = 15; //was 15
-        private const byte MaskingQuality = 0x02;
+        private const char MaskingQuality = (char)0x02;
 
         /* Array of base values and quality values that are used to decode values from BCLs efficiently. */
-        private static readonly byte[] BclBaseLookup = new byte[256];
-        private static readonly byte[] BclQualLookup = new byte[256];
+        private static readonly char[] BclBaseLookup = new char[256];
+        private static readonly char[] BclQualLookup = new char[256];
 
         private const byte BaseMask = 0x0003;
-        private static readonly byte[] BaseLookup = { (byte)'A', (byte)'C', (byte)'G', (byte)'T' };
-        private const byte NoCallBase = (byte)'N';
+        private static readonly char[] BaseLookup = { 'A', 'C', 'G', 'T' };
+        private const char NoCallBase = 'N';
         private readonly BclQualityEvaluationStrategy _bclQualityEvaluationStrategy;
         private readonly bool _applyEamss;
 
@@ -72,7 +72,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                 // TODO: If we can remove the use of BclQualityEvaluationStrategy then in the lookup we
                 // TODO: can just set the QUAL to max(2, (i >>> 2)) instead.
                 BclBaseLookup[i] = BaseLookup[i & BaseMask];
-                BclQualLookup[i] = (byte)Math.Max(0, i >> 2);
+                BclQualLookup[i] = (char)Math.Max(0, i >> 2);
             }
         }
 
@@ -392,7 +392,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
          * @param bases     Bases for a single read in the cluster ( not the entire cluster )
          * @param qualities Qualities for a single read in the cluster ( not the entire cluster )
          */
-        private static void RunEamssForReadInPlace(Span<byte> bases, Span<byte> qualities)
+        private static void RunEamssForReadInPlace(Span<char> bases, Span<char> qualities)
         {
             var eamssTally = 0;
             var maxTally = int.MinValue;
@@ -469,7 +469,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
          * indices before the current index then return index - (index of next g), else return null  Null indicates this is
          * NOT a skippable region, if we run into index 0 without finding a g then NULL is also returned
          */
-        private static int SkipBy(int index, int numGs, int prevExceptions, Span<byte> bases)
+        private static int SkipBy(int index, int numGs, int prevExceptions, Span<char> bases)
         {
             var skip = -1;
             for (var backup = 1; backup <= index; backup++)
@@ -520,19 +520,19 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         {
             public BclData(int[] outputLengths)
             {
-                Bases = new byte[outputLengths.Length][];
-                Qualities = new byte[outputLengths.Length][];
+                Bases = new char[outputLengths.Length][];
+                Qualities = new char[outputLengths.Length][];
 
                 for (var i = 0; i < outputLengths.Length; i++)
                 {
-                    Bases[i] = new byte[outputLengths[i]];
-                    Qualities[i] = new byte[outputLengths[i]];
+                    Bases[i] = new char[outputLengths[i]];
+                    Qualities[i] = new char[outputLengths[i]];
                 }
             }
 
-            public byte[][] Bases { get; }
+            public char[][] Bases { get; }
 
-            public byte[][] Qualities { get; }
+            public char[][] Qualities { get; }
         }
 
     }

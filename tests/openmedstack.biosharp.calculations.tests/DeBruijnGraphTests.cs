@@ -8,7 +8,6 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
     using System.Threading.Tasks;
     using DeBruijn;
     using Divergic.Logging.Xunit;
-    using Io.FastA;
     using Io.FastQ;
     using Model;
     using Xunit;
@@ -38,7 +37,8 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
             var graph = new DeBruijnGraph(
                 k,
                 reads.Select(
-                        r => new Sequence(Guid.NewGuid().ToString(), Encoding.ASCII.GetBytes(r), new byte[r.Length]))
+                        r => new Sequence(
+                            Guid.NewGuid().ToString(), r.AsMemory(), new char[r.Length]))
                     .ToAsyncEnumerable());
             var sequencesFound = 0;
             await foreach (var output in graph.Assemble(CancellationToken.None).ConfigureAwait(false))
@@ -72,7 +72,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
             var graph = new DeBruijnGraph(
                 k,
                 reads.Select(
-                        r => new Sequence(Guid.NewGuid().ToString(), Encoding.ASCII.GetBytes(r), new byte[r.Length]))
+                        r => new Sequence(Guid.NewGuid().ToString(), r.AsMemory(), new char[r.Length]))
                     .ToAsyncEnumerable());
             var sequencesFound = 0;
             await foreach (var output in graph.Assemble(CancellationToken.None).ConfigureAwait(false))

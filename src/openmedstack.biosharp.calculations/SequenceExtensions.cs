@@ -83,53 +83,53 @@
 
         public static Sequence ToRna(this Sequence sequence)
         {
-            var complemented = new byte[sequence.Length];
+            var complemented = new char[sequence.Length];
             for (var i = 0; i < sequence.Length; i++)
             {
                 complemented[i] = sequence[i] switch
                 {
-                    'T' => 85,
-                    char c => (byte)c
+                    'T' => (char)85,
+                    var c => c
                 };
             }
-            return new Sequence(sequence.Id, complemented, new byte[sequence.Length]);
+            return new Sequence(sequence.Id, complemented, new char[sequence.Length]);
         }
 
         public static Sequence ComplementDna(this Sequence sequence)
         {
-            var complemented = new byte[sequence.Length];
+            var complemented = new char[sequence.Length];
             for (var i = 0; i < sequence.Length; i++)
             {
                 var c = sequence[i];
                 complemented[i] = c switch
                 {
-                    'A' => 84,
-                    'T' => 65,
-                    'C' => 71,
-                    'G' => 67,
-                    'U' => 84,
+                    'A' => (char)84,
+                    'T' => (char)65,
+                    'C' => (char)71,
+                    'G' => (char)67,
+                    'U' => (char)84,
                     _ => throw new ArgumentOutOfRangeException(nameof(c), "Invalid character")
                 };
             }
-            return new Sequence(sequence.Id, complemented, new byte[sequence.Length]);
+            return new Sequence(sequence.Id, complemented, new char[sequence.Length]);
         }
 
         public static Sequence ComplementRna(this Sequence sequence)
         {
-            var complemented = new byte[sequence.Length];
+            var complemented = new char[sequence.Length];
             for (var i = 0; i < sequence.Length; i++)
             {
                 var c = sequence[i];
                 complemented[i] = c switch
                 {
-                    'A' => 85,
-                    'C' => 71,
-                    'G' => 67,
-                    'U' => 65,
+                    'A' => (char)85,
+                    'C' => (char)71,
+                    'G' => (char)67,
+                    'U' => (char)65,
                     _ => throw new ArgumentOutOfRangeException(nameof(c), "Invalid character")
                 };
             }
-            return new Sequence(sequence.Id, complemented, new byte[sequence.Length]);
+            return new Sequence(sequence.Id, complemented, new char[sequence.Length]);
         }
 
         public static IEnumerable<AminoAcid> ReadAminoAcids(this Sequence sequence, bool toStop = false)

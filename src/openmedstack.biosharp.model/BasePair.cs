@@ -2,10 +2,10 @@
 {
     public struct BasePair
     {
-        private readonly byte _letter;
-        private readonly byte _errorProbability;
+        private readonly char _letter;
+        private readonly char _errorProbability;
 
-        public BasePair(byte letter, byte errorProbability = 0)
+        public BasePair(char letter, char errorProbability = (char)0)
         {
             _letter = letter;
             _errorProbability = errorProbability;
@@ -13,7 +13,7 @@
 
         public char Letter
         {
-            get { return (char)_letter; }
+            get { return _letter; }
         }
 
         public char ErrorProbability

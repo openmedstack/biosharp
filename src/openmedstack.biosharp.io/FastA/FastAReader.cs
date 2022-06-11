@@ -56,19 +56,20 @@
                     letters.Add(line);
                 }
 
-                var data = new byte[letters.Sum(x => x.Length)];
+                var data = new char[letters.Sum(x => x.Length)];
                 var index = 0;
                 foreach (var chunk in letters)
                 {
-                    _ = encoding.GetBytes(chunk.AsSpan(), data.AsSpan(index, chunk.Length));
+                    chunk.CopyTo(data.AsSpan(index, chunk.Length));
+                    //_ = encoding.GetBytes(chunk.ToCharArray().AsSpan(), data.AsSpan(index, chunk.Length));
                     index += chunk.Length;
                 }
 
-                var qualities = new byte[data.Length];
-                Array.Fill(qualities, (byte)255);
+                var qualities = new char[data.Length];
+                Array.Fill(qualities, (char)255);
                 letters.Clear();
                 GC.Collect(3, GCCollectionMode.Forced);
-                yield return new Sequence(id![1..], data, qualities);
+                yield return new Sequence(id![1..], Array.ConvertAll(data, b => (char)b), qualities);
             }
         }
 

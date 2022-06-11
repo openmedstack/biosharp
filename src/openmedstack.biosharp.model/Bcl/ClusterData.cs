@@ -2,9 +2,10 @@
 {
     using System;
 
-    public record struct ClusterData(string Barcode,
-        Memory<byte> Bases,
-        Memory<byte> Qualities,
+    public record struct ClusterData(
+        string Barcode,
+        Memory<char> Bases,
+        Memory<char> Qualities,
         ReadType Type,
         int Lane,
         int Tile,

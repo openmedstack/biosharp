@@ -32,12 +32,12 @@
             8, 12, 18, 23, 27, 2
     };
 
-        private static byte[] QualsAsBytes()
+        private static char[] QualsAsBytes()
         {
-            var byteVals = new byte[ExpectedQuals.Length];
+            var byteVals = new char[ExpectedQuals.Length];
             for (var i = 0; i < byteVals.Length; i++)
             {
-                byteVals[i] = (byte)ExpectedQuals[i];
+                byteVals[i] = (char)ExpectedQuals[i];
             }
             return byteVals;
         }

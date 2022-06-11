@@ -28,7 +28,7 @@
                 var data = line.GetData();
                 foreach (var kmer in Enumerable.Range(0, line.Length + 1 - _k)
                     .AsParallel()
-                    .Select(i => Encoding.ASCII.GetString(data.Span.Slice(i, _k))))
+                    .Select(i => string.Join("", data.Span.Slice(i, _k).ToArray())))
                 {
                     yield return kmer;
                 }

@@ -25,11 +25,11 @@ namespace OpenMedStack.BioSharp.Io.Bcl
      */
     public class BclQualityEvaluationStrategy
     {
-        public const byte IlluminaAllegedMinimumQuality = 2;
+        public const char IlluminaAllegedMinimumQuality = (char)2;
         private readonly int _minimumRevisedQuality;
 
         /** A thread-safe defaulting map that injects an Atomicint starting at 0 when a uninitialized key is get-ted. */
-        private readonly Dictionary<byte, int> _qualityCountMap = new();
+        private readonly Dictionary<char, int> _qualityCountMap = new();
 
         /**
          * @param minimumRevisedQuality The minimum quality that should be seen from revised qualities; controls whether or not an exception
@@ -41,9 +41,9 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         }
 
         /** The rule used to revise quality scores, which is: if it's less than 1, make it 1. */
-        private static byte GenerateRevisedQuality(byte quality)
+        private static char GenerateRevisedQuality(char quality)
         {
-            return Math.Max(quality, (byte)1);
+            return (char)Math.Max((byte)quality, (byte)1);
         }
 
         /**
@@ -53,7 +53,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
          * @param quality The quality score read from the BCL
          * @return The revised new quality score
          */
-        public byte ReviseAndConditionallyLogQuality(byte quality)
+        public char ReviseAndConditionallyLogQuality(char quality)
         {
             var revisedQuality = GenerateRevisedQuality(quality);
             if (quality < IlluminaAllegedMinimumQuality)
@@ -77,7 +77,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
          */
         public void AssertMinimumQualities()
         {
-            /**
+            /*
              * We're comparing revised qualities here, not observed, but the qualities that are logged in qualityCountMap are observed
              * qualities.  So as we iterate through it, convert observed qualities into their revised value.
              */
@@ -97,7 +97,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
          */
         public IReadOnlyDictionary<byte, int> GetPoorQualityFrequencies()
         {
-            return _qualityCountMap.ToDictionary(entry => entry.Key, entry => entry.Value);
+            return _qualityCountMap.ToDictionary(entry => (byte)entry.Key, entry => entry.Value);
         }
     }
 }
