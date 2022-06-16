@@ -90,14 +90,16 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
         [Fact]
         public async Task CanAssembleFromFiles()
         {
-            await using var output = File.OpenWrite("output.log");
-            await using var writer = new StreamWriter(output, Encoding.UTF8);
+            var output = File.OpenWrite("output.log");
+            await using var _ = output.ConfigureAwait(false);
+            var writer = new StreamWriter(output, Encoding.UTF8);
+            await using var __ = writer.ConfigureAwait(false);
             var reader = new FastQReader(new TestOutputLogger("test", _output));
             var graph = new DeBruijnGraph(
                 100,
                 reader.Read(
                     "..\\..\\..\\..\\..\\..\\200129_NB551214_0127_AH7CMYBGXF\\Unaligned\\200129_NB551214_0127_AH7CMYBGXF\\L001_TGGCTAGT_R002.fastq.gz"));
-            await foreach (var seq in graph.Assemble(CancellationToken.None))
+            await foreach (var seq in graph.Assemble(CancellationToken.None).ConfigureAwait(false))
             {
                 await writer.WriteLineAsync(seq).ConfigureAwait(false);
             }

@@ -45,7 +45,6 @@
             }
 
             await _writer.FlushAsync().ConfigureAwait(false);
-            _logger.LogInformation("Flushed to disk");
 
             _semaphore.Release();
         }
@@ -53,13 +52,12 @@
         public async Task Write(IAsyncEnumerable<Sequence> sequences, CancellationToken cancellationToken = default)
         {
             await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            await foreach (var sequence in sequences.WithCancellation(cancellationToken))
+            await foreach (var sequence in sequences.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
                 await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
             }
 
             await _writer.FlushAsync().ConfigureAwait(false);
-            _logger.LogInformation("Flushed to disk");
 
             _semaphore.Release();
         }
@@ -67,7 +65,7 @@
         private async Task WriteSingle(Sequence sequence, CancellationToken cancellationToken)
         {
             await _writer.WriteAsync('@').ConfigureAwait(false);
-            await _writer.WriteLineAsync(sequence.Id.AsMemory(), cancellationToken).ConfigureAwait(false);
+            await _writer.WriteLineAsync(sequence.Id).ConfigureAwait(false);
             await _writer.WriteLineAsync(sequence.GetData(), cancellationToken).ConfigureAwait(false);
             await _writer.WriteLineAsync('+').ConfigureAwait(false);
             await _writer.WriteLineAsync(sequence.GetQuality(), cancellationToken).ConfigureAwait(false);
@@ -77,6 +75,7 @@
         public async ValueTask DisposeAsync()
         {
             await _writer.FlushAsync().ConfigureAwait(false);
+            _logger.LogInformation("Flushed and disposed");
             _writer.Close();
             await _writer.DisposeAsync().ConfigureAwait(false);
             await _gzip.DisposeAsync().ConfigureAwait(false);

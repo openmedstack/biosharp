@@ -6,6 +6,7 @@
 		<AssemblyName>preator</AssemblyName>
 		<RootNamespace>OpenMedStack.Preator</RootNamespace>
 		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+		<ILLinkTreatWarningsAsErrors>false</ILLinkTreatWarningsAsErrors>
 	</PropertyGroup>
 	<Import Project="../../shared.proj" />
 

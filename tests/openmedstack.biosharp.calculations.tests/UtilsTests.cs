@@ -1,6 +1,7 @@
 namespace OpenMedStack.BioSharp.Calculations.Tests
 {
     using System;
+    using Model;
     using Xunit;
 
     public class UtilsTests

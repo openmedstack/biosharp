@@ -2,6 +2,7 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics.CodeAnalysis;
     using System.IO;
     using System.Linq;
     using System.Runtime.CompilerServices;
@@ -67,7 +68,7 @@
             }
 
             _logger.LogInformation("Deserializing RunInfo.xml");
-            var serializer = new XmlSerializer(typeof(RunInfo));
+            var serializer = new XmlSerializer(typeof(RunInfo), new[] { typeof(Run) });
             using var runFile = File.Open(
                 _runInfo.FullName,
                 new FileStreamOptions
@@ -142,6 +143,7 @@
                 .ToDictionary(f => f.FullName, f => (IBclIndexReader)new BclIndexReader(f));
             await foreach (var tileRecord in tiles.ConfigureAwait(false))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 yield return await CreateSampleReader(
                         lane,
                         runInfo,
@@ -173,6 +175,7 @@
                     ? "all clusters in file"
                     : tileRecord.NumClustersInTile + " clusters",
                 Environment.CurrentManagedThreadId);
+            await Task.Yield();
             return new SampleReader(
                 lane,
                 lane,
@@ -194,7 +197,7 @@
                 : $"s_{lane}.filter";
             var filterFilePath = Path.Combine(dir.FullName, filterFileName);
             var filterReader = File.Exists(filterFilePath)
-                ? await FilterFileReader.Create(new FileInfo(filterFilePath))
+                ? await FilterFileReader.Create(new FileInfo(filterFilePath)).ConfigureAwait(false)
                 : (IEnumerable<bool>)new PassThroughFilter();
             return filterReader;
         }

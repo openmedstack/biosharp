@@ -35,7 +35,7 @@ public class BamIndexReader
     public async Task<BamIndex> Read(Stream file, CancellationToken cancellationToken)
     {
         var buffer = new byte[8];
-        var mem = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken);
+        var mem = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
         if (mem.Length != 4 || !mem.Span.SequenceEqual(MagicHeader))
         {
             _logger.LogError("Invalid header: {header}", Encoding.UTF8.GetString(mem.Span));
@@ -43,31 +43,31 @@ public class BamIndexReader
         }
 
         var referenceCount =
-            BitConverter.ToUInt32((await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken)).Span);
+            BitConverter.ToUInt32((await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false)).Span);
         var content = new SequenceIndex[referenceCount];
         for (var i = 0; i < referenceCount; i++)
         {
-            var numberOfBins = BitConverter.ToUInt32((await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken)).Span);
+            var numberOfBins = BitConverter.ToUInt32((await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false)).Span);
             var bins = new Bin[numberOfBins];
             for (var j = 0; j < numberOfBins; j++)
             {
-                var bin = BitConverter.ToUInt32((await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken)).Span);
-                var numberOfChunks = BitConverter.ToUInt32((await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken)).Span);
+                var bin = BitConverter.ToUInt32((await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false)).Span);
+                var numberOfChunks = BitConverter.ToUInt32((await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false)).Span);
                 var chunks = new Chunk[numberOfChunks];
                 for (var k = 0; k < numberOfChunks; k++)
                 {
-                    var begin = BitConverter.ToUInt64((await file.FillBuffer(buffer.AsMemory(0, 8), cancellationToken)).Span);
-                    var end = BitConverter.ToUInt64((await file.FillBuffer(buffer.AsMemory(0, 8), cancellationToken)).Span);
+                    var begin = BitConverter.ToUInt64((await file.FillBuffer(buffer.AsMemory(0, 8), cancellationToken).ConfigureAwait(false)).Span);
+                    var end = BitConverter.ToUInt64((await file.FillBuffer(buffer.AsMemory(0, 8), cancellationToken).ConfigureAwait(false)).Span);
                     chunks[k] = new Chunk(begin, end);
                 }
 
                 bins[j] = new Bin(bin, chunks);
             }
-            var offsetCount = BitConverter.ToUInt32((await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken)).Span);
+            var offsetCount = BitConverter.ToUInt32((await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false)).Span);
             var offsets = new ulong[offsetCount];
             for (var j = 0; j < offsetCount; j++)
             {
-                offsets[j] = BitConverter.ToUInt64((await file.FillBuffer(buffer.AsMemory(0, 8), cancellationToken)).Span);
+                offsets[j] = BitConverter.ToUInt64((await file.FillBuffer(buffer.AsMemory(0, 8), cancellationToken).ConfigureAwait(false)).Span);
             }
 
             content[i] = new SequenceIndex(bins, offsets);
@@ -79,7 +79,7 @@ public class BamIndexReader
             memory.Span[i] = 0;
         }
 
-        var fillBuffer = await file.FillBuffer(memory, true, cancellationToken);
+        var fillBuffer = await file.FillBuffer(memory, true, cancellationToken).ConfigureAwait(false);
         var numberOfUnmapped = fillBuffer.Length == 0 ? 0 : BitConverter.ToUInt64(fillBuffer.Span);
         return new BamIndex(content, numberOfUnmapped);
     }

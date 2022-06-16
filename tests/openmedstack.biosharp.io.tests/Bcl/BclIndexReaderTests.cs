@@ -25,7 +25,7 @@
         [Fact]
         public async Task CanReadIndexFile2()
         {
-            var file = new FileInfo(@"N:\sequencing\200129_NB551214_0127_AH7CMYBGXF\Data\Intensities\BaseCalls\L001\0001.bcl.bgzf");
+            var file = new FileInfo(@"..\..\..\..\..\..\200129_NB551214_0127_AH7CMYBGXF\Data\Intensities\BaseCalls\L001\0001.bcl.bgzf");
             var reader = new BclIndexReader(file);
             var record = await reader.Get(200).ConfigureAwait(false);
             Assert.True(record.BlockAddress < file.Length);
@@ -39,7 +39,8 @@
                     Share = FileShare.Read
                 });
             fileStream.Seek(record.BlockAddress, SeekOrigin.Begin);
-            await using var archive = new GZipStream(fileStream, CompressionMode.Decompress);
+            var archive = new GZipStream(fileStream, CompressionMode.Decompress);
+            await using var __ = archive.ConfigureAwait(false);
             var ms = new MemoryStream();
             await using var _ = ms.ConfigureAwait(false);
             //var entryStream = archive.Entries.First().Open();

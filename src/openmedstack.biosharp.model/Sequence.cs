@@ -10,6 +10,12 @@
         private readonly ReadOnlyMemory<char> _data;
         private readonly ReadOnlyMemory<char> _qualities;
 
+        internal Sequence(SequenceHeader header, ReadOnlyMemory<char> data, ReadOnlyMemory<char> qualities)
+        : this(header.ToString(), data, qualities)
+        {
+            Header = header;
+        }
+
         internal Sequence(string id, ReadOnlyMemory<char> data, ReadOnlyMemory<char> qualities)
         {
             if (data.Length != qualities.Length)
@@ -25,11 +31,23 @@
         public static Sequence FromCluster(ClusterData data, Run run)
         {
             var bytes = Array.ConvertAll(data.Qualities.ToArray(), b => (char)(b + 33));
-            var header = data.ToSequenceHeader(run);
+            var header = new SequenceHeader(
+                data.Barcode,
+                run.Instrument,
+                run.Number,
+                run.Flowcell,
+                data.Lane,
+                data.Tile,
+                data.Position,
+                data.PairedEndRead,
+                data.Filtered,
+                data.Direction);
             return new Sequence(header, data.Bases, bytes);
         }
 
         public string Id { get; }
+
+        public SequenceHeader Header { get; }
 
         public int Length
         {

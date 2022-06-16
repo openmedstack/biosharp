@@ -1,9 +1,8 @@
-﻿namespace OpenMedStack.BioSharp.Calculations
+﻿namespace OpenMedStack.BioSharp.Model
 {
     using System;
     using System.Collections.Generic;
     using System.Linq;
-    using Model;
 
     public static class SequenceExtensions
     {
@@ -92,7 +91,7 @@
                     var c => c
                 };
             }
-            return new Sequence(sequence.Id, complemented, new char[sequence.Length]);
+            return new Sequence(sequence.Header, complemented, new char[sequence.Length]);
         }
 
         public static Sequence ComplementDna(this Sequence sequence)
@@ -111,7 +110,7 @@
                     _ => throw new ArgumentOutOfRangeException(nameof(c), "Invalid character")
                 };
             }
-            return new Sequence(sequence.Id, complemented, new char[sequence.Length]);
+            return new Sequence(sequence.Header, complemented, new char[sequence.Length]);
         }
 
         public static Sequence ComplementRna(this Sequence sequence)
@@ -129,7 +128,7 @@
                     _ => throw new ArgumentOutOfRangeException(nameof(c), "Invalid character")
                 };
             }
-            return new Sequence(sequence.Id, complemented, new char[sequence.Length]);
+            return new Sequence(sequence.Header, complemented, new char[sequence.Length]);
         }
 
         public static IEnumerable<AminoAcid> ReadAminoAcids(this Sequence sequence, bool toStop = false)

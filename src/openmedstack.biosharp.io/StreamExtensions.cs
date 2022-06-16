@@ -24,7 +24,7 @@ internal static class StreamExtensions
         var totalRead = 0;
         while (totalRead < buffer.Length)
         {
-            var read = await file.ReadAsync(buffer[totalRead..], cancellationToken);
+            var read = await file.ReadAsync(buffer[totalRead..], cancellationToken).ConfigureAwait(false);
             if (read == 0)
             {
                 if (allowEmpty)
@@ -47,7 +47,7 @@ internal static class StreamExtensions
         var totalRead = 0;
         while (totalRead < buffer.Length)
         {
-            totalRead += await file.ReadAsync(buffer.AsMemory()[totalRead..], cancellationToken);
+            totalRead += await file.ReadAsync(buffer.AsMemory()[totalRead..], cancellationToken).ConfigureAwait(false);
         }
 
         return buffer;

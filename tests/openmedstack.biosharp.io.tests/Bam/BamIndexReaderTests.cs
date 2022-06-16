@@ -21,7 +21,7 @@ public class BamIndexReaderTests
     [InlineData("mapt.NA12156.altex.bam.bai", 353)]
     public async Task CanRead(string filename, int expectedAlignments)
     {
-        var result = await _reader.Read(filename, CancellationToken.None);
+        var result = await _reader.Read(filename, CancellationToken.None).ConfigureAwait(false);
 
         Assert.Equal(expectedAlignments, result.Content.Sum(x => x.Content.Sum(b => b.Chunks.Length)));
     }

@@ -26,7 +26,7 @@
         public async Task CanRead()
         {
             var sequences = _reader.ReadClusterData(1);
-            var count = await sequences.SelectAwait(async sequence => await sequence.ReadBclData(DefaultQualityTrimmer.Instance, CancellationToken.None).CountAsync().ConfigureAwait(false)).SumAsync();
+            var count = await sequences.SelectAwait(async sequence => await sequence.ReadBclData(DefaultQualityTrimmer.Instance, CancellationToken.None).CountAsync().ConfigureAwait(false)).SumAsync().ConfigureAwait(false);
             
             Assert.Equal(180 * 3, count);
         }

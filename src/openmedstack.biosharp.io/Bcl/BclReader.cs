@@ -291,7 +291,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             int totalCycleCount,
             CancellationToken cancellationToken)
         {
-            var mem = await Streams[totalCycleCount].FillBuffer(buffer, cancellationToken);
+            var mem = await Streams[totalCycleCount].FillBuffer(buffer, cancellationToken).ConfigureAwait(false);
             
             UpdateClusterBclDatas(bclDatas.Span, read, cycle, mem.Span);
         }

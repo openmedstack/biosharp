@@ -1,5 +1,6 @@
 namespace OpenMedStack.BioSharp.Io.Tests
 {
+    using System;
     using System.IO;
     using System.Linq;
     using System.Text;
@@ -15,7 +16,8 @@ namespace OpenMedStack.BioSharp.Io.Tests
         {
             var reader = new VcfFileReader(new VcfMetaReader());
             const string path = "D.4x.vcf.gz";
-            await using var headeredContent = await reader.Read(path).ConfigureAwait(false);
+            var headeredContent = await reader.Read(path).ConfigureAwait(false);
+            await using var _ = TaskAsyncEnumerableExtensions.ConfigureAwait((IAsyncDisposable)headeredContent, false);
 
             Assert.NotNull(headeredContent.Header);
             Assert.Equal(5655127, await headeredContent.CountAsync().ConfigureAwait(false));
@@ -35,7 +37,8 @@ namespace OpenMedStack.BioSharp.Io.Tests
             var file = new MemoryStream(Encoding.UTF8.GetBytes(content));
             await using var _ = file.ConfigureAwait(false);
             var reader = new VcfFileReader(new VcfMetaReader());
-            await using var headeredContent = await reader.Read(file).ConfigureAwait(false);
+            var headeredContent = await reader.Read(file).ConfigureAwait(false);
+            await using var __ = TaskAsyncEnumerableExtensions.ConfigureAwait((IAsyncDisposable)headeredContent, false);
 
             Assert.NotNull(headeredContent.Header);
             Assert.Equal(3, await headeredContent.CountAsync().ConfigureAwait(false));

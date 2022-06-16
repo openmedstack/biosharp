@@ -1,10 +1,11 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Bcl
 {
+    using System;
     using System.Threading.Tasks;
     using Model.Bcl;
 
     public interface IQualityTrimmer
     {
-        Task<ReadData[]> Trim(ReadData[] data);
+        Task<Memory<ReadData>> Trim(Memory<ReadData> data);
     }
 }

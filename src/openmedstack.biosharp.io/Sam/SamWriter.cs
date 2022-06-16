@@ -19,18 +19,19 @@ public class SamWriter
     public async Task Write(SamDefinition definition, Stream stream, CancellationToken cancellationToken)
     {
         _logger.LogTrace("Writing SAM content");
-        await using var writer = new StreamWriter(stream, Encoding.UTF8);
-        await writer.WriteLineAsync(definition.Hd.ToString().AsMemory(), cancellationToken);
-        await writer.WriteLineAsync(definition.Pg.ToString().AsMemory(), cancellationToken);
-        await writer.WriteLineAsync(definition.Rg.ToString().AsMemory(), cancellationToken);
+        var writer = new StreamWriter(stream, Encoding.UTF8);
+        await using var _ = writer.ConfigureAwait(false);
+        await writer.WriteLineAsync(definition.Hd.ToString().AsMemory(), cancellationToken).ConfigureAwait(false);
+        await writer.WriteLineAsync(definition.Pg.ToString().AsMemory(), cancellationToken).ConfigureAwait(false);
+        await writer.WriteLineAsync(definition.Rg.ToString().AsMemory(), cancellationToken).ConfigureAwait(false);
         foreach (var referenceSequence in definition.Sq)
         {
-            await writer.WriteLineAsync(referenceSequence.ToString().AsMemory(), cancellationToken);
+            await writer.WriteLineAsync(referenceSequence.ToString().AsMemory(), cancellationToken).ConfigureAwait(false);
         }
 
         foreach (var alignmentSection in definition.AlignmentSections)
         {
-            await writer.WriteLineAsync(alignmentSection.ToString().AsMemory(), cancellationToken);
+            await writer.WriteLineAsync(alignmentSection.ToString().AsMemory(), cancellationToken).ConfigureAwait(false);
         }
     }
 }

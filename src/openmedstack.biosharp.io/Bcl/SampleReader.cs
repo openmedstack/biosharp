@@ -62,13 +62,17 @@
                 var pairedEndRead = barcodes.Length > 1;
 
                 var filtered = filter.Current;
-                foreach (var (tile, readType, bytes, qualities, readIndex, i) in (await qualityTrimmer.Trim(data)).Select((r, i) => (r.Tile, r.Type, r.Bases, r.Qualities, r.ReadIndex, i)))
+                var trim = (await qualityTrimmer.Trim(data).ConfigureAwait(false));
+                for (var i = 0; i < trim.Length; i++)
                 {
+                    var r = trim.Span[i];
+                    var (tile, readType, bases, qualities, readIndex) =
+                        (r.Tile, r.Type, r.Bases, r.Qualities, r.ReadIndex);
                     var b = barcodes.Length > 0 ? i == 1 || barcodes.Length == 1 ? barcodes[0] : barcodes[1] : barcode;
                     var forwardLength = data.Length / 2;
                     yield return new ClusterData(
                         b,
-                        bytes,
+                        bases,
                         qualities,
                         readType,
                         Lane,

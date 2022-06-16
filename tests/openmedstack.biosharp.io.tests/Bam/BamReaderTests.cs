@@ -20,7 +20,7 @@
         [InlineData("mapt.NA12156.altex.bam", 326618)]
         public async Task CanRead(string filename, int expectedAlignments)
         {
-            var result = await _reader.Read(filename, CancellationToken.None);
+            var result = await _reader.Read(filename, CancellationToken.None).ConfigureAwait(false);
 
             Assert.Equal(expectedAlignments, result.AlignmentSections.Length);
         }

@@ -94,7 +94,7 @@
             var buffer = new byte[2];
             while (HasNext())
             {
-                var mem = await _byteIterator.BaseStream.FillBuffer(buffer, cancellationToken);
+                var mem = await _byteIterator.BaseStream.FillBuffer(buffer, cancellationToken).ConfigureAwait(false);
                 if (mem.Length != buffer.Length)
                 {
                     throw new Exception("Missing position data");

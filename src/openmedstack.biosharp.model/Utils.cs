@@ -1,4 +1,4 @@
-﻿namespace OpenMedStack.BioSharp.Calculations
+﻿namespace OpenMedStack.BioSharp.Model
 {
     using System;
 

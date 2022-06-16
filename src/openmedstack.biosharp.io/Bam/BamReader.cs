@@ -35,7 +35,8 @@
                     Share = FileShare.Read
                 });
             await using var _ = file.ConfigureAwait(false);
-            await using var zip = new GZipStream(file, CompressionMode.Decompress, true);
+            var zip = new GZipStream(file, CompressionMode.Decompress, true);
+            await using var __ = zip.ConfigureAwait(false);
             return await Read(zip, cancellationToken).ConfigureAwait(false);
         }
 
@@ -43,11 +44,12 @@
         {
             if (file is GZipStream zipStream)
             {
-                return await Read(zipStream, cancellationToken);
+                return await Read(zipStream, cancellationToken).ConfigureAwait(false);
             }
 
-            await using var zip = new GZipStream(file, CompressionMode.Decompress, true);
-            return await Read(zip, cancellationToken);
+            var zip = new GZipStream(file, CompressionMode.Decompress, true);
+            await using var _ = zip.ConfigureAwait(false);
+            return await Read(zip, cancellationToken).ConfigureAwait(false);
         }
 
         private async Task<SamDefinition> Read(GZipStream file, CancellationToken cancellationToken)
@@ -56,13 +58,13 @@
 
             var arrayPool = ArrayPool<byte>.Shared;
             var buffer = arrayPool.Rent(1024);
-            var mem = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken);
+            var mem = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
             if (mem.Length != 4 || !mem.Span.SequenceEqual(MagicHeader))
             {
                 throw new InvalidDataException("Invalid Header");
             }
 
-            mem = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken);
+            mem = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
 
             var textLength = (int)BitConverter.ToUInt32(mem.Span);
             if (textLength > buffer.Length)
@@ -70,11 +72,11 @@
                 arrayPool.Return(buffer);
                 buffer = arrayPool.Rent(textLength);
             }
-            mem = await file.FillBuffer(buffer.AsMemory(0, textLength), cancellationToken);
+            mem = await file.FillBuffer(buffer.AsMemory(0, textLength), cancellationToken).ConfigureAwait(false);
 
             var text = textLength == 0 ? "" : Encoding.UTF8.GetString(mem[..^1].Span);
 
-            mem = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken);
+            mem = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
 
             var numberOfReferences = BitConverter.ToUInt32(mem.Span);
 
@@ -82,12 +84,12 @@
             for (var i = 0; i < numberOfReferences; i++)
             {
                 var nameLength = (int)BitConverter.ToUInt32(
-                    (await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken)).Span);
+                    (await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false)).Span);
 
                 var name = Encoding.UTF8.GetString(
-                    (await file.FillBuffer(buffer.AsMemory(0, nameLength), cancellationToken)).Span[..(nameLength - 1)]);
+                    (await file.FillBuffer(buffer.AsMemory(0, nameLength), cancellationToken).ConfigureAwait(false)).Span[..(nameLength - 1)]);
 
-                var length = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken);
+                var length = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
                 var referenceSequence = new ReferenceSequence(name, BitConverter.ToUInt32(length.Span));
                 refSeqs.Add(referenceSequence);
             }
@@ -131,11 +133,11 @@
             var alignments = new List<AlignmentSection>();
             while (file.BaseStream.Position < file.BaseStream.Length)
             {
-                mem = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken);
+                mem = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
 
                 var blockSize = (int)BitConverter.ToUInt32(mem.Span);
                 var blockBuffer = arrayPool.Rent(blockSize);
-                var block = await file.FillBuffer(blockBuffer.AsMemory(0, blockSize), cancellationToken);
+                var block = await file.FillBuffer(blockBuffer.AsMemory(0, blockSize), cancellationToken).ConfigureAwait(false);
                 alignments.Add(ProcessBlock(block));
             }
 
