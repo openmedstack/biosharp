@@ -177,6 +177,7 @@
                 Environment.CurrentManagedThreadId);
             await Task.Yield();
             return new SampleReader(
+                runInfo,
                 lane,
                 lane,
                 new BclReader(

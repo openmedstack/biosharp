@@ -36,7 +36,7 @@
         {
             var sequences = await _reader.ReadClusterData(1)
                 .SelectMany(x => x.ReadBclData(DefaultQualityTrimmer.Instance, CancellationToken.None))
-                .Select(x => x.Barcode)
+                .Select(x => x.Header.Barcode)
                 .Distinct()
                 .CountAsync()
                 .ConfigureAwait(false);

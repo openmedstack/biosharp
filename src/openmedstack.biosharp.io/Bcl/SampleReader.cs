@@ -6,16 +6,19 @@
     using System.Runtime.CompilerServices;
     using System.Threading;
     using System.Threading.Tasks;
+    using Model;
     using Model.Bcl;
 
     public class SampleReader : IAsyncDisposable
     {
         private readonly BclReader _reader;
+        private readonly Run _run;
         private readonly int _sample;
         private readonly ILocationReader _positionReader;
         private readonly IEnumerable<bool> _filter;
 
         public SampleReader(
+            Run run,
             int lane,
             int sample,
             BclReader reader,
@@ -23,17 +26,16 @@
             IEnumerable<bool> filter)
         {
             Lane = lane;
+            _run = run;
             _sample = sample;
             _positionReader = positionReader;
             _filter = filter;
             _reader = reader;
         }
 
-        public int Tile => _reader.Tile;
-
         public int Lane { get; }
 
-        public async IAsyncEnumerable<ClusterData> ReadBclData(
+        public async IAsyncEnumerable<Sequence> ReadBclData(
             IQualityTrimmer qualityTrimmer,
             [EnumeratorCancellation] CancellationToken cancellationToken)
         {
@@ -66,22 +68,23 @@
                 for (var i = 0; i < trim.Length; i++)
                 {
                     var r = trim.Span[i];
-                    var (tile, readType, bases, qualities, readIndex) =
-                        (r.Tile, r.Type, r.Bases, r.Qualities, r.ReadIndex);
                     var b = barcodes.Length > 0 ? i == 1 || barcodes.Length == 1 ? barcodes[0] : barcodes[1] : barcode;
                     var forwardLength = data.Length / 2;
-                    yield return new ClusterData(
-                        b,
-                        bases,
-                        qualities,
-                        readType,
-                        Lane,
-                        tile,
-                        positionalEnumerator.Current,
-                        pairedEndRead,
-                        pairedEndRead && i > forwardLength ? ReadDirection.Reverse : ReadDirection.Forward,
-                        filtered,
-                        readIndex);
+                    yield return new Sequence(
+                        new SequenceHeader(
+                            b,
+                            _run.Instrument,
+                            _run.Number,
+                            _run.Flowcell,
+                            Lane,
+                            _reader.Tile,
+                            positionalEnumerator.Current,
+                            pairedEndRead,
+                            filtered,
+                            pairedEndRead && i > forwardLength ? ReadDirection.Reverse : ReadDirection.Forward,
+                            r.Type),
+                        r.Bases,
+                        r.Qualities);
                 }
             }
 

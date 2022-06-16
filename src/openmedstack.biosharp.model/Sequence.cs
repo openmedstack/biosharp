@@ -28,23 +28,6 @@
             _qualities = qualities;
         }
 
-        public static Sequence FromCluster(ClusterData data, Run run)
-        {
-            var bytes = Array.ConvertAll(data.Qualities.ToArray(), b => (char)(b + 33));
-            var header = new SequenceHeader(
-                data.Barcode,
-                run.Instrument,
-                run.Number,
-                run.Flowcell,
-                data.Lane,
-                data.Tile,
-                data.Position,
-                data.PairedEndRead,
-                data.Filtered,
-                data.Direction);
-            return new Sequence(header, data.Bases, bytes);
-        }
-
         public string Id { get; }
 
         public SequenceHeader Header { get; }
@@ -85,11 +68,11 @@
         /// <inheritdoc />
         public override string ToString()
         {
-            return $"{Id}:{Length}"
-                   + Environment.NewLine
-                   + new string(_data.Span)
-                   + Environment.NewLine
-                   + new string(_qualities.Span);
+            return string.Concat($"{Id}:{Length}",
+                   Environment.NewLine,
+                   new string(_data.Span),
+                   Environment.NewLine,
+                   new string(_qualities.Span));
         }
     }
 }

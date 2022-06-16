@@ -106,8 +106,7 @@
             logger.LogInformation("Reading cluster data on thread {thread}", Environment.CurrentManagedThreadId);
 
             await foreach (var group in r.ReadBclData(trimmer, cancellationToken)
-                               .Where(x => x.Type is ReadType.T)
-                               .Select(x => Sequence.FromCluster(x, run))
+                               .Where(x => x.Header.Type is ReadType.T)
                                .GroupBy(
                                    sequence =>
                                        $"L{sequence.Header.Lane.ToString().PadLeft(3, '0')}_{sequence.Header.Barcode}_R00{(sequence.Header.Direction == ReadDirection.Forward ? '1' : '2')}.fastq.gz")

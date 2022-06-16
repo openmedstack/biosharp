@@ -2,7 +2,7 @@
 
 using Bcl;
 
-public record struct SequenceHeader(string Barcode, string Instrument, int RunNumber, string FlowCell, int Lane, int Tile, IPositionalData Position, bool PairedEndRead, bool Filtered, ReadDirection Direction)
+public record SequenceHeader(string Barcode, string Instrument, int RunNumber, string FlowCell, int Lane, int Tile, IPositionalData Position, bool PairedEndRead, bool Filtered, ReadDirection Direction, ReadType Type)
 {
     /// <inheritdoc />
     public override string ToString()
