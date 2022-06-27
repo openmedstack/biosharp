@@ -3,7 +3,6 @@
     using System;
     using System.Collections;
     using System.Collections.Generic;
-    using Bcl;
 
     public class Sequence : IEnumerable<BasePair>
     {
@@ -23,6 +22,7 @@
                 throw new ArgumentException("Invalid data", nameof(qualities));
             }
 
+            Header = SequenceHeader.Empty;
             Id = id;
             _data = data;
             _qualities = qualities;

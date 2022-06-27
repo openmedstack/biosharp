@@ -14,14 +14,16 @@
     {
         private readonly SemaphoreSlim _semaphore = new(1);
         private readonly ILogger _logger;
-        private readonly GZipStream _gzip;
-        private readonly StreamWriter _writer;
+        private readonly IndexReaderWriter _indexOutput;
+        private readonly Func<Sequence, string> _keySelector;
+        private readonly BgzfStream _gzip;
 
-        public FastQWriter(ILogger logger, Stream output, CompressionLevel compressionLevel = CompressionLevel.Optimal)
+        public FastQWriter(ILogger logger, Stream output, Stream indexOutput, CompressionLevel compressionLevel = CompressionLevel.Optimal, Func<Sequence, string>? keySelector = null, bool leaveOpen = false)
         {
             _logger = logger;
-            _gzip = new GZipStream(output, compressionLevel, false);
-            _writer = new StreamWriter(_gzip, Encoding.UTF8);
+            _indexOutput = new IndexReaderWriter(new GZipStream(indexOutput, compressionLevel, leaveOpen), leaveOpen);
+            _keySelector = keySelector ?? (s => s.Header.Barcode);
+            _gzip = new BgzfStream(output, compressionLevel, leaveOpen);
         }
 
         public async Task Write(
@@ -31,7 +33,7 @@
             await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
             await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
-            await _writer.FlushAsync().ConfigureAwait(false);
+            await _gzip.FlushAsync(cancellationToken).ConfigureAwait(false);
             _semaphore.Release();
         }
 
@@ -44,40 +46,61 @@
                 await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
             }
 
-            await _writer.FlushAsync().ConfigureAwait(false);
+            await _gzip.FlushAsync(cancellationToken).ConfigureAwait(false);
 
             _semaphore.Release();
         }
 
-        public async Task Write(IAsyncEnumerable<Sequence> sequences, CancellationToken cancellationToken = default)
+        public async Task<(int sequenceCount, int byteCount)> Write(IAsyncEnumerable<Sequence> sequences, CancellationToken cancellationToken = default)
         {
-            await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+            var count = 0;
+            var byteCount = 0;
+            //await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
             await foreach (var sequence in sequences.WithCancellation(cancellationToken).ConfigureAwait(false))
             {
-                await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
+                var written = await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
+                byteCount += written;
+                Interlocked.Increment(ref count);
             }
 
-            await _writer.FlushAsync().ConfigureAwait(false);
+            await _gzip.FlushAsync(cancellationToken).ConfigureAwait(false);
 
-            _semaphore.Release();
+            //_semaphore.Release();
+            return (count, byteCount);
         }
 
-        private async Task WriteSingle(Sequence sequence, CancellationToken cancellationToken)
+        private async Task<int> WriteSingle(Sequence sequence, CancellationToken cancellationToken)
         {
-            await _writer.WriteAsync('@').ConfigureAwait(false);
-            await _writer.WriteLineAsync(sequence.Id).ConfigureAwait(false);
-            await _writer.WriteLineAsync(sequence.GetData(), cancellationToken).ConfigureAwait(false);
-            await _writer.WriteLineAsync('+').ConfigureAwait(false);
-            await _writer.WriteLineAsync(sequence.GetQuality(), cancellationToken).ConfigureAwait(false);
+            var key = _keySelector(sequence);
+            await _indexOutput.Write(key, _gzip.BlockOffset, cancellationToken);
+            var data = sequence.GetData();
+            var quality = sequence.GetQuality();
+
+            var builder = new StringBuilder();
+            builder.Append($"@{sequence.Id}\n");
+            builder.Append(data.Span);
+            builder.Append('\n');
+            builder.Append("+\n");
+            builder.Append(quality);
+            builder.Append('\n');
+            var bytes = Encoding.UTF8.GetBytes(builder.ToString());
+
+            await _gzip.WriteAsync(bytes, cancellationToken);
+            //await _writer.WriteAsync('@').ConfigureAwait(false);
+            //await _writer.WriteLineAsync(sequence.Id).ConfigureAwait(false);
+            //await _writer.WriteLineAsync(data, cancellationToken).ConfigureAwait(false);
+            //await _writer.WriteLineAsync('+').ConfigureAwait(false);
+            //await _writer.WriteLineAsync(quality, cancellationToken).ConfigureAwait(false);
+
+            return bytes.Length;
         }
 
         /// <inheritdoc />
         public async ValueTask DisposeAsync()
         {
-            await _writer.FlushAsync().ConfigureAwait(false);
+            await _indexOutput.DisposeAsync().ConfigureAwait(false);
+            await _gzip.FlushAsync().ConfigureAwait(false);
             _logger.LogInformation("Flushed and disposed");
-            _writer.Close();
-            await _writer.DisposeAsync().ConfigureAwait(false);
             await _gzip.DisposeAsync().ConfigureAwait(false);
             _semaphore.Dispose();
             GC.SuppressFinalize(this);

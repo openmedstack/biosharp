@@ -1,8 +1,6 @@
 ﻿namespace OpenMedStack.Preator
 {
     using System;
-    using System.Collections.Concurrent;
-    using System.Collections.Generic;
     using System.Diagnostics;
     using System.IO;
     using System.IO.Compression;
@@ -15,8 +13,8 @@
     using CommandLine.Text;
     using Microsoft.Extensions.Logging;
     using OpenMedStack.BioSharp.Io.FastQ;
-    using OpenMedStack.BioSharp.Model;
 
+    // ReSharper disable once ClassNeverInstantiated.Global
     class Program
     {
         static async Task Main(string[] args)
@@ -27,10 +25,11 @@
 
         private static async Task Parsed(Options options)
         {
-            using var tokenSource = new CancellationTokenSource();
+            var tokenSource = new CancellationTokenSource();
 
             void ConsoleCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
             {
+                // ReSharper disable once AccessToDisposedClosure
                 tokenSource.Cancel(false);
             }
 
@@ -68,24 +67,60 @@
                 File.Delete(s);
             }
 
+            var trimmer = DefaultQualityTrimmer.Instance;
             stopwatch.Start();
 
-            ConcurrentDictionary<string, FastQWriter> writers = new();
-            var trimmer = DefaultQualityTrimmer.Instance;
-            using var semaphore = new SemaphoreSlim(options.Threads == 0 ? Environment.ProcessorCount : options.Threads);
-            await foreach (var r in reader.ReadClusterData(1, tokenSource.Token).ConfigureAwait(false))
-            {
-                await semaphore.WaitAsync(tokenSource.Token).ConfigureAwait(false);
-                await ReadData(outputDir, runInfo, r, logger, trimmer, writers, tokenSource.Token).ConfigureAwait(false);
-                semaphore.Release();
-            }
+            var lanes = options.Lanes.Contains('*')
+                ? reader.GetAllLanes()
+                : options.Lanes.Split(',').Select(int.Parse).ToArray();
+            await Task.WhenAll(lanes.AsParallel()
+                .WithExecutionMode(ParallelExecutionMode.ForceParallelism)
+                // ReSharper disable once AccessToDisposedClosure
+                .Select(lane => ProcessLane(outputDir, runInfo, lane, logger, reader, trimmer, tokenSource.Token)));
 
             stopwatch.Stop();
             logger.LogInformation("Processing took {elapsed}", stopwatch.Elapsed);
 
-            await Task.WhenAll(writers.Values.Select(w => w.DisposeAsync().AsTask())).ConfigureAwait(false);
-
             Console.CancelKeyPress -= ConsoleCancelKeyPress;
+            tokenSource.Dispose();
+        }
+
+        private static async Task ProcessLane(
+            string outputDir,
+            Run runInfo,
+            int lane,
+            ILogger logger,
+            IlluminaDataReader reader,
+            IQualityTrimmer trimmer,
+            CancellationToken cancellationToken)
+        {
+            await using var file = File.Open(
+                Path.Combine(outputDir, $"{runInfo.Instrument}_{runInfo.Number}_L{lane.ToString().PadLeft(3, '0')}.fastq.gz"),
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Write,
+                    Mode = FileMode.Create,
+                    Options = FileOptions.Asynchronous,
+                    Share = FileShare.None
+                });
+            await using var index = File.Open(
+                Path.Combine(outputDir, $"{runInfo.Instrument}_{runInfo.Number}_L{lane.ToString().PadLeft(3, '0')}.fastqi.gz"),
+                new FileStreamOptions
+                {
+                    Access = FileAccess.Write,
+                    Mode = FileMode.Create,
+                    Options = FileOptions.Asynchronous,
+                    Share = FileShare.None
+                });
+            await using var indexZip = new GZipStream(index, CompressionLevel.Fastest, true);
+            await using var writer = new FastQWriter(logger, file, indexZip, CompressionLevel.Fastest, null, true);
+            await foreach (var bclData in reader.ReadClusterData(lane, cancellationToken)
+                               .Select(sr => sr.ReadBclData(trimmer, cancellationToken))
+                               .WithCancellation(cancellationToken))
+            {
+                var (sequenceCount, byteCount) = await writer.Write(bclData, cancellationToken).ConfigureAwait(false);
+                logger.LogInformation("Wrote {count} sequences with {bytes} bytes", sequenceCount, byteCount);
+            }
         }
 
         private static void NotParsed(ParserResult<Options> result)
@@ -94,57 +129,59 @@
             Console.WriteLine(text);
         }
 
-        private static async Task ReadData(
-            string outputDir,
-            Run run,
-            SampleReader r,
-            ILogger logger,
-            IQualityTrimmer trimmer,
-            ConcurrentDictionary<string, FastQWriter> writers,
-            CancellationToken cancellationToken)
-        {
-            logger.LogInformation("Reading cluster data on thread {thread}", Environment.CurrentManagedThreadId);
+        //private static async Task<int> ReadData(
+        //    string outputDir,
+        //    SampleReader r,
+        //    ILogger logger,
+        //    IQualityTrimmer trimmer,
+        //    ConcurrentDictionary<string, FastQWriter> writers,
+        //    CancellationToken cancellationToken)
+        //{
+        //    logger.LogInformation("Reading cluster data on thread {thread}", Environment.CurrentManagedThreadId);
+        //    var written = await r.ReadBclData(trimmer, cancellationToken)
+        //        .Where(x => x.Header.Type is ReadType.T)
+        //        .GroupBy(
+        //            sequence =>
+        //                $"L{sequence.Header.Lane.ToString().PadLeft(3, '0')}_{sequence.Header.Barcode}_R00{(sequence.Header.Direction == ReadDirection.Forward ? '1' : '2')}.fastq.gz")
+        //        .Select(group => Persist(outputDir, logger, writers, group, cancellationToken))
+        //    //   .ToListAsync(cancellationToken);
+        //    //.ExecuteParallel(Environment.ProcessorCount / 2, cancellationToken)
+        //    //.SumAsync(cancellationToken).ConfigureAwait(false);
+        //    return written;
+        //    //return (await Task.WhenAll(written).ConfigureAwait(false)).Sum();
+        //}
 
-            await foreach (var group in r.ReadBclData(trimmer, cancellationToken)
-                               .Where(x => x.Header.Type is ReadType.T)
-                               .GroupBy(
-                                   sequence =>
-                                       $"L{sequence.Header.Lane.ToString().PadLeft(3, '0')}_{sequence.Header.Barcode}_R00{(sequence.Header.Direction == ReadDirection.Forward ? '1' : '2')}.fastq.gz")
-                               .WithCancellation(cancellationToken)
-                               .ConfigureAwait(false))
-            {
-                await Persist(outputDir, logger, writers, cancellationToken, group);
-            }
-        }
+        //private static Task<int> Persist(
+        //    string outputDir,
+        //    ILogger logger,
+        //    ConcurrentDictionary<string, FastQWriter> writers,
+        //    IAsyncGrouping<string, Sequence> group,
+        //    CancellationToken cancellationToken)
+        //{
+        //    var path = Path.Combine(outputDir, group.Key);
 
-        private static async Task Persist(
-            string outputDir,
-            ILogger logger,
-            ConcurrentDictionary<string, FastQWriter> writers,
-            CancellationToken cancellationToken,
-            IAsyncGrouping<string, Sequence> group)
-        {
-            var path = Path.Combine(outputDir, group.Key);
-
-            var writer = writers.GetOrAdd(
-                path,
-                static (p, l) =>
-                {
-                    l.LogInformation("Create writer to {path}", p);
-                    return new FastQWriter(
-                        l,
-                        File.Open(
-                            p,
-                            new FileStreamOptions
-                            {
-                                Access = FileAccess.Write,
-                                Mode = FileMode.Create,
-                                Options = FileOptions.Asynchronous,
-                                Share = FileShare.Read
-                            }));
-                },
-                logger);
-            await writer.Write(group, cancellationToken).ConfigureAwait(false);
-        }
+        //    var writer = writers.GetSafe(
+        //        path,
+        //        //writers.GetOrAdd(
+        //        //path,
+        //        static (p, l) =>
+        //        {
+        //            l.LogInformation("Create writer to {path}", p);
+        //            return new FastQWriter(
+        //                l,
+        //                File.Open(
+        //                    p,
+        //                    new FileStreamOptions
+        //                    {
+        //                        Access = FileAccess.Write,
+        //                        Mode = FileMode.Create,
+        //                        Options = FileOptions.Asynchronous,
+        //                        Share = FileShare.Read,
+        //                        BufferSize = 1024 * 1024 * 4
+        //                    }));
+        //        },
+        //        logger);
+        //    return writer.Write(group, cancellationToken);
+        //}
     }
 }

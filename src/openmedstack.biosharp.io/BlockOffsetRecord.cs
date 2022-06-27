@@ -1,6 +1,6 @@
-﻿namespace OpenMedStack.BioSharp.Io.Bcl;
+﻿namespace OpenMedStack.BioSharp.Io;
 
-public record BlockOffsetRecord
+public record struct BlockOffsetRecord
 {
     private const int ShiftAmount = 16;
     private const int OffsetMask = 0xffff;
@@ -13,15 +13,26 @@ public record BlockOffsetRecord
 
     public BlockOffsetRecord(ulong blockAddress, int blockOffset)
     {
-        BlockAddress = (long)blockAddress;
+        BlockAddress = blockAddress;
         BlockOffset = blockOffset;
     }
 
-    public long BlockAddress { get; }
+    public ulong BlockAddress { get; }
+
     public int BlockOffset { get; }
 
     public static implicit operator BlockOffsetRecord(ulong virtualFilePointer)
     {
         return new BlockOffsetRecord(virtualFilePointer);
+    }
+
+    public static implicit operator ulong(BlockOffsetRecord record)
+    {
+        return (record.BlockAddress << ShiftAmount) | (uint)record.BlockOffset;
+    }
+
+    public static explicit operator long(BlockOffsetRecord record)
+    {
+        return (long)((record.BlockAddress << ShiftAmount) | (uint)record.BlockOffset);
     }
 }

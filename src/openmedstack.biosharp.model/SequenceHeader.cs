@@ -10,4 +10,17 @@ public record SequenceHeader(string Barcode, string Instrument, int RunNumber, s
         return $"{Instrument}:{RunNumber}:{FlowCell}:{Lane}:{Tile}:{Position.XCoordinate}:{Position.YCoordinate} {(PairedEndRead ? 2 : 1)}:{(Filtered ? "Y" : "N")}:0:{Barcode}";
 
     }
+
+    public static SequenceHeader Empty { get; } = new (
+        "",
+        "",
+        0,
+        "",
+        0,
+        0,
+        new PositionalData(0, 0),
+        false,
+        false,
+        ReadDirection.Forward,
+        ReadType.S);
 }

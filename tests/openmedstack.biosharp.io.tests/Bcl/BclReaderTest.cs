@@ -47,11 +47,11 @@
         {
             var bclQualityEvaluationStrategy =
                 new BclQualityEvaluationStrategy(BclQualityEvaluationStrategy.IlluminaAllegedMinimumQuality);
-            var reader = new BclReader(
+            var reader = await BclReader.Create(
                 new FileInfo(PassingBclFile),
                 new TileIndexRecord(1, int.MaxValue, 0, 0),
                 bclQualityEvaluationStrategy,
-                NullLogger.Instance);
+                NullLogger.Instance).ConfigureAwait(false);
             var quals = QualsAsBytes();
 
             Assert.Equal(reader.NumClustersPerCycle[0], ExpectedBases.Length);
@@ -91,11 +91,11 @@
                         var bclQualityEvaluationStrategy =
                             new BclQualityEvaluationStrategy(
                                 BclQualityEvaluationStrategy.IlluminaAllegedMinimumQuality);
-                        var reader = new BclReader(
+                        var reader = await BclReader.Create(
                             new FileInfo(failingFile),
                             new TileIndexRecord(1, int.MaxValue, 0, 0),
                             bclQualityEvaluationStrategy,
-                            NullLogger.Instance);
+                            NullLogger.Instance).ConfigureAwait(false);
                         Assert.Equal(reader.NumClustersPerCycle[0], ExpectedBases.Length);
 
                         // Just loop through the data
@@ -119,11 +119,11 @@
             for (var i = 0; i < 10; i++)
             {
                 var evenI = i % 2 == 0;
-                var reader = new BclReader(
+                var reader = await BclReader.Create(
                     new FileInfo(evenI ? Qual1FailingBclFile : Qual0FailingBclFile),
                     new TileIndexRecord(1, int.MaxValue, 0, 0),
                     bclQualityEvaluationStrategy,
-                    NullLogger.Instance);
+                    NullLogger.Instance).ConfigureAwait(false);
                 Assert.Equal(reader.NumClustersPerCycle[0], ExpectedBases.Length);
 
                 // Just loop through the data
@@ -145,11 +145,11 @@
             // Build a list of tasks, then submit them and check for errors.
             for (var i = 0; i < 10; i++)
             {
-                var reader = new BclReader(
+                var reader = await BclReader.Create(
                     new FileInfo(i % 2 == 0 ? Qual1FailingBclFile : Qual0FailingBclFile),
                     new TileIndexRecord(1, int.MaxValue, 0, 0),
                     bclQualityEvaluationStrategy,
-                    NullLogger.Instance);
+                    NullLogger.Instance).ConfigureAwait(false);
                 Assert.Equal(ExpectedBases.Length, reader.NumClustersPerCycle[0]);
 
                 // Just loop through the data

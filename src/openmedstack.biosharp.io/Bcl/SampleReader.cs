@@ -44,7 +44,7 @@
             var dataReader = (IAsyncEnumerable<ReadData[]>)_reader;
             using var filter = _filter.GetEnumerator();
 
-            await foreach (var data in dataReader.ConfigureAwait(false))
+            await foreach (var data in dataReader.Where(x => qualityTrimmer.Trim(x)).ConfigureAwait(false))
             {
                 if (!await positionalEnumerator.MoveNextAsync().ConfigureAwait(false))
                 {
@@ -64,10 +64,10 @@
                 var pairedEndRead = barcodes.Length > 1;
 
                 var filtered = filter.Current;
-                var trim = (await qualityTrimmer.Trim(data).ConfigureAwait(false));
-                for (var i = 0; i < trim.Length; i++)
+                //var trim = (await qualityTrimmer.Trim(data).ConfigureAwait(false));
+                for (var i = 0; i < data.Length; i++)
                 {
-                    var r = trim.Span[i];
+                    var r = data[i];
                     var b = barcodes.Length > 0 ? i == 1 || barcodes.Length == 1 ? barcodes[0] : barcodes[1] : barcode;
                     var forwardLength = data.Length / 2;
                     yield return new Sequence(
@@ -84,7 +84,7 @@
                             pairedEndRead && i > forwardLength ? ReadDirection.Reverse : ReadDirection.Forward,
                             r.Type),
                         r.Bases,
-                        r.Qualities);
+                     Array.ConvertAll(r.Qualities.ToArray(), c => (char)(c + 33)));
                 }
             }
 

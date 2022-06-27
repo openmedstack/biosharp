@@ -28,7 +28,7 @@
             var file = new FileInfo(@"..\..\..\..\..\..\200129_NB551214_0127_AH7CMYBGXF\Data\Intensities\BaseCalls\L001\0001.bcl.bgzf");
             var reader = new BclIndexReader(file);
             var record = await reader.Get(200).ConfigureAwait(false);
-            Assert.True(record.BlockAddress < file.Length);
+            Assert.True(record.BlockAddress < (ulong)file.Length);
             var fileStream =File.Open(
                 file.FullName,
                 new FileStreamOptions
@@ -38,7 +38,7 @@
                     Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
                     Share = FileShare.Read
                 });
-            fileStream.Seek(record.BlockAddress, SeekOrigin.Begin);
+            fileStream.Seek((long)record.BlockAddress, SeekOrigin.Begin);
             var archive = new GZipStream(fileStream, CompressionMode.Decompress);
             await using var __ = archive.ConfigureAwait(false);
             var ms = new MemoryStream();

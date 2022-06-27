@@ -1,33 +1,37 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Bcl
 {
     using System;
-    using System.Threading.Tasks;
+    using Model;
     using Model.Bcl;
 
     public class DefaultQualityTrimmer : IQualityTrimmer
     {
-        private readonly char _minQuality;
+        private readonly double _minQuality;
 
-        private DefaultQualityTrimmer(char minQuality)
+        private DefaultQualityTrimmer(double minQuality)
         {
             _minQuality = minQuality;
         }
 
-        public static IQualityTrimmer Instance { get; } = new DefaultQualityTrimmer((char)33);
+        public static IQualityTrimmer Instance { get; } = new DefaultQualityTrimmer(20);
 
-        public Task<Memory<ReadData>> Trim(Memory<ReadData> data)
+        public bool Trim(Memory<ReadData> data)
         {
-            var span = data.Span;
-            for (var i = 0; i < span.Length; i++)
+            foreach (var readData in data.Span)
             {
-                var readData = span[i];
-                if (readData.Qualities.Span[i] < _minQuality)
+                double sum = 0;
+                for (var j = 0; j < readData.Qualities.Length; j++)
                 {
-                    readData.Qualities.Span[i] = (char)33;
-                    readData.Bases.Span[i] = 'N';
+                    sum += readData.Qualities.Span[j];
+                }
+
+                var average = sum / readData.Qualities.Length;
+                if (average <= _minQuality)
+                {
+                    return false;
                 }
             }
-            return Task.FromResult(data);
+            return true;
         }
     }
 }

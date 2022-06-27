@@ -14,6 +14,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.Extensions.Logging;
+    using Model;
     using Model.Bcl;
 
     /**
@@ -47,7 +48,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
     public class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
     {
         private readonly ILogger _logger;
-        private const int DefaultQueueSize = 4096;
+        private const int DefaultQueueSize = 256; //1024 * 1024;
         private const int EamssM2GeThreshold = 30;
         private const int EamssS1LtThreshold = 15; //was 15
         private const char MaskingQuality = (char)0x02;
@@ -67,12 +68,13 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             BclBaseLookup[0] = NoCallBase;
             BclQualLookup[0] = BclQualityEvaluationStrategy.IlluminaAllegedMinimumQuality;
 
-            for (uint i = 1; i < 256; ++i)
+            foreach (var x in Enumerable.Range(1, 255))
             {
+                var i = (byte)x;
                 // TODO: If we can remove the use of BclQualityEvaluationStrategy then in the lookup we
                 // TODO: can just set the QUAL to max(2, (i >>> 2)) instead.
                 BclBaseLookup[i] = BaseLookup[i & BaseMask];
-                BclQualLookup[i] = (char)Math.Max(0, i >> 2);
+                BclQualLookup[i] = (char)Math.Max(2, i >> 2);
             }
         }
 
@@ -80,63 +82,69 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         private readonly TileIndexRecord _tileIndexRecord;
         private readonly int _queueSize;
 
-        public BclReader(
+        public static async Task<BclReader> Create(
             IReadOnlyList<FileInfo> bclsForOneTile,
-            IDictionary<string, IBclIndexReader>? indexReaders,
             IEnumerable<Read> reads,
             TileIndexRecord tileIndexRecord,
             BclQualityEvaluationStrategy bclQualityEvaluationStrategy,
             ILogger logger,
+            IDictionary<string, IBclIndexReader>? indexReaders = null,
             bool applyEamss = false,
             int queueSize = DefaultQueueSize)
-            : this(reads, tileIndexRecord, bclQualityEvaluationStrategy, applyEamss, queueSize, logger)
         {
-            for (var i = 0; i < Cycles; ++i)
+            var reader = new BclReader(
+                reads,
+                tileIndexRecord,
+                bclQualityEvaluationStrategy,
+                applyEamss,
+                queueSize,
+                logger);
+            for (var i = 0; i < reader.Cycles; ++i)
             {
                 var bclFileInfo = bclsForOneTile[i];
                 if (!File.Exists(bclFileInfo.FullName))
                 {
-                    DisposeAsync().AsTask().Wait();
+                    await reader.DisposeAsync().ConfigureAwait(false);
                     throw new IOException($"Could not find BCL file for cycle {i}");
                 }
 
                 var offset = indexReaders == null || indexReaders.Count == 0
                     ? new BlockOffsetRecord(0, 4)
-                    : indexReaders[bclFileInfo.FullName]
-                        .Get(tileIndexRecord.ZeroBasedTileNumber)
-                        .GetAwaiter()
-                        .GetResult();
-                Streams[i] = Open(bclFileInfo, offset);
+                    : await indexReaders[bclFileInfo.FullName]
+                        .Get(tileIndexRecord.ZeroBasedTileNumber).ConfigureAwait(false);
+                reader.Streams[i] = await Open(bclFileInfo, offset).ConfigureAwait(false);
             }
+            return reader;
         }
 
-        internal BclReader(
+        internal static async Task<BclReader> Create(
             FileInfo bclFileInfo,
             TileIndexRecord tileIndexRecord,
             BclQualityEvaluationStrategy bclQualityEvaluationStrategy,
             ILogger logger,
             bool applyEamss = false,
             int queueSize = DefaultQueueSize)
-            : this(
+        {
+            var reader = new BclReader(
                 new[] { new Read { IsIndexedRead = "N", NumCycles = 1, Number = 1, Type = ReadType.T } },
                 tileIndexRecord,
                 bclQualityEvaluationStrategy,
                 applyEamss,
                 queueSize,
-                logger)
-        {
+                logger);
             var byteBuffer = new byte[HeaderSize];
-            var stream = Open(bclFileInfo, new BlockOffsetRecord(0, 0));
-            var read = stream.Read(byteBuffer.AsSpan());
+            var stream = await Open(bclFileInfo, new BlockOffsetRecord(0, 0)).ConfigureAwait(false);
+            var read = await stream.ReadAsync(byteBuffer.AsMemory()).ConfigureAwait(false);
 
             if (read != HeaderSize)
             {
                 throw new IOException($"BCL {bclFileInfo.FullName} has invalid header structure.");
             }
 
-            NumClustersPerCycle[0] = BitConverter.ToInt32(byteBuffer);
+            reader.NumClustersPerCycle[0] = BitConverter.ToInt32(byteBuffer);
 
-            Streams[0] = stream;
+            reader.Streams[0] = stream;
+            return reader;
         }
 
         private BclReader(
@@ -173,8 +181,9 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         public int Tile => _tileIndexRecord.Tile;
         private int Cycles { get; }
 
-        private static Stream Open(FileInfo file, BlockOffsetRecord offset)
+        private static async Task<Stream> Open(FileInfo file, BlockOffsetRecord offset)
         {
+            await Task.Yield();
             var filePath = file.FullName;
 
             var isGzip = Path.GetExtension(filePath).Equals(".gz", StringComparison.OrdinalIgnoreCase);
@@ -189,6 +198,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                     Share = FileShare.Read
                 });
             sourceFile.Seek((long)offset.BlockAddress, SeekOrigin.Begin);
+            /*await using*/
             Stream stream = isGzip || isBgzf ? new GZipStream(sourceFile, CompressionMode.Decompress) : sourceFile;
 
             var arrayPool = ArrayPool<byte>.Shared;
@@ -199,7 +209,10 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                 throw new Exception("Could not go to block offset");
             }
             arrayPool.Return(discard);
-
+            //var ms = new MemoryStream();
+            //await stream.CopyToAsync(ms).ConfigureAwait(false);
+            //ms.Position = 0;
+            //return ms;
             return stream;
         }
 
@@ -242,8 +255,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                     for (var cycle = firstCycle; cycle < readLen; ++cycle)
                     {
                         //using var task = ReadAndUpdateData(buffer[..clustersRead], bclDatas, read, cycle, totalCycleCount, cancellationToken);
-                        using var task = ReadAndUpdateData(clustersRead, bclDatas, read, cycle, totalCycleCount, cancellationToken);
-                        await task.ConfigureAwait(false);
+                        await ReadAndUpdateData(clustersRead, bclDatas, read, cycle, totalCycleCount, cancellationToken).ConfigureAwait(false);
                         totalCycleCount++;
                     }
                 }
@@ -292,7 +304,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             CancellationToken cancellationToken)
         {
             var mem = await Streams[totalCycleCount].FillBuffer(buffer, cancellationToken).ConfigureAwait(false);
-            
+
             UpdateClusterBclDatas(bclDatas.Span, read, cycle, mem.Span);
         }
 

@@ -112,7 +112,25 @@
                 .ToList();
         }
 
+        public int[] GetAllLanes()
+        {
+            return _laneDirs.Select(d => LaneFolderMatch.Match(d.Name).Groups["lane"].Value)
+                .Select(int.Parse)
+                .ToArray();
+        }
+
         public async IAsyncEnumerable<SampleReader> ReadClusterData(
+            int lane,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
+        {
+            var runInfo = RunInfo();
+            await foreach (var reader in CreateLaneReaders(lane, runInfo, cancellationToken).ConfigureAwait(false))
+            {
+                yield return await reader.ConfigureAwait(false);
+            }
+        }
+
+        public async IAsyncEnumerable<Task<SampleReader>> ReadClusterDataAsTasks(
             int lane,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
@@ -123,7 +141,7 @@
             }
         }
 
-        private async IAsyncEnumerable<SampleReader> CreateLaneReaders(int lane, Run runInfo, [EnumeratorCancellation] CancellationToken cancellationToken)
+        private async IAsyncEnumerable<Task<SampleReader>> CreateLaneReaders(int lane, Run runInfo, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             var laneName = lane.ToString();
             var dir = _baseCallLaneDirs.Single(
@@ -144,15 +162,14 @@
             await foreach (var tileRecord in tiles.ConfigureAwait(false))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                yield return await CreateSampleReader(
+                yield return CreateSampleReader(
                         lane,
                         runInfo,
                         dir,
                         tileRecord,
                         laneName,
                         files,
-                        indexReaders)
-                    .ConfigureAwait(false);
+                        indexReaders);
             }
         }
 
@@ -175,18 +192,19 @@
                     ? "all clusters in file"
                     : tileRecord.NumClustersInTile + " clusters",
                 Environment.CurrentManagedThreadId);
-            await Task.Yield();
+            //await Task.Yield();
+            var reader = await BclReader.Create(
+                files,
+                runInfo.Reads.Read!,
+                tileRecord,
+                new BclQualityEvaluationStrategy(2),
+                _logger,
+                indexReaders).ConfigureAwait(false);
             return new SampleReader(
                 runInfo,
                 lane,
                 lane,
-                new BclReader(
-                    files,
-                    indexReaders,
-                    runInfo.Reads.Read!,
-                    tileRecord,
-                    new BclQualityEvaluationStrategy(2),
-                    _logger),
+                reader,
                 positionReader,
                 filterReader);
         }

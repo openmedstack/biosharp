@@ -21,9 +21,8 @@
                 .OrderBy(x => x.Name)
                 .SelectMany(d => d.GetFiles("*.bcl.gz", SearchOption.AllDirectories))
                 .ToList();
-            _reader = new BclReader(
+            _reader = BclReader.Create(
                 fileInfos,
-                null,
                 new[]
                 {
                     new Read { IsIndexedRead = "N", NumCycles = 26, Number = 1, Type = ReadType.T },
@@ -32,7 +31,7 @@
                 },
                 new TileIndexRecord(1, int.MaxValue, 0, 0),
                 new BclQualityEvaluationStrategy(2),
-                new TestOutputLogger(nameof(CompressBclReaderTests), outputHelper));
+                new TestOutputLogger(nameof(CompressBclReaderTests), outputHelper)).GetAwaiter().GetResult();
         }
 
         [Fact]

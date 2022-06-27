@@ -1,9 +1,9 @@
-namespace OpenMedStack.BioSharp.Io.Tests
+namespace OpenMedStack.BioSharp.Io.Tests.FastQ
 {
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
-    using FastQ;
+    using Io.FastQ;
     using Microsoft.Extensions.Logging.Abstractions;
     using Xunit;
     using Xunit.Abstractions;
@@ -43,11 +43,11 @@ namespace OpenMedStack.BioSharp.Io.Tests
         {
             var output = new MemoryStream();
             var reader = new FastQReader(NullLogger.Instance);
-            var writer = new FastQWriter(new NullLogger<FastQWriter>(), output);
+            var writer = new FastQWriter(new NullLogger<FastQWriter>(), output, Stream.Null);
 
             var sequence = await reader.Read(FastQerr).FirstAsync().ConfigureAwait(false);
             await writer.Write(sequence).ConfigureAwait(false);
-            
+
             Assert.True(output.Length > 0);
 
             await output.DisposeAsync().ConfigureAwait(false);
