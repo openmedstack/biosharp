@@ -27,13 +27,15 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
         {
             var fastq = "ERR164409.fastq.gz";
             var reader = new FastQReader(NullLogger.Instance);
-            var sequences = await reader.Read(fastq, CancellationToken.None).Take(3).ToListAsync().ConfigureAwait(false);
+            var sequences = await reader.Read(fastq, CancellationToken.None).Take(3).ToListAsync()
+                .ConfigureAwait(false);
 
             var oneTwoAligned = await sequences[0].Align(sequences[1], 10).ConfigureAwait(false);
 
             Assert.Equal(87, oneTwoAligned.GetCombineIndex());
 
-            var twoThreeAligned = await sequences[0].Combine(sequences[1], "test", 87).Align(sequences[2], 10).ConfigureAwait(false);
+            var twoThreeAligned = await sequences[0].Combine(sequences[1], "test", 87).Align(sequences[2], 10)
+                .ConfigureAwait(false);
 
             Assert.Equal(119, twoThreeAligned.GetCombineIndex());
         }

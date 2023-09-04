@@ -10,7 +10,7 @@
         private readonly ReadOnlyMemory<char> _qualities;
 
         internal Sequence(SequenceHeader header, ReadOnlyMemory<char> data, ReadOnlyMemory<char> qualities)
-        : this(header.ToString(), data, qualities)
+            : this(header.ToString(), data, qualities)
         {
             Header = header;
         }
@@ -39,7 +39,7 @@
 
         public char this[int index]
         {
-            get { return (char)_data.Span[index]; }
+            get { return _data.Span[index]; }
         }
 
         public IEnumerator<BasePair> GetEnumerator()
@@ -69,10 +69,10 @@
         public override string ToString()
         {
             return string.Concat($"{Id}:{Length}",
-                   Environment.NewLine,
-                   new string(_data.Span),
-                   Environment.NewLine,
-                   new string(_qualities.Span));
+                Environment.NewLine,
+                new string(_data.Span),
+                Environment.NewLine,
+                new string(_qualities.Span));
         }
     }
 }

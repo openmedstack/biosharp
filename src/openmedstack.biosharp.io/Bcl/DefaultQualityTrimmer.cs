@@ -1,7 +1,6 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Bcl
 {
     using System;
-    using Model;
     using Model.Bcl;
 
     public class DefaultQualityTrimmer : IQualityTrimmer

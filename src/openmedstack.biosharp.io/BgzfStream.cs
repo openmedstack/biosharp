@@ -93,7 +93,7 @@ public class BgzfStream : Stream
     /// <inheritdoc />
     public override Task<int> ReadAsync(byte[] buffer, int offset, int count, CancellationToken cancellationToken)
     {
-        return ReadAsync(buffer.AsMemory(0, count), cancellationToken).AsTask();
+        return ReadAsync(buffer.AsMemory(offset, count), cancellationToken).AsTask();
     }
 
     /// <inheritdoc />
