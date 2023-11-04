@@ -26,7 +26,7 @@
 
         private class ReadComparer : IEqualityComparer<Read>
         {
-            public bool Equals(Read x, Read y)
+            public bool Equals(Read? x, Read? y)
             {
                 if (ReferenceEquals(x, y))
                 {

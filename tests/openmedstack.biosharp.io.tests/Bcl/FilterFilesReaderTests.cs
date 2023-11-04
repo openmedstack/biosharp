@@ -8,7 +8,7 @@
 
     public class FilterFilesReaderTests:IAsyncLifetime
     {
-        private FilterFileReader _reader;
+        private FilterFileReader _reader = null!;
 
         [Fact]
         public void CanRead()

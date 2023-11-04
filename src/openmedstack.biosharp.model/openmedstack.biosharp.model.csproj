@@ -2,7 +2,6 @@
 
     <Import Project="../../shared.proj" />
     <PropertyGroup>
-        <TargetFramework>net7.0</TargetFramework>
         <RootNamespace>OpenMedStack.BioSharp.Model</RootNamespace>
     </PropertyGroup>
 </Project>

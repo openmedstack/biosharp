@@ -1,4 +1,6 @@
-﻿namespace OpenMedStack.Preator
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace OpenMedStack.Preator
 {
     using System;
     using System.Diagnostics;
@@ -15,6 +17,7 @@
     using OpenMedStack.BioSharp.Io.FastQ;
 
     // ReSharper disable once ClassNeverInstantiated.Global
+    [RequiresUnreferencedCode("Requires reference to RunInfo.")]
     class Program
     {
         static async Task Main(string[] args)
@@ -23,6 +26,7 @@
             await result.WithNotParsed(_ => NotParsed(result)).WithParsedAsync(Parsed).ConfigureAwait(false);
         }
 
+        [RequiresUnreferencedCode("Requires reference to RunInfo.")]
         private static async Task Parsed(Options options)
         {
             var tokenSource = new CancellationTokenSource();
@@ -62,6 +66,7 @@
             {
                 Directory.CreateDirectory(outputDir);
             }
+
             foreach (var s in Directory.EnumerateFiles(outputDir))
             {
                 File.Delete(s);
@@ -85,6 +90,7 @@
             tokenSource.Dispose();
         }
 
+        [RequiresUnreferencedCode("Requires reference to RunInfo.")]
         private static async Task ProcessLane(
             string outputDir,
             Run runInfo,
@@ -95,7 +101,8 @@
             CancellationToken cancellationToken)
         {
             await using var file = File.Open(
-                Path.Combine(outputDir, $"{runInfo.Instrument}_{runInfo.Number}_L{lane.ToString().PadLeft(3, '0')}.fastq.gz"),
+                Path.Combine(outputDir,
+                    $"{runInfo.Instrument}_{runInfo.Number}_L{lane.ToString().PadLeft(3, '0')}.fastq.gz"),
                 new FileStreamOptions
                 {
                     Access = FileAccess.Write,
@@ -104,7 +111,8 @@
                     Share = FileShare.None
                 });
             await using var index = File.Open(
-                Path.Combine(outputDir, $"{runInfo.Instrument}_{runInfo.Number}_L{lane.ToString().PadLeft(3, '0')}.fastqi.gz"),
+                Path.Combine(outputDir,
+                    $"{runInfo.Instrument}_{runInfo.Number}_L{lane.ToString().PadLeft(3, '0')}.fastqi.gz"),
                 new FileStreamOptions
                 {
                     Access = FileAccess.Write,
@@ -115,8 +123,8 @@
             await using var indexZip = new GZipStream(index, CompressionLevel.Fastest, true);
             await using var writer = new FastQWriter(logger, file, indexZip, CompressionLevel.Fastest, null, true);
             await foreach (var bclData in reader.ReadClusterData(lane, cancellationToken)
-                               .Select(sr => sr.ReadBclData(trimmer, cancellationToken))
-                               .WithCancellation(cancellationToken))
+                .Select(sr => sr.ReadBclData(trimmer, cancellationToken))
+                .WithCancellation(cancellationToken))
             {
                 var (sequenceCount, byteCount) = await writer.Write(bclData, cancellationToken).ConfigureAwait(false);
                 logger.LogInformation("Wrote {count} sequences with {bytes} bytes", sequenceCount, byteCount);

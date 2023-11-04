@@ -1,6 +1,7 @@
 <Project>
     <PropertyGroup>
         <Version>1.0.0</Version>
+        <TargetFramework>net8.0</TargetFramework>
         <Authors>OpenMedStack;Jacob Reimers</Authors>
         <Company>OpenMedStack</Company>
         <Product>OpenMedStack BioSharp</Product>

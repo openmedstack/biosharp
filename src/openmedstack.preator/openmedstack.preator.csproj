@@ -3,7 +3,6 @@
 	<Import Project="../../shared.proj" />
 	<PropertyGroup>
 		<OutputType>Exe</OutputType>
-		<TargetFramework>net7.0</TargetFramework>
 		<AssemblyName>preator</AssemblyName>
 		<RootNamespace>OpenMedStack.Preator</RootNamespace>
 		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
@@ -12,7 +11,7 @@
 
 	<ItemGroup>
 		<PackageReference Include="CommandLineParser" Version="2.9.1" />
-		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="7.0.0" />
+		<PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0-rc.2.23479.6" />
 	</ItemGroup>
 
 	<ItemGroup>

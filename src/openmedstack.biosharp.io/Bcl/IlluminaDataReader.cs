@@ -1,4 +1,6 @@
-﻿namespace OpenMedStack.BioSharp.Io.Bcl
+﻿using System.Diagnostics.CodeAnalysis;
+
+namespace OpenMedStack.BioSharp.Io.Bcl
 {
     using System;
     using System.Collections.Generic;
@@ -37,6 +39,7 @@
             _laneDirs = intensitiesDir.EnumerateDirectories().Where(x => LaneFolderMatch.IsMatch(x.Name)).ToArray();
         }
 
+        [RequiresUnreferencedCode("Requires reference to RunInfo.")]
         public Run RunInfo()
         {
             if (_run != null)
@@ -118,6 +121,7 @@
                 .ToArray();
         }
 
+        [RequiresUnreferencedCode("Requires reference to RunInfo.")]
         public async IAsyncEnumerable<SampleReader> ReadClusterData(
             int lane,
             [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -129,17 +133,7 @@
             }
         }
 
-        public async IAsyncEnumerable<Task<SampleReader>> ReadClusterDataAsTasks(
-            int lane,
-            [EnumeratorCancellation] CancellationToken cancellationToken = default)
-        {
-            var runInfo = RunInfo();
-            await foreach (var reader in CreateLaneReaders(lane, runInfo, cancellationToken).ConfigureAwait(false))
-            {
-                yield return reader;
-            }
-        }
-
+        [RequiresUnreferencedCode("Requires reference to RunInfo.")]
         private async IAsyncEnumerable<Task<SampleReader>> CreateLaneReaders(int lane, Run runInfo, [EnumeratorCancellation] CancellationToken cancellationToken)
         {
             var laneName = lane.ToString();
