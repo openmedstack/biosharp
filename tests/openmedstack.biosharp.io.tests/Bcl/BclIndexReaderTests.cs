@@ -16,7 +16,7 @@
             var reader = new BclIndexReader(new FileInfo("data/illumina/parserTests/bciParser/0001.bcl.bgzf"));
             for (var i = 0; i < reader.NumTiles; i++)
             {
-                var blockOffset = await reader.Get(i).ConfigureAwait(false);
+                var blockOffset = await reader.Get(i);
                 Assert.True(pow > blockOffset.BlockOffset);
             }
         }
@@ -26,7 +26,7 @@
         {
             var file = new FileInfo(@"..\..\..\..\..\..\200129_NB551214_0127_AH7CMYBGXF\Data\Intensities\BaseCalls\L001\0001.bcl.bgzf");
             var reader = new BclIndexReader(file);
-            var record = await reader.Get(200).ConfigureAwait(false);
+            var record = await reader.Get(200);
             Assert.True(record.BlockAddress < (ulong)file.Length);
             var fileStream =File.Open(
                 file.FullName,
@@ -39,11 +39,11 @@
                 });
             fileStream.Seek((long)record.BlockAddress, SeekOrigin.Begin);
             var archive = new GZipStream(fileStream, CompressionMode.Decompress);
-            await using var __ = archive.ConfigureAwait(false);
+            await using var __ = archive;
             var ms = new MemoryStream();
-            await using var _ = ms.ConfigureAwait(false);
+            await using var _ = ms;
             //var entryStream = archive.Entries.First().Open();
-            await archive.CopyToAsync(ms).ConfigureAwait(false);
+            await archive.CopyToAsync(ms);
             var data = Array.ConvertAll(ms.ToArray().AsMemory(record.BlockOffset).ToArray(), b => (char)b);
         }
     }

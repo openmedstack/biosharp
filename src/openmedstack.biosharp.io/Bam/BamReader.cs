@@ -72,6 +72,7 @@
                 arrayPool.Return(buffer);
                 buffer = arrayPool.Rent(textLength);
             }
+
             mem = await file.FillBuffer(buffer.AsMemory(0, textLength), cancellationToken).ConfigureAwait(false);
 
             var text = textLength == 0 ? "" : Encoding.UTF8.GetString(mem[..^1].Span);
@@ -87,7 +88,8 @@
                     (await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false)).Span);
 
                 var name = Encoding.UTF8.GetString(
-                    (await file.FillBuffer(buffer.AsMemory(0, nameLength), cancellationToken).ConfigureAwait(false)).Span[..(nameLength - 1)]);
+                    (await file.FillBuffer(buffer.AsMemory(0, nameLength), cancellationToken).ConfigureAwait(false))
+                    .Span[..(nameLength - 1)]);
 
                 var length = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
                 var referenceSequence = new ReferenceSequence(name, BitConverter.ToUInt32(length.Span));
@@ -130,6 +132,7 @@
             {
                 throw new InvalidDataException("Inconsistent reference count");
             }
+
             var alignments = new List<AlignmentSection>();
             while (file.BaseStream.Position < file.BaseStream.Length)
             {
@@ -137,7 +140,8 @@
 
                 var blockSize = (int)BitConverter.ToUInt32(mem.Span);
                 var blockBuffer = arrayPool.Rent(blockSize);
-                var block = await file.FillBuffer(blockBuffer.AsMemory(0, blockSize), cancellationToken).ConfigureAwait(false);
+                var block = await file.FillBuffer(blockBuffer.AsMemory(0, blockSize), cancellationToken)
+                    .ConfigureAwait(false);
                 alignments.Add(ProcessBlock(block));
             }
 
@@ -149,36 +153,51 @@
 
         private static AlignmentSection ProcessBlock(Memory<byte> block)
         {
+            var position = BitConverter.ToInt32(block.Slice(4, 4).Span) + 1;
             var nameLength = block.Span[8];
-            var cigarLength = BitConverter.ToUInt16(block.Slice(12, 2).Span);
+            var mapq = block.Span[9];
+            var bamBinary = BitConverter.ToUInt16(block.Slice(10, 2).Span);
+            var cigarLength = BitConverter.ToUInt16(block.Slice(12, 2).Span) * 4;
+            var alignmentFlag = (AlignmentSection.AlignmentFlag)BitConverter.ToUInt16(block.Slice(14, 2).Span);
             var baseSeqLength = (int)BitConverter.ToUInt32(block.Slice(16, 4).Span);
-            var sequenceLength = (baseSeqLength + 1) / 2;
+            var rnext = BitConverter.ToInt32(block.Slice(20, 4).Span);
+            var pnext = BitConverter.ToInt32(block.Slice(24, 4).Span) - 1;
             var templateLength = BitConverter.ToInt32(block.Slice(28, 4).Span);
+            var qName = Encoding.UTF8.GetString(block.Slice(32, nameLength - 1).Span);
+            var sequenceLength = ((baseSeqLength + 1) / 2);
             var cigarStart = 32 + nameLength;
-            var sequenceStart = cigarStart + cigarLength * 4;
+            var sequenceStart = cigarStart + cigarLength;
             var qStart = sequenceStart + sequenceLength;
-            var cigar = new char[cigarLength];
             var tagStart = qStart + baseSeqLength;
-            for (var i = 0; i < cigarLength; i++)
+            var ops = block.Slice(cigarStart, cigarLength).Span;
+            var cigars = new (uint, char)[cigarLength / 4];
+
+            for (var i = 0; i < cigars.Length; i++)
             {
-                cigar[i] = (char)BitConverter.ToUInt32(block.Slice(cigarStart + (i * 4), 4).Span);
+                var encoded = BitConverter.ToUInt32(ops.Slice(i * 4, 4));
+                cigars[i] = encoded.Decode();
             }
 
-            var tags = ReadTags(block[tagStart..]).ToArray();
+            var tags = Enumerable.Empty<AlignmentTag>(); // ReadTags(block[tagStart..]).ToArray();
 
+            var sequence = block.Slice(sequenceStart, sequenceLength).Span.ReadSequence();
+            var qualScores = block.Slice(qStart, baseSeqLength);
+            var qualityChars = Array.ConvertAll(qualScores.ToArray(), b => b == 255 ? ' ' : (char)b);
+            var quality = new string(qualityChars);
             return new AlignmentSection(
-                "",
-                (AlignmentSection.AlignmentFlag)BitConverter.ToUInt16(block.Slice(14, 2).Span),
-                Encoding.UTF8.GetString(block.Slice(32, nameLength - 1).Span),
-                BitConverter.ToInt32(block.Slice(4, 4).Span),
-                block.Span[9],
-                new string(cigar),
-                BitConverter.ToInt32(block.Slice(20, 4).Span),
-                BitConverter.ToInt32(block.Slice(24, 4).Span),
+                qName,
+                alignmentFlag,
+                qName,
+                position,
+                mapq,
+                cigars,
+                rnext,
+                pnext,
                 templateLength,
-                Encoding.UTF8.GetString(block.Slice(sequenceStart, sequenceLength).Span),
-                new string(Array.ConvertAll(block.Slice(qStart, baseSeqLength).ToArray(), b => (char)b)),
-                tags);
+                sequence,
+                quality,
+                tags,
+                bamBinary);
         }
 
         private static IEnumerable<AlignmentTag> ReadTags(Memory<byte> memory)
@@ -202,57 +221,58 @@
                 case 'A':
                     return (1, (char)span[0]);
                 case 'Z':
-                    {
-                        var length = span.IndexOf((byte)'\0');
-                        return (length + 1, Encoding.UTF8.GetString(span[..(length)]));
-                    }
+                {
+                    var length = span.IndexOf((byte)'\0');
+                    return (length + 1, Encoding.UTF8.GetString(span[..(length)]));
+                }
                 case 'i':
-                    {
-                        return (4, BitConverter.ToInt32(span[..4]));
-                    }
+                {
+                    return (4, BitConverter.ToInt32(span[..4]));
+                }
                 case 'I':
-                    {
-                        return (4, BitConverter.ToUInt32(span[..4]));
-                    }
+                {
+                    return (4, BitConverter.ToUInt32(span[..4]));
+                }
                 case 's':
-                    {
-                        return (2, BitConverter.ToInt16(span[..2]));
-                    }
+                {
+                    return (2, BitConverter.ToInt16(span[..2]));
+                }
                 case 'S':
-                    {
-                        return (2, BitConverter.ToUInt16(span[..2]));
-                    }
+                {
+                    return (2, BitConverter.ToUInt16(span[..2]));
+                }
                 case 'c':
-                    {
-                        return (1, (sbyte)(span[0]));
-                    }
+                {
+                    return (1, (sbyte)(span[0]));
+                }
                 case 'C':
-                    {
-                        return (1, span[0]);
-                    }
+                {
+                    return (1, span[0]);
+                }
                 case 'f':
-                    {
-                        return (4, BitConverter.ToSingle(span[..4]));
-                    }
+                {
+                    return (4, BitConverter.ToSingle(span[..4]));
+                }
                 case 'H':
-                    {
-                        return (2, Encoding.UTF8.GetString(span[..2]));
-                    }
+                {
+                    return (2, Encoding.UTF8.GetString(span[..2]));
+                }
                 case 'B':
+                {
+                    var subtype = (char)span[0];
+                    var count = BitConverter.ToInt32(span.Slice(1, 4));
+                    var total = 5;
+                    var array = Array.CreateInstance(GetTagType(type), count);
+                    for (var i = 0; i < count; i++)
                     {
-                        var subtype = (char)span[0];
-                        var count = BitConverter.ToInt32(span.Slice(1, 4));
-                        var total = 5;
-                        var array = Array.CreateInstance(GetTagType(type), count);
-                        for (var i = 0; i < count; i++)
-                        {
-                            var (length, value) = ReadTagValue(span[5..], subtype);
-                            total += length;
-                            array.SetValue(value, i);
-                        }
-                        return (total, array);
+                        var (length, value) = ReadTagValue(span[5..], subtype);
+                        total += length;
+                        array.SetValue(value, i);
                     }
-                default: throw new InvalidDataException("Invalid tag type: " + type);
+
+                    return (total, array);
+                }
+                default: throw new InvalidDataException($"Invalid tag type: {type}");
             }
         }
 
@@ -272,45 +292,6 @@
                 'S' => typeof(ushort),
                 _ => throw new InvalidDataException("Invalid tag value")
             };
-        }
-
-        //private static int Region2Bin(int beg, int end)
-        //{
-        //    if (beg>>14 == end>>14) return ((1<<15)-1)/7 + (beg>>14);
-        //    if (beg>>17 == end>>17) return ((1<<12)-1)/7 + (beg>>17);
-        //    if (beg>>20 == end>>20) return ((1<<9)-1)/7 + (beg>>20);
-        //    if (beg>>23 == end>>23) return ((1<<6)-1)/7 + (beg>>23);
-        //    if (beg>>26 == end>>26) return ((1<<3)-1)/7 + (beg>>26);
-        //    return 0;
-        //}
-
-        //private int Region2Bins(int beg, int end, ushort[] list)
-        //{
-        //    if (list.Length != (((1 << 18) - 1) / 7))
-        //    {
-        //        throw new ArgumentException("Wrong list length", nameof(list));
-        //    }
-        //    int i = 0;
-        //    ushort k;
-        //    --end;
-        //    list[i++] = 0;
-        //    for (k = (ushort)(1 + (beg>>26)); k <= 1 + (end>>26); ++k) list[i++] = k;
-        //    for (k = (ushort)(9 + (beg>>23)); k <= 9 + (end>>23); ++k) list[i++] = k;
-        //    for (k = (ushort)(73 + (beg>>20)); k <= 73 + (end>>20); ++k) list[i++] = k;
-        //    for (k = (ushort)(585 + (beg>>17)); k <= 585 + (end>>17); ++k) list[i++] = k;
-        //    for (k = (ushort)(4681 + (beg>>14)); k <= 4681 + (end>>14); ++k) list[i++] = k;
-        //    return i;
-        //}
-        
-        private static int CalculateBlockSize(AlignmentSection section)
-        {
-            return 8 * 4
-                   + section.ReadName.Length
-                   + 1
-                   + section.Cigar.Length * 4
-                   + (section.Sequence.Length + 1) / 2
-                   + section.Quality.Length
-                   + section.Tags.Sum(t => t.GetSize());
         }
     }
 }

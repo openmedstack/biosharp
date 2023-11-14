@@ -1,33 +1,55 @@
-﻿namespace OpenMedStack.BioSharp.Io
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Runtime.InteropServices;
+
+namespace OpenMedStack.BioSharp.Io;
+
+public static class Extensions
 {
-    using System.Collections;
+    private const string CigarCodes = "MIDNSHP=X";
+    private const string SequenceChars = "=ACMGRSVTWYHKDBN";
 
-    internal static class Extensions
+    public static uint Encode(this (uint count, char op) ops)
     {
-        public static char ToChar(this bool a, bool b, bool c)
+        return ops.count << 4 | (uint)CigarCodes.IndexOf(ops.op);
+    }
+
+    public static (uint count, char op) Decode(this uint ops)
+    {
+        var count = ops >> 4;
+        var index = ops & 0b1111;
+        var code = CigarCodes[(int)index];
+        return (count, code);
+    }
+
+    public static string ReadSequence(this Span<byte> bytes)
+    {
+        var buffer = new List<char>();
+        foreach (var b in bytes)
         {
-            return a switch
-            {
-                false when !b && c => 'A',
-                false when b && !c => 'C',
-                false when b && c => 'G',
-                true when !b && !c => 'T',
-                true when b && !c => 'N',
-                _ => '*'
-            };
+            buffer.Add(SequenceChars[b >> 4]);
+            buffer.Add(SequenceChars[b & 0b1111]);
         }
 
-        public static BitArray ToBits(this char letter)
+        if (buffer.Last() == '=')
         {
-            return letter switch
-            {
-                'A' => new BitArray(new[] { false, false, true }),
-                'C' => new BitArray(new[] { false, true, false }),
-                'G' => new BitArray(new[] { false, true, true }),
-                'T' => new BitArray(new[] { true, false, false }),
-                'N' => new BitArray(new[] { true, true, false }),
-                _ => new BitArray(new[] { false, false, false })
-            };
+            buffer.RemoveAt(buffer.Count - 1);
         }
+
+        return new string(CollectionsMarshal.AsSpan(buffer));
+    }
+
+    public static Span<byte> WriteSequence(this string sequence)
+    {
+        var buffer = new List<byte>();
+        for (var i = 0; i < sequence.Length; i += 2)
+        {
+            var first = (byte)(SequenceChars.IndexOf(sequence[i]) << 4);
+            var second = i == sequence.Length - 1 ? 0 : SequenceChars.IndexOf(sequence[i + 1]) & 0b1111;
+            buffer.Add((byte)(first | second));
+        }
+
+        return CollectionsMarshal.AsSpan(buffer);
     }
 }

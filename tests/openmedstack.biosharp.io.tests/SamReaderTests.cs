@@ -23,9 +23,9 @@ r001  147  ref  37  30  9M  =  7  -39  CAGCGGCAT  *  NM:i:1
 ".Replace("  ", "\t");
 
             var ms = new MemoryStream(Encoding.UTF8.GetBytes(file));
-            await using var _ = ms.ConfigureAwait(false);
+            await using var _ = ms;
             var reader = new SamReader(NullLogger.Instance);
-            var definition = await reader.Read(ms).ConfigureAwait(false);
+            var definition = await reader.Read(ms);
 
             Assert.Equal(6, definition.AlignmentSections.Length);
         }
@@ -43,9 +43,9 @@ r001  147  ref  37  30  9M  =  7  -39  CAGCGGCAT  *  NM:i:1
 ".Replace("  ", "\t");
 
             var ms = new MemoryStream(Encoding.UTF8.GetBytes(file));
-            await using var _ = ms.ConfigureAwait(false);
+            await using var _ = ms;
             var reader = new SamReader(NullLogger.Instance);
-            var definition = await reader.Read(ms).ConfigureAwait(false);
+            var definition = await reader.Read(ms);
 
             Assert.Equal(3, definition.Sq.Length);
         }

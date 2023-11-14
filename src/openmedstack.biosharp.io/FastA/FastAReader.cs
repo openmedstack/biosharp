@@ -44,15 +44,18 @@
             while (!reader.EndOfStream)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var id = string.IsNullOrWhiteSpace(line) ? await reader.ReadLineAsync().ConfigureAwait(false) : line;
+                var id = string.IsNullOrWhiteSpace(line)
+                    ? await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false)
+                    : line;
                 var letters = new List<string>();
                 while (!reader.EndOfStream)
                 {
-                    line = await reader.ReadLineAsync().ConfigureAwait(false);
+                    line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
                     if (line!.StartsWith('>') || string.IsNullOrWhiteSpace(line))
                     {
                         break;
                     }
+
                     letters.Add(line);
                 }
 
@@ -61,15 +64,15 @@
                 foreach (var chunk in letters)
                 {
                     chunk.CopyTo(data.AsSpan(index, chunk.Length));
-                    //_ = encoding.GetBytes(chunk.ToCharArray().AsSpan(), data.AsSpan(index, chunk.Length));
                     index += chunk.Length;
                 }
 
                 var qualities = new char[data.Length];
-                Array.Fill(qualities, (char)255);
+                const char defaultQuality = (char)255;
+                Array.Fill(qualities, defaultQuality);
                 letters.Clear();
                 GC.Collect(3, GCCollectionMode.Forced);
-                yield return new Sequence(id![1..], Array.ConvertAll(data, b => (char)b), qualities);
+                yield return new Sequence(id![1..], data, qualities);
             }
         }
 

@@ -39,7 +39,7 @@
         {
             IAsyncEnumerable<ReadData[]> reader = _reader;
 
-            var reads = await reader.ToListAsync().ConfigureAwait(false);
+            var reads = await reader.ToListAsync();
 
             Assert.True(reads.Count > 0);
         }

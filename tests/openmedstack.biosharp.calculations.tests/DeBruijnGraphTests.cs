@@ -101,7 +101,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
                     "..\\..\\..\\..\\..\\..\\200129_NB551214_0127_AH7CMYBGXF\\Unaligned\\200129_NB551214_0127_AH7CMYBGXF\\L001_TGGCTAGT_R002.fastq.gz"));
             await foreach (var seq in graph.Assemble(CancellationToken.None).ConfigureAwait(false))
             {
-                await writer.WriteLineAsync(seq).ConfigureAwait(false);
+                await writer.WriteLineAsync(seq);
             }
         }
     }

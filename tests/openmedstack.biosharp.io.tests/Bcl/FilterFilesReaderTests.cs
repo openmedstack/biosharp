@@ -23,7 +23,7 @@
         {
             _reader = await FilterFileReader
                 .Create(new FileInfo(@"data/illumina/25T8B8B25T/Data/Intensities/BaseCalls/L001/s_1_1101.filter"))
-                .ConfigureAwait(false);
+                ;
         }
 
         /// <inheritdoc />

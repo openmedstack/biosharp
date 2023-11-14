@@ -12,7 +12,7 @@
         public async Task CanRead()
         {
             var tileIndex = new TileIndex(new FileInfo(@"..\..\..\..\..\..\200129_NB551214_0127_AH7CMYBGXF\Data\Intensities\BaseCalls\L001\s_1.bci"));
-            var tiles = await tileIndex.ToArrayAsync().ConfigureAwait(false);
+            var tiles = await tileIndex.ToArrayAsync();
 
             Assert.Equal(216, tiles.Length);
             Assert.Equal(121773386, tiles.Sum(x => x.NumClustersInTile));

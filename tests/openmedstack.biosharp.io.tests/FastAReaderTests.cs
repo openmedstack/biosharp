@@ -12,7 +12,7 @@ namespace OpenMedStack.BioSharp.Io.Tests
         public async Task CanReadSingleSequence(string path)
         {
             var parser = new FastAReader();
-            var sequence = await parser.ReadGz(path, true).SingleAsync().ConfigureAwait(false);
+            var sequence = await parser.ReadGz(path, true).SingleAsync();
             Assert.NotEmpty(sequence);
         }
     }

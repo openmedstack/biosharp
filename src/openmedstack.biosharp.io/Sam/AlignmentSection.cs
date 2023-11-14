@@ -29,8 +29,8 @@
             AlignmentFlag flag,
             string rname,
             int position,
-            int mapq,
-            string cigar,
+            byte mapq,
+            (uint, char)[] cigar,
             int rnext,
             int pnext,
             int templatelength,
@@ -62,9 +62,9 @@
 
         public int Position { get; }
 
-        public int MappingQuality { get; }
+        public byte MappingQuality { get; }
 
-        public string Cigar { get; }
+        public (uint count, char op)[] Cigar { get; }
 
         public int ReferenceIdOfNextSegment { get; }
 
@@ -88,14 +88,19 @@
                 (AlignmentFlag)int.Parse(parts[1], NumberStyles.Integer),
                 parts[2],
                 int.Parse(parts[3], NumberStyles.Integer),
-                int.Parse(parts[4], NumberStyles.Integer),
-                parts[5],
+                byte.Parse(parts[4], NumberStyles.Integer),
+                GetOpCodes(parts[5]),
                 int.TryParse(parts[6], out var rnext) ? rnext : 0,
                 int.Parse(parts[7], NumberStyles.Integer),
                 int.Parse(parts[8], NumberStyles.Integer),
                 parts[9],
                 parts[10],
                 parts.Skip(11).Select(AlignmentTag.Parse));
+        }
+
+        private static (uint, char)[] GetOpCodes(string ops)
+        {
+            return ops.Select(c => (byte)c).Select(b => ((uint)(b >> 4), (char)(b & 0x0F))).ToArray();
         }
 
         /// <summary>
@@ -116,7 +121,7 @@
         /// /</para>
         /// </summary>
         [Flags]
-        public enum AlignmentFlag
+        public enum AlignmentFlag : ushort
         {
             None = 0,
             MultipleSegments = 1,

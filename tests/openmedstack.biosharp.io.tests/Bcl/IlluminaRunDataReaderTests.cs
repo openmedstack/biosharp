@@ -26,8 +26,10 @@
         public async Task CanRead()
         {
             var sequences = _reader.ReadClusterData(1);
-            var count = await sequences.SelectAwait(async sequence => await sequence.ReadBclData(DefaultQualityTrimmer.Instance, CancellationToken.None).CountAsync().ConfigureAwait(false)).SumAsync().ConfigureAwait(false);
-            
+            var count = await sequences.SelectAwait(async sequence =>
+                    await sequence.ReadBclData(DefaultQualityTrimmer.Instance, CancellationToken.None).CountAsync())
+                .SumAsync();
+
             Assert.Equal(180 * 3, count);
         }
 
@@ -38,8 +40,7 @@
                 .SelectMany(x => x.ReadBclData(DefaultQualityTrimmer.Instance, CancellationToken.None))
                 .Select(x => x.Header.Barcode)
                 .Distinct()
-                .CountAsync()
-                .ConfigureAwait(false);
+                .CountAsync();
             Assert.Equal(40, sequences);
         }
 
@@ -52,14 +53,14 @@
         //        c => Path.Combine(tempPath, $"{c.Barcode[..1]}.fastq.gz"),
         //        runInfo,
         //        NullLogger.Instance);
-        //    await using (demuxWriter.ConfigureAwait(false))
+        //    await using (demuxWriter)
         //    {
         //        await demuxWriter.WriteDemultiplexed(_reader.ReadClusterData(1)
         //        .SelectMany(x => x.ReadBclData(CancellationToken.None))
-        //            .Where(c => c.Type == ReadType.T)).ConfigureAwait(false);
+        //            .Where(c => c.Type == ReadType.T));
         //    }
 
-        //    await demuxWriter.DisposeAsync().ConfigureAwait(false);
+        //    await demuxWriter.DisposeAsync();
         //}
     }
 }

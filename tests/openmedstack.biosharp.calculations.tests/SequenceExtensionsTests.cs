@@ -17,7 +17,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
             const string path = "ERR164409.fastq.gz";
             var parser = new FastQReader(NullLogger.Instance);
 
-            var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
+            var sequence = await parser.Read(path).FirstAsync();
             Assert.Equal(position, sequence.IndexOf(code.ToCharArray()));
         }
 
@@ -27,7 +27,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
             const string path = "ERR164409.fastq.gz";
             var parser = new FastQReader(NullLogger.Instance);
 
-            var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
+            var sequence = await parser.Read(path).FirstAsync();
             Assert.Equal(0, sequence.IndexOf("TACTAC".ToCharArray(), 6));
         }
 
@@ -37,7 +37,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
             const string path = "ERR164409.fastq.gz";
             var parser = new FastQReader(NullLogger.Instance);
 
-            var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
+            var sequence = await parser.Read(path).FirstAsync();
             Assert.Equal(11, sequence.IndexOf("TAAX".ToCharArray(), 1));
         }
 
@@ -47,7 +47,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
             const string path = "ERR164409.fastq.gz";
             var parser = new FastQReader(NullLogger.Instance);
 
-            var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
+            var sequence = await parser.Read(path).FirstAsync();
             var actual = sequence.AllIndicesOf("TAT".ToCharArray()).ToArray();
             Assert.Equal(new[] { 1, 50 }, actual);
         }
@@ -58,7 +58,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
             const string path = "ERR164409.fastq.gz";
             var parser = new FastQReader(NullLogger.Instance);
 
-            var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
+            var sequence = await parser.Read(path).FirstAsync();
             var actual = sequence.Count("TAT".ToCharArray());
             Assert.Equal(2, actual);
         }
@@ -69,7 +69,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
             const string path = "ERR164409.fastq.gz";
             var parser = new FastQReader(NullLogger.Instance);
 
-            var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
+            var sequence = await parser.Read(path).FirstAsync();
             var actual = sequence.ToRna().ReadAminoAcids(true).ToArray();
             var expected = "VLVHNALW".Select<char, AminoAcid>(c => c).ToArray();
             Assert.Equal(expected, actual);
@@ -81,7 +81,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
             const string path = "ERR164409.fastq.gz";
             var parser = new FastQReader(NullLogger.Instance);
 
-            var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
+            var sequence = await parser.Read(path).FirstAsync();
             var actual = string.Join("", sequence.ToRna().ReadAminoAcids().Select(a => a.ToString()).ToArray());
             var expected = "VLVHNALW*TTTAGGIIIGSDDAKAHRE*";
             Assert.Equal(expected, actual);
@@ -96,7 +96,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
             const string path = "ERR164409.fastq.gz";
             var parser = new FastQReader(NullLogger.Instance);
 
-            var sequence = await parser.Read(path).FirstAsync().ConfigureAwait(false);
+            var sequence = await parser.Read(path).FirstAsync();
             var actual = sequence.ToRna().Count(codon.ToCharArray());
             Assert.Equal(count, actual);
         }

@@ -31,13 +31,16 @@ internal static class StreamExtensions
                 {
                     return buffer[..totalRead];
                 }
+
                 throw new IOException("Nothing read. End of stream?");
             }
+
             totalRead += read;
         }
 
         return buffer;
     }
+
     public static async Task<byte[]> FillBuffer(
         this Stream file,
         int size,

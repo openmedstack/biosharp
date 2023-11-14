@@ -22,7 +22,7 @@ namespace OpenMedStack.BioSharp.Io.Tests.FastQ
         public async Task CanCreateSequence()
         {
             var parser = new FastQReader(NullLogger.Instance);
-            await foreach (var sequence in parser.Read(FastQerr).ConfigureAwait(false))
+            await foreach (var sequence in parser.Read(FastQerr))
             {
                 Assert.NotEmpty(sequence);
             }
@@ -32,7 +32,7 @@ namespace OpenMedStack.BioSharp.Io.Tests.FastQ
         public async Task CanConvertToString()
         {
             var parser = new FastQReader(NullLogger.Instance);
-            var sequence = await parser.Read(FastQerr).FirstAsync().ConfigureAwait(false);
+            var sequence = await parser.Read(FastQerr).FirstAsync();
             Assert.NotEmpty(sequence);
 
             _outputHelper.WriteLine(sequence.ToString());
@@ -45,12 +45,12 @@ namespace OpenMedStack.BioSharp.Io.Tests.FastQ
             var reader = new FastQReader(NullLogger.Instance);
             var writer = new FastQWriter(new NullLogger<FastQWriter>(), output, Stream.Null);
 
-            var sequence = await reader.Read(FastQerr).FirstAsync().ConfigureAwait(false);
-            await writer.Write(sequence).ConfigureAwait(false);
+            var sequence = await reader.Read(FastQerr).FirstAsync();
+            await writer.Write(sequence);
 
             Assert.True(output.Length > 0);
 
-            await output.DisposeAsync().ConfigureAwait(false);
+            await output.DisposeAsync();
         }
     }
 }

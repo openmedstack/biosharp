@@ -32,8 +32,7 @@
 
             var count = await sequences
                 .SelectMany(x => x.ReadBclData(DefaultQualityTrimmer.Instance, CancellationToken.None))
-                .CountAsync()
-                .ConfigureAwait(false);
+                .CountAsync();
             stopwatch.Stop();
             Assert.Equal(2136539 * 3, count);
             _outputHelper.WriteLine(stopwatch.Elapsed.ToString());
@@ -46,8 +45,7 @@
                 .SelectMany(x => x.ReadBclData(DefaultQualityTrimmer.Instance,CancellationToken.None))
                 .Select(x => x.Header.Barcode)
                 .Distinct()
-                .CountAsync()
-                .ConfigureAwait(false);
+                .CountAsync();
             Assert.Equal(15749, sequences);
         }
     }

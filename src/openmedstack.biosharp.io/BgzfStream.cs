@@ -39,6 +39,7 @@ public class BgzfStream : Stream
             WriteBlock(_buffer.AsMemory(0, _fill));
             _fill = 0;
         }
+
         _innerStream.Flush();
     }
 
@@ -48,46 +49,31 @@ public class BgzfStream : Stream
         if (_fill > 0)
         {
             await WriteBlockAsync(_buffer.AsMemory(0, _fill));
-            _fill = 0;
         }
+
         await _innerStream.FlushAsync(cancellationToken);
     }
 
-    /// <inheritdoc />
-    public override int Read(byte[] buffer, int offset, int count)
+    public override int Read(Span<byte> buffer)
     {
         if (_mode == CompressionMode.Compress)
         {
             throw new InvalidOperationException("Cannot read while compressing");
         }
 
-        _innerStream.Seek((long)_blockOffsetRecord.BlockAddress, SeekOrigin.Begin);
         using var gzip = new GZipStream(_innerStream, CompressionMode.Decompress, true);
         for (var i = 0; i < _blockOffsetRecord.BlockOffset; i++)
         {
             _ = gzip.ReadByte();
         }
 
-        _blockOffsetRecord = new BlockOffsetRecord();
+        return gzip.Read(buffer);
+    }
 
-        var totalRead = 0;
-        var pointer = 0;
-        while (count > 0)
-        {
-            if (pointer == X64K)
-            {
-                pointer = 0;
-            }
-            var toRead = Math.Min(X64K - pointer, count);
-            var read = gzip.Read(buffer, offset, toRead);
-
-            count -= read;
-            offset += read;
-            pointer += read;
-            totalRead += read;
-        }
-
-        return totalRead;
+    /// <inheritdoc />
+    public override int Read(byte[] buffer, int offset, int count)
+    {
+        return Read(buffer.AsSpan(offset, count));
     }
 
     /// <inheritdoc />
@@ -104,33 +90,13 @@ public class BgzfStream : Stream
             throw new InvalidOperationException("Cannot read while compressing");
         }
 
-        _innerStream.Seek((long)_blockOffsetRecord.BlockAddress, SeekOrigin.Begin);
         await using var gzip = new GZipStream(_innerStream, CompressionMode.Decompress, true);
         for (var i = 0; i < _blockOffsetRecord.BlockOffset; i++)
         {
             gzip.ReadByte();
         }
 
-        var offset = 0;
-        var count = buffer.Length;
-        var totalRead = 0;
-        var pointer = 0;
-        while (count > 0)
-        {
-            if (pointer == X64K)
-            {
-                pointer = 0;
-            }
-            var toRead = Math.Min(X64K - pointer, count);
-            var read = await gzip.ReadAsync(buffer.Slice(offset, toRead), cancellationToken);
-
-            count -= read;
-            offset += read;
-            pointer += read;
-            totalRead += read;
-        }
-
-        return totalRead;
+        return await gzip.ReadAsync(buffer, cancellationToken);
     }
 
     /// <inheritdoc />
@@ -142,6 +108,14 @@ public class BgzfStream : Stream
         }
 
         _blockOffsetRecord = new BlockOffsetRecord((ulong)offset);
+
+        _innerStream.Seek((long)_blockOffsetRecord.BlockAddress, SeekOrigin.Begin);
+        using var gzip = new GZipStream(_innerStream, _mode, true);
+        for (var i = 0; i < _blockOffsetRecord.BlockOffset; i++)
+        {
+            gzip.ReadByte();
+        }
+
         return offset;
     }
 
@@ -158,6 +132,7 @@ public class BgzfStream : Stream
         {
             throw new InvalidOperationException("Cannot write while decompressing");
         }
+
         var (delta, data) = GetMax64K(buffer, offset, count);
 
         while (data.Length > 0)
@@ -167,7 +142,6 @@ public class BgzfStream : Stream
             if (data.Length == X64K)
             {
                 WriteBlock(data);
-                _fill = 0;
             }
             else if (delta == 0)
             {
@@ -186,7 +160,9 @@ public class BgzfStream : Stream
     }
 
     /// <inheritdoc />
-    public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+    public override async ValueTask WriteAsync(
+        ReadOnlyMemory<byte> buffer,
+        CancellationToken cancellationToken = default)
     {
         if (_mode == CompressionMode.Decompress)
         {
@@ -204,7 +180,6 @@ public class BgzfStream : Stream
             if (data.Length == X64K)
             {
                 await WriteBlockAsync(data);
-                _fill = 0;
             }
             else if (delta == 0)
             {
@@ -230,28 +205,16 @@ public class BgzfStream : Stream
 
     private void WriteBlock(Memory<byte> span)
     {
-        using var ms = new MemoryStream();
-        using (var zip = new GZipStream(ms, _compressionLevel, true))
-        {
-            zip.Write(span.Span);
-        }
-
-        ms.Flush();
-        ms.Position = 0;
-        ms.CopyTo(_innerStream);
+        using var zip = new GZipStream(_innerStream, _compressionLevel, true);
+        zip.Write(span.Span);
+        _fill = 0;
     }
 
     private async Task WriteBlockAsync(Memory<byte> span)
     {
-        await using var ms = new MemoryStream();
-        await using (var zip = new GZipStream(ms, _compressionLevel, true))
-        {
-            await zip.WriteAsync(span);
-        }
-
-        await ms.FlushAsync();
-        ms.Position = 0;
-        await ms.CopyToAsync(_innerStream);
+        await using var zip = new GZipStream(_innerStream, _compressionLevel, true);
+        await zip.WriteAsync(span);
+        _fill = 0;
     }
 
     private (int delta, Memory<byte> data) GetMax64K(ReadOnlySpan<byte> buffer, int offset, int count)
@@ -260,13 +223,17 @@ public class BgzfStream : Stream
         {
             return (0, Memory<byte>.Empty);
         }
+
         var c = Math.Min(count, X64K - _fill);
         buffer.Slice(offset, c).CopyTo(_buffer.AsSpan(_fill, c));
         return (c, _buffer.AsMemory(0, c + _fill));
     }
 
     /// <inheritdoc />
-    public override bool CanRead { get { return _mode == CompressionMode.Decompress; } }
+    public override bool CanRead
+    {
+        get { return _mode == CompressionMode.Decompress; }
+    }
 
     /// <inheritdoc />
     public override bool CanSeek
@@ -277,19 +244,13 @@ public class BgzfStream : Stream
     /// <inheritdoc />
     public override bool CanWrite
     {
-        get
-        {
-            return _mode == CompressionMode.Compress;
-        }
+        get { return _mode == CompressionMode.Compress; }
     }
 
     /// <inheritdoc />
     public override long Length
     {
-        get
-        {
-            throw new NotSupportedException();
-        }
+        get { throw new NotSupportedException(); }
     }
 
     public BlockOffsetRecord BlockOffset
@@ -300,17 +261,15 @@ public class BgzfStream : Stream
     /// <inheritdoc />
     public override long Position
     {
-        get
-        {
-            return (long)BlockOffset;
-        }
+        get { return (long)BlockOffset; }
         set
         {
             if (value < 0)
             {
                 throw new InvalidOperationException("Invalid position");
             }
-            _blockOffsetRecord = new BlockOffsetRecord((ulong)value);
+
+            Seek(value, SeekOrigin.Begin);
         }
     }
 
@@ -322,6 +281,16 @@ public class BgzfStream : Stream
         {
             _innerStream.Dispose();
         }
+    }
+
+    public override async ValueTask DisposeAsync()
+    {
+        await FlushAsync();
+        if (!_leaveOpen)
+        {
+            await _innerStream.DisposeAsync();
+        }
+
         GC.SuppressFinalize(this);
     }
 }

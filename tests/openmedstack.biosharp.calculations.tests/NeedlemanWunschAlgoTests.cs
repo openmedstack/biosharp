@@ -16,7 +16,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
         [InlineData("SENDER", "SENDER", "END", "-END--")]
         public async Task CreatesExpectedAlignment(string top, string topAligned, string left, string leftAligned)
         {
-            var (top2, left2) = await top.Align(left, -10).ConfigureAwait(false);
+            var (top2, left2) = await top.Align(left, -10);
 
             Assert.Equal(topAligned, top2);
             Assert.Equal(leftAligned, left2);
@@ -27,15 +27,13 @@ namespace OpenMedStack.BioSharp.Calculations.Tests
         {
             var fastq = "ERR164409.fastq.gz";
             var reader = new FastQReader(NullLogger.Instance);
-            var sequences = await reader.Read(fastq, CancellationToken.None).Take(3).ToListAsync()
-                .ConfigureAwait(false);
+            var sequences = await reader.Read(fastq, CancellationToken.None).Take(3).ToListAsync();
 
-            var oneTwoAligned = await sequences[0].Align(sequences[1], 10).ConfigureAwait(false);
+            var oneTwoAligned = await sequences[0].Align(sequences[1], 10);
 
             Assert.Equal(87, oneTwoAligned.GetCombineIndex());
 
-            var twoThreeAligned = await sequences[0].Combine(sequences[1], "test", 87).Align(sequences[2], 10)
-                .ConfigureAwait(false);
+            var twoThreeAligned = await sequences[0].Combine(sequences[1], "test", 87).Align(sequences[2], 10);
 
             Assert.Equal(119, twoThreeAligned.GetCombineIndex());
         }

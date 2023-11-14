@@ -8,17 +8,12 @@
 
     public class ClocsFileReaderTests
     {
-        private readonly ClocsFileReader _reader;
-
-        public ClocsFileReaderTests()
-        {
-            _reader = new ClocsFileReader(new FileInfo("sampledata/Data/Intensities/L001/s_1_1101.clocs"));
-        }
+        private readonly ClocsFileReader _reader = new(new FileInfo("sampledata/Data/Intensities/L001/s_1_1101.clocs"));
 
         [Fact]
         public async Task CanRead()
         {
-            var positions = await _reader.ToArrayAsync().ConfigureAwait(false);
+            var positions = await _reader.ToArrayAsync();
 
             Assert.Equal(2136539, positions.Length);
         }

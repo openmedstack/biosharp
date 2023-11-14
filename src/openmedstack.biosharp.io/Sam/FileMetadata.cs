@@ -5,11 +5,11 @@
     using System.Text;
     using System.Text.RegularExpressions;
 
-    public record FileMetadata
+    public partial record FileMetadata
     {
         internal FileMetadata(string vn, SortingOrder so, AlignmentGrouping go, string? subSort = null)
         {
-            if (!Regex.IsMatch(vn, "^[0-9]+\\.[0-9]+$"))
+            if (!FileMetadataRegex().IsMatch(vn))
             {
                 throw new ArgumentException("Value does not match regex: /^[0-9]+\\.[0-9]+$/", nameof(vn));
             }
@@ -80,5 +80,8 @@
 
             return builder.ToString();
         }
+
+        [GeneratedRegex("^[0-9]+\\.[0-9]+$")]
+        private static partial Regex FileMetadataRegex();
     }
 }

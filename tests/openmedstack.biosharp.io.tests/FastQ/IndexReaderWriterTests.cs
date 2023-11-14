@@ -27,7 +27,7 @@ public class IndexReaderWriterTests
         };
         foreach (var (key, blockOffsetRecord) in indexEntries)
         {
-            await _sut.Write(key, blockOffsetRecord).ConfigureAwait(false);
+            await _sut.Write(key, blockOffsetRecord);
         }
         await _stream.FlushAsync();
         _stream.Position = 0;

@@ -51,7 +51,7 @@
                 new FileInfo(PassingBclFile),
                 new TileIndexRecord(1, int.MaxValue, 0, 0),
                 bclQualityEvaluationStrategy,
-                NullLogger.Instance).ConfigureAwait(false);
+                NullLogger.Instance);
             var quals = QualsAsBytes();
 
             Assert.Equal(reader.NumClustersPerCycle[0], ExpectedBases.Length);
@@ -59,14 +59,14 @@
             var enumerator = reader.GetAsyncEnumerator();
             for (var readNum = 0; readNum < reader.NumClustersPerCycle[0]; readNum++)
             {
-                await enumerator.MoveNextAsync().ConfigureAwait(false);
+                await enumerator.MoveNextAsync();
                 var bv = enumerator.Current;
                 Assert.Equal(ExpectedBases[readNum], (char)bv[0].Bases.Span[0]); //" On num cluster: " + readNum);
                 Assert.Equal(quals[readNum], bv[0].Qualities.Span[0]); //" On num cluster: " + readNum);
             }
 
             bclQualityEvaluationStrategy.AssertMinimumQualities();
-            await reader.DisposeAsync().ConfigureAwait(false);
+            await reader.DisposeAsync();
         }
 
         public static object[][] FailingFiles()
@@ -95,16 +95,15 @@
                             new FileInfo(failingFile),
                             new TileIndexRecord(1, int.MaxValue, 0, 0),
                             bclQualityEvaluationStrategy,
-                            NullLogger.Instance).ConfigureAwait(false);
+                            NullLogger.Instance);
                         Assert.Equal(reader.NumClustersPerCycle[0], ExpectedBases.Length);
 
                         // Just loop through the data
-                        _ = await reader.CountAsync().ConfigureAwait(false);
+                        _ = await reader.CountAsync();
 
-                        await reader.DisposeAsync().ConfigureAwait(false);
+                        await reader.DisposeAsync();
                         bclQualityEvaluationStrategy.AssertMinimumQualities();
-                    })
-                .ConfigureAwait(false);
+                    });
         }
 
         /**
@@ -123,13 +122,13 @@
                     new FileInfo(evenI ? Qual1FailingBclFile : Qual0FailingBclFile),
                     new TileIndexRecord(1, int.MaxValue, 0, 0),
                     bclQualityEvaluationStrategy,
-                    NullLogger.Instance).ConfigureAwait(false);
+                    NullLogger.Instance);
                 Assert.Equal(reader.NumClustersPerCycle[0], ExpectedBases.Length);
 
                 // Just loop through the data
-                _ = await reader.CountAsync().ConfigureAwait(false);
+                _ = await reader.CountAsync();
 
-                await reader.DisposeAsync().ConfigureAwait(false);
+                await reader.DisposeAsync();
             }
 
             bclQualityEvaluationStrategy.AssertMinimumQualities();
@@ -149,13 +148,13 @@
                     new FileInfo(i % 2 == 0 ? Qual1FailingBclFile : Qual0FailingBclFile),
                     new TileIndexRecord(1, int.MaxValue, 0, 0),
                     bclQualityEvaluationStrategy,
-                    NullLogger.Instance).ConfigureAwait(false);
+                    NullLogger.Instance);
                 Assert.Equal(ExpectedBases.Length, reader.NumClustersPerCycle[0]);
 
                 // Just loop through the data
-                _ = await reader.CountAsync().ConfigureAwait(false);
+                _ = await reader.CountAsync();
 
-                await reader.DisposeAsync().ConfigureAwait(false);
+                await reader.DisposeAsync();
             }
 
             Assert.Equal(25, bclQualityEvaluationStrategy.GetPoorQualityFrequencies()[0]);
