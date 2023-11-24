@@ -12,12 +12,6 @@ namespace OpenMedStack.BioSharp.Io.Bam;
 
 public class BamWriter
 {
-    private static readonly byte[] EofSequence =
-    {
-        0x1f, 0x8b, 0x08, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x06, 0x00, 0x42, 0x43, 0x02, 0x00, 0x1b, 0x00,
-        0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
-    };
-
     private static readonly byte[] MagicHeader = { 66, 65, 77, 0x01 };
     private readonly BgzfStream _stream;
     private readonly ILogger<BamWriter> _logger;
@@ -57,39 +51,44 @@ public class BamWriter
         var block = new List<byte>();
         foreach (var alignmentSection in definition.AlignmentSections)
         {
-            block.AddRange(BitConverter.GetBytes(-1));
-            block.AddRange(BitConverter.GetBytes(alignmentSection.Position - 1));
-            var readName = Encoding.UTF8.GetBytes(alignmentSection.ReadName);
-            block.Add((byte)(readName.Length + 1));
-            block.Add(alignmentSection.MappingQuality);
-            block.AddRange(BitConverter.GetBytes((ushort)alignmentSection.Index));
-            block.AddRange(BitConverter.GetBytes((ushort)alignmentSection.Cigar.Length));
-            block.AddRange(BitConverter.GetBytes((ushort)alignmentSection.Flag));
-            block.AddRange(BitConverter.GetBytes((uint)alignmentSection.Sequence.Length));
-            block.AddRange(BitConverter.GetBytes(alignmentSection.ReferenceIdOfNextSegment));
-            block.AddRange(BitConverter.GetBytes(alignmentSection.NextPosition));
-            block.AddRange(BitConverter.GetBytes(alignmentSection.TemplateLength));
-            block.AddRange(readName.AsSpan());
-            block.Add((byte)'\0');
-            block.AddRange(alignmentSection.Cigar.SelectMany(x => BitConverter.GetBytes(x.Encode())));
-            block.AddRange(alignmentSection.Sequence.WriteSequence());
-            block.AddRange(Array.ConvertAll(alignmentSection.Quality.ToCharArray(), x => (byte)(x)));
-
-            foreach (var tag in alignmentSection.Tags)
-            {
-                var key = Encoding.UTF8.GetBytes(tag.Key[..2]);
-                block.AddRange(key);
-                block.Add((byte)tag.Type);
-                block.AddRange(GetTagValueBytes(tag.Type, tag.Value));
-            }
+            FillBlock(block, alignmentSection);
 
             await _stream.WriteAsync(BitConverter.GetBytes((uint)block.Count), cancellationToken).ConfigureAwait(false);
             await _stream.WriteAsync(block.ToArray(), cancellationToken).ConfigureAwait(false);
             block.Clear();
         }
 
-        await _stream.WriteAsync(EofSequence, cancellationToken).ConfigureAwait(false);
+        await _stream.WriteEndOfFileAsync(cancellationToken).ConfigureAwait(false);
         await _stream.FlushAsync(cancellationToken).ConfigureAwait(false);
+    }
+
+    private void FillBlock(List<byte> block, AlignmentSection alignmentSection)
+    {
+        block.AddRange(BitConverter.GetBytes(-1));
+        block.AddRange(BitConverter.GetBytes(alignmentSection.Position - 1));
+        var readName = Encoding.UTF8.GetBytes(alignmentSection.ReadName);
+        block.Add((byte)(readName.Length + 1));
+        block.Add(alignmentSection.MappingQuality);
+        block.AddRange(BitConverter.GetBytes((ushort)alignmentSection.Index));
+        block.AddRange(BitConverter.GetBytes((ushort)alignmentSection.Cigar.Length));
+        block.AddRange(BitConverter.GetBytes((ushort)alignmentSection.Flag));
+        block.AddRange(BitConverter.GetBytes((uint)alignmentSection.Sequence.Length));
+        block.AddRange(BitConverter.GetBytes(alignmentSection.ReferenceIdOfNextSegment));
+        block.AddRange(BitConverter.GetBytes(alignmentSection.NextPosition));
+        block.AddRange(BitConverter.GetBytes(alignmentSection.TemplateLength));
+        block.AddRange(readName.AsSpan());
+        block.Add((byte)'\0');
+        block.AddRange(alignmentSection.Cigar.SelectMany(x => BitConverter.GetBytes(x.Encode())));
+        block.AddRange(alignmentSection.Sequence.WriteSequence());
+        block.AddRange(Array.ConvertAll(alignmentSection.Quality.ToCharArray(), x => x == ' ' ? (byte)255 : (byte)(x)));
+
+        foreach (var tag in alignmentSection.Tags)
+        {
+            var key = Encoding.UTF8.GetBytes(tag.Key[..2]);
+            block.AddRange(key);
+            block.Add((byte)tag.Type);
+            block.AddRange(GetTagValueBytes(tag.Type, tag.Value));
+        }
     }
 
     private byte[] GetTagValueBytes(char type, object tagValue)
@@ -100,7 +99,15 @@ public class BamWriter
                 return new[] { (byte)tagValue };
             case 'Z':
             {
-                return Encoding.UTF8.GetBytes((string)tagValue);
+                var s = (string)tagValue;
+                var bytes = new byte[s.Length + 1];
+                for (int i = 0; i < s.Length; i++)
+                {
+                    bytes[i] = (byte)s[i];
+                }
+
+                bytes[^1] = (byte)'\0';
+                return bytes;
             }
             case 'i':
             {

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using OpenMedStack.BioSharp.Io.Sam;
 
 namespace OpenMedStack.BioSharp.Io;
 
@@ -10,17 +11,16 @@ public static class Extensions
     private const string CigarCodes = "MIDNSHP=X";
     private const string SequenceChars = "=ACMGRSVTWYHKDBN";
 
-    public static uint Encode(this (uint count, char op) ops)
+    public static uint Encode(this (uint count, CigarOp op) ops)
     {
-        return ops.count << 4 | (uint)CigarCodes.IndexOf(ops.op);
+        return ops.count << 4 | (byte)ops.op;
     }
 
-    public static (uint count, char op) Decode(this uint ops)
+    public static (uint count, CigarOp op) Decode(this uint ops)
     {
         var count = ops >> 4;
-        var index = ops & 0b1111;
-        var code = CigarCodes[(int)index];
-        return (count, code);
+        var op = (CigarOp)(ops & 0b1111);
+        return (count, op);
     }
 
     public static string ReadSequence(this Span<byte> bytes)

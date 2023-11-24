@@ -30,7 +30,7 @@
             string rname,
             int position,
             byte mapq,
-            (uint, char)[] cigar,
+            (uint, CigarOp)[] cigar,
             int rnext,
             int pnext,
             int templatelength,
@@ -64,7 +64,7 @@
 
         public byte MappingQuality { get; }
 
-        public (uint count, char op)[] Cigar { get; }
+        public (uint count, CigarOp op)[] Cigar { get; }
 
         public int ReferenceIdOfNextSegment { get; }
 
@@ -98,9 +98,9 @@
                 parts.Skip(11).Select(AlignmentTag.Parse));
         }
 
-        private static (uint, char)[] GetOpCodes(string ops)
+        private static (uint, CigarOp)[] GetOpCodes(string ops)
         {
-            return ops.Select(c => (byte)c).Select(b => ((uint)(b >> 4), (char)(b & 0x0F))).ToArray();
+            return ops.Select(c => (byte)c).Select(b => ((uint)b).Decode()).ToArray();
         }
 
         /// <summary>

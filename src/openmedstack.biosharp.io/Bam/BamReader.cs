@@ -14,17 +14,13 @@
 
     public class BamReader
     {
-        // private static readonly byte[] EofSequence = { 0x1f, 0x8b, 0x08, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x06, 0x00, 0x42, 0x43, 0x02, 0x00, 0x1b, 0x00, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-        private readonly ILogger _logger;
+        private readonly BgzfStream _stream;
+        private readonly ILogger<BamReader> _logger;
         private static readonly byte[] MagicHeader = { 66, 65, 77, 0x01 };
 
-        public BamReader(ILogger logger)
+        public BamReader(string filePath, ILogger<BamReader> logger)
         {
             _logger = logger;
-        }
-
-        public async Task<SamDefinition> Read(string filePath, CancellationToken cancellationToken = default)
-        {
             var file = File.Open(
                 filePath,
                 new FileStreamOptions
@@ -34,37 +30,28 @@
                     Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
                     Share = FileShare.Read
                 });
-            await using var _ = file.ConfigureAwait(false);
-            var zip = new GZipStream(file, CompressionMode.Decompress, true);
-            await using var __ = zip.ConfigureAwait(false);
-            return await Read(zip, cancellationToken).ConfigureAwait(false);
+            _stream = new BgzfStream(file, CompressionMode.Decompress, false);
         }
 
-        public async Task<SamDefinition> Read(Stream file, CancellationToken cancellationToken = default)
+        public BamReader(Stream stream, ILogger<BamReader> logger)
         {
-            if (file is GZipStream zipStream)
-            {
-                return await Read(zipStream, cancellationToken).ConfigureAwait(false);
-            }
-
-            var zip = new GZipStream(file, CompressionMode.Decompress, true);
-            await using var _ = zip.ConfigureAwait(false);
-            return await Read(zip, cancellationToken).ConfigureAwait(false);
+            _stream = stream as BgzfStream ?? new BgzfStream(stream, CompressionMode.Decompress, false);
+            _logger = logger;
         }
 
-        private async Task<SamDefinition> Read(GZipStream file, CancellationToken cancellationToken)
+        public async Task<SamDefinition> Read(CancellationToken cancellationToken)
         {
             _logger.LogDebug("Start reading");
 
             var arrayPool = ArrayPool<byte>.Shared;
             var buffer = arrayPool.Rent(1024);
-            var mem = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
+            var mem = await _stream.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
             if (mem.Length != 4 || !mem.Span.SequenceEqual(MagicHeader))
             {
                 throw new InvalidDataException("Invalid Header");
             }
 
-            mem = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
+            mem = await _stream.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
 
             var textLength = (int)BitConverter.ToUInt32(mem.Span);
             if (textLength > buffer.Length)
@@ -73,26 +60,18 @@
                 buffer = arrayPool.Rent(textLength);
             }
 
-            mem = await file.FillBuffer(buffer.AsMemory(0, textLength), cancellationToken).ConfigureAwait(false);
+            mem = await _stream.FillBuffer(buffer.AsMemory(0, textLength), cancellationToken).ConfigureAwait(false);
 
             var text = textLength == 0 ? "" : Encoding.UTF8.GetString(mem[..^1].Span);
 
-            mem = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
+            mem = await _stream.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
 
             var numberOfReferences = BitConverter.ToUInt32(mem.Span);
 
             var refSeqs = new HashSet<ReferenceSequence>();
             for (var i = 0; i < numberOfReferences; i++)
             {
-                var nameLength = (int)BitConverter.ToUInt32(
-                    (await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false)).Span);
-
-                var name = Encoding.UTF8.GetString(
-                    (await file.FillBuffer(buffer.AsMemory(0, nameLength), cancellationToken).ConfigureAwait(false))
-                    .Span[..(nameLength - 1)]);
-
-                var length = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
-                var referenceSequence = new ReferenceSequence(name, BitConverter.ToUInt32(length.Span));
+                var referenceSequence = await ReadReferenceSequence(_stream, buffer, cancellationToken);
                 refSeqs.Add(referenceSequence);
             }
 
@@ -134,13 +113,14 @@
             }
 
             var alignments = new List<AlignmentSection>();
-            while (file.BaseStream.Position < file.BaseStream.Length)
+            var d = _stream.BlockOffset.BlockAddress >> 16;
+            while ((long)d < _stream.Length)
             {
-                mem = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
+                mem = await _stream.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
 
                 var blockSize = (int)BitConverter.ToUInt32(mem.Span);
                 var blockBuffer = arrayPool.Rent(blockSize);
-                var block = await file.FillBuffer(blockBuffer.AsMemory(0, blockSize), cancellationToken)
+                var block = await _stream.FillBuffer(blockBuffer.AsMemory(0, blockSize), cancellationToken)
                     .ConfigureAwait(false);
                 alignments.Add(ProcessBlock(block));
             }
@@ -149,6 +129,23 @@
 
             arrayPool.Return(buffer);
             return content;
+        }
+
+        private static async Task<ReferenceSequence> ReadReferenceSequence(
+            Stream file,
+            byte[] buffer,
+            CancellationToken cancellationToken)
+        {
+            var nameLength = (int)BitConverter.ToUInt32(
+                (await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false)).Span);
+
+            var name = Encoding.UTF8.GetString(
+                (await file.FillBuffer(buffer.AsMemory(0, nameLength), cancellationToken).ConfigureAwait(false))
+                .Span[..(nameLength - 1)]);
+
+            var length = await file.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
+            var referenceSequence = new ReferenceSequence(name, BitConverter.ToUInt32(length.Span));
+            return referenceSequence;
         }
 
         private static AlignmentSection ProcessBlock(Memory<byte> block)
@@ -170,7 +167,7 @@
             var qStart = sequenceStart + sequenceLength;
             var tagStart = qStart + baseSeqLength;
             var ops = block.Slice(cigarStart, cigarLength).Span;
-            var cigars = new (uint, char)[cigarLength / 4];
+            var cigars = new (uint, CigarOp)[cigarLength / 4];
 
             for (var i = 0; i < cigars.Length; i++)
             {
@@ -178,7 +175,7 @@
                 cigars[i] = encoded.Decode();
             }
 
-            var tags = Enumerable.Empty<AlignmentTag>(); // ReadTags(block[tagStart..]).ToArray();
+            var tags = ReadTags(block[tagStart..]).ToArray();
 
             var sequence = block.Slice(sequenceStart, sequenceLength).Span.ReadSequence();
             var qualScores = block.Slice(qStart, baseSeqLength);
@@ -223,7 +220,7 @@
                 case 'Z':
                 {
                     var length = span.IndexOf((byte)'\0');
-                    return (length + 1, Encoding.UTF8.GetString(span[..(length)]));
+                    return (length + 1, Encoding.UTF8.GetString(span[..length]));
                 }
                 case 'i':
                 {

@@ -3,6 +3,19 @@
     using System.Collections.Generic;
     using System.Collections.Immutable;
 
+    public enum CigarOp: byte
+    {
+        Match = 0,
+        Insertion = 1,
+        Deletion = 2,
+        Skip = 3,
+        SoftClip = 4,
+        HardClip = 4,
+        Padding = 6,
+        Equal = 7,
+        Difference = 8
+    }
+
     public record SamDefinition
     {
         public SamDefinition(
