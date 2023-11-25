@@ -176,11 +176,11 @@ public class BgzfStream : Stream
         var iSize = reader.ReadUInt32();
         _readBuffer = new byte[iSize];
         using var ms = new MemoryStream(content);
+
         using var deflate = new DeflateStream(ms, CompressionMode.Decompress);
         deflate.ReadExactly(_readBuffer);
         using var ms2 = new MemoryStream(_readBuffer);
-        var c = new CRC32();
-        var crc = c.GetCrc32(ms2);
+        var crc = _crc.GetCrc32(ms2);
         if (targetCrc != crc)
         {
             throw new Exception("CRC mismatch");
@@ -196,16 +196,16 @@ public class BgzfStream : Stream
         using var reader = new BinaryReader(_innerStream, Encoding.UTF8, true);
         var blockSize = reader.ReadUInt16();
         var content = new byte[blockSize - 25];
-        _innerStream.ReadExactly(content);
+        await _innerStream.ReadExactlyAsync(content, cancellationToken);
         var targetCrc = reader.ReadUInt32();
         var iSize = reader.ReadUInt32();
         _readBuffer = new byte[iSize];
         await using var ms = new MemoryStream(content);
+
         await using var deflate = new DeflateStream(ms, CompressionMode.Decompress);
         await deflate.ReadExactlyAsync(_readBuffer, cancellationToken);
         await using var ms2 = new MemoryStream(_readBuffer);
-        var c = new CRC32();
-        var crc = await c.GetCrc32Async(ms2);
+        var crc = await _crc.GetCrc32Async(ms2);
         if (targetCrc != crc)
         {
             throw new Exception("CRC mismatch");
@@ -317,11 +317,14 @@ public class BgzfStream : Stream
 
     private void WriteBlock()
     {
-        using var ms = new MemoryStream();
-        using var zip = new DeflateStream(ms, _compressionLevel, true);
-        zip.Write(_writeBuffer.AsSpan(0, _fill));
-        zip.Flush();
         uint crc32;
+        using var ms = new MemoryStream();
+        using (var zip = new DeflateStream(ms, _compressionLevel, true))
+        {
+            zip.Write(_writeBuffer.AsSpan(0, _fill));
+            zip.Flush();
+        }
+
         using (var msCrc = new MemoryStream(_writeBuffer.AsSpan(0, _fill).ToArray()))
         {
             crc32 = _crc.GetCrc32(msCrc);
@@ -343,11 +346,14 @@ public class BgzfStream : Stream
 
     private async Task WriteBlockAsync(CancellationToken cancellationToken = default)
     {
-        using var ms = new MemoryStream();
-        await using var zip = new DeflateStream(ms, _compressionLevel, true);
-        await zip.WriteAsync(_writeBuffer.AsMemory(0, _fill), cancellationToken);
-        await zip.FlushAsync(cancellationToken);
         uint crc32;
+        using var ms = new MemoryStream();
+        await using (var zip = new DeflateStream(ms, _compressionLevel, true))
+        {
+            await zip.WriteAsync(_writeBuffer.AsMemory(0, _fill), cancellationToken);
+            await zip.FlushAsync(cancellationToken);
+        }
+
         using (var msCrc = new MemoryStream(_writeBuffer.AsSpan(0, _fill).ToArray()))
         {
             crc32 = await _crc.GetCrc32Async(msCrc);
@@ -357,6 +363,7 @@ public class BgzfStream : Stream
         var msLength = ms.Length;
         _innerStream.Write(FixedHeader.AsSpan());
         await using var writer = new BinaryWriter(_innerStream, Encoding.UTF8, true);
+        // Block size minus 1
         writer.Write((ushort)(msLength + 25));
         await ms.CopyToAsync(_innerStream, cancellationToken);
         writer.Write(crc32);
@@ -413,8 +420,8 @@ public class BgzfStream : Stream
     /// <inheritdoc />
     protected override void Dispose(bool disposing)
     {
-        WriteEndOfFile();
         Flush();
+        WriteEndOfFile();
         if (!_leaveOpen)
         {
             _innerStream.Dispose();
