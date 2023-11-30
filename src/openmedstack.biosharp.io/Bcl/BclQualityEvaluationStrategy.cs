@@ -56,17 +56,19 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         public char ReviseAndConditionallyLogQuality(char quality)
         {
             var revisedQuality = GenerateRevisedQuality(quality);
-            if (quality < IlluminaAllegedMinimumQuality)
+            if (quality >= IlluminaAllegedMinimumQuality)
             {
-                lock (_qualityCountMap)
-                {
-                    if (!_qualityCountMap.TryGetValue(quality, out var q))
-                    {
-                        _qualityCountMap[quality] = 0;
-                    }
+                return revisedQuality;
+            }
 
-                    _qualityCountMap[quality] = ++q;
+            lock (_qualityCountMap)
+            {
+                if (!_qualityCountMap.TryGetValue(quality, out var q))
+                {
+                    _qualityCountMap[quality] = 0;
                 }
+
+                _qualityCountMap[quality] = ++q;
             }
 
             return revisedQuality;

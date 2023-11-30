@@ -1,10 +1,11 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Tests.Bcl
 {
+    using System.Diagnostics.CodeAnalysis;
+    using Microsoft.Extensions.Logging;
     using System.IO;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Divergic.Logging.Xunit;
     using Io.Bcl;
     using Model.Bcl;
     using Xunit;
@@ -18,11 +19,12 @@
         {
             _reader = new IlluminaDataReader(
                 new DirectoryInfo(@"data/illumina/25T8B25T"),
-                new TestOutputLogger(nameof(IlluminaRunDataReaderTests), outputHelper),
+                LoggerFactory.Create(b => b.AddXunit(outputHelper)),
                 ReadStructure.Parse("25T8B25T"));
         }
 
         [Fact]
+        [RequiresUnreferencedCode("The test data is not annotated for trimming")]
         public async Task CanRead()
         {
             var sequences = _reader.ReadClusterData(1);
@@ -34,6 +36,7 @@
         }
 
         [Fact]
+        [RequiresUnreferencedCode("The test data is not annotated for trimming")]
         public async Task CanGroup()
         {
             var sequences = await _reader.ReadClusterData(1)

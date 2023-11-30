@@ -20,7 +20,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         private readonly Stream _fileStream;
         private int _nextRecordNumber;
 
-        public BclIndexReader(FileInfo bclFile)
+        public BclIndexReader(FileSystemInfo bclFile)
         {
             var path = bclFile.FullName;
             if (!Path.GetExtension(bclFile.Name).Equals(".bci", StringComparison.OrdinalIgnoreCase))
@@ -63,7 +63,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             var virtualFilePointer = BitConverter.ToUInt64(mem.Span);
             return new BlockOffsetRecord(virtualFilePointer);
         }
-        
+
         public FileInfo BciFile { get; }
     }
 }

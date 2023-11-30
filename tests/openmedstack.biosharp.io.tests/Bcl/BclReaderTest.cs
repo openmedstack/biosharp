@@ -51,7 +51,7 @@
                 new FileInfo(PassingBclFile),
                 new TileIndexRecord(1, int.MaxValue, 0, 0),
                 bclQualityEvaluationStrategy,
-                NullLogger.Instance);
+                NullLogger<BclReader>.Instance);
             var quals = QualsAsBytes();
 
             Assert.Equal(reader.NumClustersPerCycle[0], ExpectedBases.Length);
@@ -61,7 +61,7 @@
             {
                 await enumerator.MoveNextAsync();
                 var bv = enumerator.Current;
-                Assert.Equal(ExpectedBases[readNum], (char)bv[0].Bases.Span[0]); //" On num cluster: " + readNum);
+                Assert.Equal(ExpectedBases[readNum], bv[0].Bases.Span[0]); //" On num cluster: " + readNum);
                 Assert.Equal(quals[readNum], bv[0].Qualities.Span[0]); //" On num cluster: " + readNum);
             }
 
@@ -95,7 +95,7 @@
                             new FileInfo(failingFile),
                             new TileIndexRecord(1, int.MaxValue, 0, 0),
                             bclQualityEvaluationStrategy,
-                            NullLogger.Instance);
+                            NullLogger<BclReader>.Instance);
                         Assert.Equal(reader.NumClustersPerCycle[0], ExpectedBases.Length);
 
                         // Just loop through the data
@@ -122,7 +122,7 @@
                     new FileInfo(evenI ? Qual1FailingBclFile : Qual0FailingBclFile),
                     new TileIndexRecord(1, int.MaxValue, 0, 0),
                     bclQualityEvaluationStrategy,
-                    NullLogger.Instance);
+                    NullLogger<BclReader>.Instance);
                 Assert.Equal(reader.NumClustersPerCycle[0], ExpectedBases.Length);
 
                 // Just loop through the data
@@ -148,7 +148,7 @@
                     new FileInfo(i % 2 == 0 ? Qual1FailingBclFile : Qual0FailingBclFile),
                     new TileIndexRecord(1, int.MaxValue, 0, 0),
                     bclQualityEvaluationStrategy,
-                    NullLogger.Instance);
+                    NullLogger<BclReader>.Instance);
                 Assert.Equal(ExpectedBases.Length, reader.NumClustersPerCycle[0]);
 
                 // Just loop through the data

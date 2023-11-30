@@ -16,7 +16,8 @@ namespace OpenMedStack.BioSharp.Io.Bcl
 
     public class IlluminaDataReader
     {
-        private readonly ILogger _logger;
+        private readonly ILoggerFactory _loggerFactory;
+        private readonly ILogger<IlluminaDataReader> _logger;
         private readonly ReadStructure? _readStructure;
         private static readonly Regex LaneFolderMatch = new("L(?<lane>\\d{3})", RegexOptions.Compiled);
         private static readonly Regex TileNumberMatch = new("((?<lane>(\\d+))_)?(?<tile>\\d+)", RegexOptions.Compiled);
@@ -26,9 +27,10 @@ namespace OpenMedStack.BioSharp.Io.Bcl
         private readonly DirectoryInfo[] _laneDirs;
         private Run? _run;
 
-        public IlluminaDataReader(DirectoryInfo runDir, ILogger logger, ReadStructure? readStructure = null)
+        public IlluminaDataReader(DirectoryInfo runDir, ILoggerFactory loggerFactory, ReadStructure? readStructure = null)
         {
-            _logger = logger;
+            _loggerFactory = loggerFactory;
+            _logger = loggerFactory.CreateLogger<IlluminaDataReader>();
             _readStructure = readStructure;
             _runInfo = runDir.EnumerateFiles("RunInfo.xml", SearchOption.TopDirectoryOnly).SingleOrDefault();
             var dataDir = runDir.EnumerateDirectories("Data", SearchOption.TopDirectoryOnly).Single();
@@ -85,7 +87,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             _run = info?.Run ?? throw new Exception("Could not read " + _runInfo.FullName);
             if (_readStructure?.Reads != null)
             {
-                _logger.LogInformation("Substituting read structures with manual overrides: {structure}", _readStructure);
+                _logger.LogInformation("Substituting read structures with manual overrides: {Structure}", _readStructure);
                 _run.Reads.Read = _readStructure!.Reads;
             }
             else if (_run.Reads.Read?.All(x => x.Type == ReadType.S) == true)
@@ -178,12 +180,12 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             var filterReader = await GetFilterReader(lane, dir, tileRecord).ConfigureAwait(false);
             var positionReader = GetPositionReader(lane, tileRecord.Tile, laneName);
             _logger.LogInformation(
-                "Created reader for lane: {lane}, tile: {tile} with {clusterCount} on {thread}",
+                "Created reader for lane: {Lane}, tile: {Tile} with {ClusterCount} on {Thread}",
                 lane,
                 tileRecord.Tile,
                 tileRecord.NumClustersInTile == int.MaxValue
                     ? "all clusters in file"
-                    : tileRecord.NumClustersInTile + " clusters",
+                    : $"{tileRecord.NumClustersInTile} clusters",
                 Environment.CurrentManagedThreadId);
             //await Task.Yield();
             var reader = await BclReader.Create(
@@ -191,7 +193,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
                 runInfo.Reads.Read!,
                 tileRecord,
                 new BclQualityEvaluationStrategy(2),
-                _logger,
+                _loggerFactory.CreateLogger<BclReader>(),
                 indexReaders).ConfigureAwait(false);
             return new SampleReader(
                 runInfo,
@@ -248,7 +250,8 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             {
                 ".clocs" => new ClocsFileReader(positionFile),
                 ".locs" => new LocsFileReader(positionFile),
-                _ => throw new NotSupportedException("Unsupported file extension " + Path.GetExtension(positionFile.Name))
+                _ => throw new NotSupportedException(
+                    $"Unsupported file extension {Path.GetExtension(positionFile.Name)}")
             };
         }
     }

@@ -1,10 +1,11 @@
-﻿namespace OpenMedStack.BioSharp.Io.Tests.Bcl
+﻿using Microsoft.Extensions.Logging;
+
+namespace OpenMedStack.BioSharp.Io.Tests.Bcl
 {
     using System.Collections.Generic;
     using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
-    using Divergic.Logging.Xunit;
     using Io.Bcl;
     using Model.Bcl;
     using Xunit;
@@ -21,6 +22,7 @@
                 .OrderBy(x => x.Name)
                 .SelectMany(d => d.GetFiles("*.bcl.gz", SearchOption.AllDirectories))
                 .ToList();
+            var factory = LoggerFactory.Create(b => b.AddXunit(outputHelper));
             _reader = BclReader.Create(
                 fileInfos,
                 new[]
@@ -31,7 +33,7 @@
                 },
                 new TileIndexRecord(1, int.MaxValue, 0, 0),
                 new BclQualityEvaluationStrategy(2),
-                new TestOutputLogger(nameof(CompressBclReaderTests), outputHelper)).GetAwaiter().GetResult();
+                factory.CreateLogger<BclReader>()).GetAwaiter().GetResult();
         }
 
         [Fact]
@@ -43,5 +45,28 @@
 
             Assert.True(reads.Count > 0);
         }
+    }
+}
+
+internal class TestLoggerFactory : ILoggerFactory
+{
+    private readonly ILoggerProvider _provider;
+
+    public TestLoggerFactory(ILoggerProvider provider)
+    {
+        _provider = provider;
+    }
+
+    public void Dispose()
+    {
+    }
+
+    public ILogger CreateLogger(string categoryName)
+    {
+        return _provider.CreateLogger(categoryName);
+    }
+
+    public void AddProvider(ILoggerProvider provider)
+    {
     }
 }

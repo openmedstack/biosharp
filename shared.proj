@@ -1,6 +1,6 @@
 <Project>
     <PropertyGroup>
-        <Version>1.0.0</Version>
+        <Version>1.1.0</Version>
         <TargetFramework>net8.0</TargetFramework>
         <Authors>OpenMedStack;Jacob Reimers</Authors>
         <Company>OpenMedStack</Company>
@@ -11,8 +11,11 @@
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
         <Nullable>enable</Nullable>
         <LangVersion>latest</LangVersion>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsTrimmable>true</IsTrimmable>
+        <TrimMode>partial</TrimMode>
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-        <WarningsAsErrors />
+        <WarningsAsErrors/>
         <WarningsNotAsErrors>618;1701</WarningsNotAsErrors>
     </PropertyGroup>
 </Project>

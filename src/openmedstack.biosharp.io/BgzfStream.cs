@@ -1,4 +1,6 @@
-﻿namespace OpenMedStack.BioSharp.Io;
+﻿using System.Runtime.Intrinsics.Arm;
+
+namespace OpenMedStack.BioSharp.Io;
 
 using System;
 using System.IO;
@@ -9,8 +11,14 @@ using System.Threading.Tasks;
 
 public class BgzfStream : Stream
 {
+    /// <summary>
+    /// Fixed block header for BGZF files. This header ignores write time.
+    /// </summary>
     private static readonly byte[] FixedHeader = { 31, 139, 8, 4, 0, 0, 0, 0, 0, 255, 6, 0, 66, 67, 2, 0 };
 
+    /// <summary>
+    /// Fixed end of file sequence for BGZF files.
+    /// </summary>
     private static readonly byte[] EofSequence =
     {
         0x1f, 0x8b, 0x08, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0x06, 0x00, 0x42, 0x43, 0x02, 0x00, 0x1b, 0x00,
@@ -18,17 +26,15 @@ public class BgzfStream : Stream
     };
 
     private const int X64K = 1024 * 64;
-    private readonly CRC32 _crc = new();
     private readonly Stream _innerStream;
     private readonly CompressionMode _mode = CompressionMode.Compress;
     private readonly CompressionLevel _compressionLevel;
     private readonly bool _leaveOpen;
     private readonly byte[] _writeBuffer = Array.Empty<byte>();
     private byte[] _readBuffer = Array.Empty<byte>();
-    private int _readPosition;
     private int _fill;
     private bool _endOfFileWritten;
-    private BlockOffsetRecord _blockOffsetRecord;
+    private BlockOffsetRecord _currentPosition;
 
     public BgzfStream(Stream innerStream, CompressionLevel compressionLevel, bool leaveOpen = true)
     {
@@ -56,7 +62,6 @@ public class BgzfStream : Stream
         if (_fill > 0)
         {
             WriteBlock();
-            _fill = 0;
         }
 
         _innerStream.Flush();
@@ -83,7 +88,7 @@ public class BgzfStream : Stream
         var bufferPosition = 0;
         while (buffer.Length - bufferPosition > 0)
         {
-            var remainingInCurrentBlock = _readBuffer.Length - _readPosition;
+            var remainingInCurrentBlock = _readBuffer.Length - _currentPosition.BlockOffset;
             if (remainingInCurrentBlock == 0)
             {
                 FillReadBuffer();
@@ -91,9 +96,9 @@ public class BgzfStream : Stream
             }
 
             var toFill = Math.Min(buffer.Length - bufferPosition, remainingInCurrentBlock);
-            _readBuffer.AsSpan(_readPosition, toFill).CopyTo(buffer.Slice(bufferPosition, toFill));
+            _readBuffer.AsSpan(_currentPosition.BlockOffset, toFill).CopyTo(buffer.Slice(bufferPosition, toFill));
             bufferPosition += toFill;
-            _readPosition += toFill;
+            _currentPosition = new BlockOffsetRecord(_currentPosition.BlockAddress, _currentPosition.BlockOffset + toFill);
         }
 
         return buffer.Length;
@@ -122,17 +127,21 @@ public class BgzfStream : Stream
         var bufferPosition = 0;
         while (buffer.Length - bufferPosition > 0)
         {
-            var remainingInCurrentBlock = _readBuffer.Length - _readPosition;
+            var remainingInCurrentBlock = _readBuffer.Length - _currentPosition.BlockOffset;
             if (remainingInCurrentBlock == 0)
             {
+                if (_innerStream.Position == _innerStream.Length)
+                {
+                    return bufferPosition;
+                }
                 await FillReadBufferAsync(cancellationToken);
                 continue;
             }
 
             var toFill = Math.Min(buffer.Length - bufferPosition, remainingInCurrentBlock);
-            _readBuffer.AsSpan(_readPosition, toFill).CopyTo(buffer.Slice(bufferPosition, toFill).Span);
+            _readBuffer.AsSpan(_currentPosition.BlockOffset, toFill).CopyTo(buffer.Slice(bufferPosition, toFill).Span);
             bufferPosition += toFill;
-            _readPosition += toFill;
+            _currentPosition = new BlockOffsetRecord(_currentPosition.BlockAddress, _currentPosition.BlockOffset + toFill);
         }
 
         return buffer.Length;
@@ -147,13 +156,13 @@ public class BgzfStream : Stream
         }
 
         var newOffset = new BlockOffsetRecord((ulong)offset);
-        if (newOffset != _blockOffsetRecord)
+        if (newOffset != _currentPosition)
         {
             MoveToOffset(newOffset);
-            _blockOffsetRecord = newOffset;
+            _currentPosition = newOffset;
         }
 
-        return (long)_blockOffsetRecord;
+        return (long)_currentPosition;
     }
 
     private void MoveToOffset(BlockOffsetRecord offset)
@@ -161,11 +170,12 @@ public class BgzfStream : Stream
         _innerStream.Seek((long)offset.BlockAddress, SeekOrigin.Begin);
 
         FillReadBuffer();
-        _readPosition = offset.BlockOffset;
+        _currentPosition = new BlockOffsetRecord(offset.BlockAddress, offset.BlockOffset);
     }
 
     private void FillReadBuffer()
     {
+        _currentPosition = new BlockOffsetRecord((ulong)_innerStream.Position, 0);
         Span<byte> header = stackalloc byte[16];
         _innerStream.ReadExactly(header);
         using var reader = new BinaryReader(_innerStream, Encoding.UTF8, true);
@@ -180,17 +190,17 @@ public class BgzfStream : Stream
         using var deflate = new DeflateStream(ms, CompressionMode.Decompress);
         deflate.ReadExactly(_readBuffer);
         using var ms2 = new MemoryStream(_readBuffer);
-        var crc = _crc.GetCrc32(ms2);
+        var crc32 = new CRC32();
+        var crc = crc32.GetCrc32(ms2);
         if (targetCrc != crc)
         {
             throw new Exception("CRC mismatch");
         }
-
-        _readPosition = 0;
     }
 
     private async Task FillReadBufferAsync(CancellationToken cancellationToken)
     {
+        _currentPosition = new BlockOffsetRecord((ulong)_innerStream.Position, 0);
         var header = new byte[16];
         await _innerStream.ReadExactlyAsync(header, cancellationToken);
         using var reader = new BinaryReader(_innerStream, Encoding.UTF8, true);
@@ -205,13 +215,12 @@ public class BgzfStream : Stream
         await using var deflate = new DeflateStream(ms, CompressionMode.Decompress);
         await deflate.ReadExactlyAsync(_readBuffer, cancellationToken);
         await using var ms2 = new MemoryStream(_readBuffer);
-        var crc = await _crc.GetCrc32Async(ms2);
+        var crc32 = new CRC32();
+        var crc = await crc32.GetCrc32Async(ms2);
         if (targetCrc != crc)
         {
             throw new Exception("CRC mismatch");
         }
-
-        _readPosition = 0;
     }
 
     /// <inheritdoc />
@@ -250,7 +259,7 @@ public class BgzfStream : Stream
             }
             else
             {
-                _blockOffsetRecord = new BlockOffsetRecord(_blockOffsetRecord.BlockAddress, _fill);
+                _currentPosition = new BlockOffsetRecord(_currentPosition.BlockAddress, _fill);
                 break;
             }
         }
@@ -283,7 +292,7 @@ public class BgzfStream : Stream
             }
             else
             {
-                _blockOffsetRecord = new BlockOffsetRecord(_blockOffsetRecord.BlockAddress, _fill);
+                _currentPosition = new BlockOffsetRecord(_currentPosition.BlockAddress, _fill);
                 break;
             }
         }
@@ -327,7 +336,8 @@ public class BgzfStream : Stream
 
         using (var msCrc = new MemoryStream(_writeBuffer.AsSpan(0, _fill).ToArray()))
         {
-            crc32 = _crc.GetCrc32(msCrc);
+            var crc = new CRC32();
+            crc32 = crc.GetCrc32(msCrc);
         }
 
         ms.Position = 0;
@@ -341,7 +351,7 @@ public class BgzfStream : Stream
         writer.Write((uint)_fill);
         _fill = 0;
         Array.Clear(_writeBuffer);
-        _blockOffsetRecord = new BlockOffsetRecord(_blockOffsetRecord.BlockAddress + 1, 0);
+        _currentPosition = new BlockOffsetRecord(_currentPosition.BlockAddress + 1, 0);
     }
 
     private async Task WriteBlockAsync(CancellationToken cancellationToken = default)
@@ -356,7 +366,8 @@ public class BgzfStream : Stream
 
         using (var msCrc = new MemoryStream(_writeBuffer.AsSpan(0, _fill).ToArray()))
         {
-            crc32 = await _crc.GetCrc32Async(msCrc);
+            var crc = new CRC32();
+            crc32 = await crc.GetCrc32Async(msCrc);
         }
 
         ms.Position = 0;
@@ -370,7 +381,7 @@ public class BgzfStream : Stream
         writer.Write((uint)_fill);
         _fill = 0;
         Array.Clear(_writeBuffer);
-        _blockOffsetRecord = new BlockOffsetRecord(_blockOffsetRecord.BlockAddress + 1, 0);
+        _currentPosition = new BlockOffsetRecord(_currentPosition.BlockAddress + 1, 0);
     }
 
     /// <inheritdoc />
@@ -399,7 +410,7 @@ public class BgzfStream : Stream
 
     public BlockOffsetRecord BlockOffset
     {
-        get { return _blockOffsetRecord; }
+        get { return _currentPosition; }
     }
 
     /// <inheritdoc />

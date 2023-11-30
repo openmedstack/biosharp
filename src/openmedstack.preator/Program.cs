@@ -1,4 +1,5 @@
 ﻿using System.Diagnostics.CodeAnalysis;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace OpenMedStack.Preator
 {
@@ -54,10 +55,10 @@ namespace OpenMedStack.Preator
             var readStructure = !string.IsNullOrWhiteSpace(options.ReadStructure)
                 ? ReadStructure.Parse(options.ReadStructure)
                 : null;
-            logger.LogInformation("Reading from {inputDir}", inputDir.FullName);
-            logger.LogInformation("Reading structure {readStructure}", readStructure);
+            logger.LogInformation("Reading from {InputDir}", inputDir.FullName);
+            logger.LogInformation("Reading structure {ReadStructure}", readStructure);
 
-            var reader = new IlluminaDataReader(inputDir, logger, readStructure);
+            var reader = new IlluminaDataReader(inputDir, NullLoggerFactory.Instance, readStructure);
             var runInfo = reader.RunInfo();
             var outputDir = !string.IsNullOrWhiteSpace(options.OutputFolder)
                 ? Path.GetFullPath(options.OutputFolder)
@@ -84,7 +85,7 @@ namespace OpenMedStack.Preator
                 .Select(lane => ProcessLane(outputDir, runInfo, lane, logger, reader, trimmer, tokenSource.Token)));
 
             stopwatch.Stop();
-            logger.LogInformation("Processing took {elapsed}", stopwatch.Elapsed);
+            logger.LogInformation("Processing took {Elapsed}", stopwatch.Elapsed);
 
             Console.CancelKeyPress -= ConsoleCancelKeyPress;
             tokenSource.Dispose();
@@ -127,7 +128,7 @@ namespace OpenMedStack.Preator
                 .WithCancellation(cancellationToken))
             {
                 var (sequenceCount, byteCount) = await writer.Write(bclData, cancellationToken).ConfigureAwait(false);
-                logger.LogInformation("Wrote {count} sequences with {bytes} bytes", sequenceCount, byteCount);
+                logger.LogInformation("Wrote {Count} sequences with {Bytes} bytes", sequenceCount, byteCount);
             }
         }
 

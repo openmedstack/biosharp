@@ -43,7 +43,7 @@ namespace OpenMedStack.BioSharp.Io;
 /// directly by applications wishing to create, read, or manipulate zip archive
 /// files.
 /// </summary>
-public class CRC32
+internal class CRC32
 {
     private const int BUFFER_SIZE = 8192;
     private static readonly uint[] crc32Table;
@@ -90,11 +90,6 @@ public class CRC32
     /// This is used when writing the ZipDirEntry when compressing files.
     /// </summary>
     public long TotalBytesRead { get; private set; }
-
-    /// <summary>
-    /// Indicates the current CRC for all blocks slurped in.
-    /// </summary>
-    public int Crc32Result => unchecked((int)(~runningCrc32Result));
 
     /// <summary>
     /// Returns the CRC32 for the specified stream.
@@ -193,18 +188,6 @@ public class CRC32
     }
 
     /// <summary>
-    /// Get the CRC32 for the given (word,byte) combo.  This is a computation
-    /// defined by PKzip.
-    /// </summary>
-    /// <param name="W">The word to start with.</param>
-    /// <param name="B">The byte to combine it with.</param>
-    /// <returns>The CRC-ized result.</returns>
-    public int ComputeCrc32(int W, byte B) => _InternalComputeCrc32((uint)W, B);
-
-    internal int _InternalComputeCrc32(uint W, byte B) =>
-        (int)(crc32Table[(W ^ B) & 0xFF] ^ (W >> 8));
-
-    /// <summary>
     /// Update the value for the running CRC32 using the given block of bytes.
     /// This is useful when using the CRC32() class in a Stream.
     /// </summary>
@@ -228,110 +211,4 @@ public class CRC32
 
         TotalBytesRead += count;
     }
-
-    // pre-initialize the crc table for speed of lookup.
-
-    private uint gf2_matrix_times(ReadOnlySpan<uint> matrix, uint vec)
-    {
-        uint sum = 0;
-        var i = 0;
-        while (vec != 0)
-        {
-            if ((vec & 0x01) == 0x01)
-            {
-                sum ^= matrix[i];
-            }
-
-            vec >>= 1;
-            i++;
-        }
-
-        return sum;
-    }
-
-    private void gf2_matrix_square(Span<uint> square, Span<uint> mat)
-    {
-        for (var i = 0; i < 32; i++)
-        {
-            square[i] = gf2_matrix_times(mat, mat[i]);
-        }
-    }
-
-    /// <summary>
-    /// Combines the given CRC32 value with the current running total.
-    /// </summary>
-    /// <remarks>
-    /// This is useful when using a divide-and-conquer approach to calculating a CRC.
-    /// Multiple threads can each calculate a CRC32 on a segment of the data, and then
-    /// combine the individual CRC32 values at the end.
-    /// </remarks>
-    /// <param name="crc">the crc value to be combined with this one</param>
-    /// <param name="length">the length of data the CRC value was calculated on</param>
-    public void Combine(int crc, int length)
-    {
-        Span<uint> even = stackalloc uint[32]; // even-power-of-two zeros operator
-        Span<uint> odd = stackalloc uint[32]; // odd-power-of-two zeros operator
-
-        if (length == 0)
-        {
-            return;
-        }
-
-        var crc1 = ~runningCrc32Result;
-        var crc2 = (uint)crc;
-
-        // put operator for one zero bit in odd
-        odd[0] = 0xEDB88320; // the CRC-32 polynomial
-        uint row = 1;
-        for (var i = 1; i < 32; i++)
-        {
-            odd[i] = row;
-            row <<= 1;
-        }
-
-        // put operator for two zero bits in even
-        gf2_matrix_square(even, odd);
-
-        // put operator for four zero bits in odd
-        gf2_matrix_square(odd, even);
-
-        var len2 = (uint)length;
-
-        // apply len2 zeros to crc1 (first square will put the operator for one
-        // zero byte, eight zero bits, in even)
-        do
-        {
-            // apply zeros operator for this bit of len2
-            gf2_matrix_square(even, odd);
-
-            if ((len2 & 1) == 1)
-            {
-                crc1 = gf2_matrix_times(even, crc1);
-            }
-
-            len2 >>= 1;
-
-            if (len2 == 0)
-            {
-                break;
-            }
-
-            // another iteration of the loop with odd and even swapped
-            gf2_matrix_square(odd, even);
-            if ((len2 & 1) == 1)
-            {
-                crc1 = gf2_matrix_times(odd, crc1);
-            }
-
-            len2 >>= 1;
-        } while (len2 != 0);
-
-        crc1 ^= crc2;
-
-        runningCrc32Result = ~crc1;
-
-        //return (int) crc1;
-    }
-
-    // private member vars
 }

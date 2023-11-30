@@ -72,7 +72,12 @@
         /// <inheritdoc />
         public override string ToString()
         {
-            var builder = new StringBuilder( $"@HD\tVN:{Vn}\tSO:{So.ToString().ToLowerInvariant()}");
+            if (So == SortingOrder.unknown)
+            {
+                return "";
+            }
+
+            var builder = new StringBuilder($"@HD\tVN:{Vn}\tSO:{So.ToString().ToLowerInvariant()}");
             if (SubSort != null)
             {
                 builder.Append($"\tSS:{SubSort}");

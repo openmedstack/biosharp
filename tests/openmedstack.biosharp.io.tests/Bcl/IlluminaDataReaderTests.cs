@@ -1,6 +1,9 @@
-﻿namespace OpenMedStack.BioSharp.Io.Tests.Bcl
+﻿using Microsoft.Extensions.Logging;
+
+namespace OpenMedStack.BioSharp.Io.Tests.Bcl
 {
     using System.Diagnostics;
+    using System.Diagnostics.CodeAnalysis;
     using System.IO;
     using System.Linq;
     using System.Threading;
@@ -20,10 +23,11 @@
             _outputHelper = outputHelper;
             _reader = new IlluminaDataReader(
                 new DirectoryInfo("sampledata"),
-                new TestOutputLogger(nameof(IlluminaDataReaderTests), outputHelper));
+                LoggerFactory.Create(b => b.AddXunit(outputHelper)));
         }
 
         [Fact]
+        [RequiresUnreferencedCode("The test data is not annotated for trimming")]
         public async Task CanRead()
         {
             var stopwatch = new Stopwatch();
@@ -39,10 +43,11 @@
         }
 
         [Fact]
+        [RequiresUnreferencedCode("The test data is not annotated for trimming")]
         public async Task CanGroup()
         {
             var sequences = await _reader.ReadClusterData(1)
-                .SelectMany(x => x.ReadBclData(DefaultQualityTrimmer.Instance,CancellationToken.None))
+                .SelectMany(x => x.ReadBclData(DefaultQualityTrimmer.Instance, CancellationToken.None))
                 .Select(x => x.Header.Barcode)
                 .Distinct()
                 .CountAsync();

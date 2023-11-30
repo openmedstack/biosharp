@@ -46,7 +46,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
  */
     public class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
     {
-        private readonly ILogger _logger;
+        private readonly ILogger<BclReader> _logger;
         private const int DefaultQueueSize = 256; //1024 * 1024;
         private const int EamssM2GeThreshold = 30;
         private const int EamssS1LtThreshold = 15; //was 15
@@ -86,7 +86,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             IEnumerable<Read> reads,
             TileIndexRecord tileIndexRecord,
             BclQualityEvaluationStrategy bclQualityEvaluationStrategy,
-            ILogger logger,
+            ILogger<BclReader> logger,
             IDictionary<string, IBclIndexReader>? indexReaders = null,
             bool applyEamss = false,
             int queueSize = DefaultQueueSize)
@@ -120,7 +120,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             FileInfo bclFileInfo,
             TileIndexRecord tileIndexRecord,
             BclQualityEvaluationStrategy bclQualityEvaluationStrategy,
-            ILogger logger,
+            ILogger<BclReader> logger,
             bool applyEamss = false,
             int queueSize = DefaultQueueSize)
         {
@@ -152,7 +152,7 @@ namespace OpenMedStack.BioSharp.Io.Bcl
             BclQualityEvaluationStrategy bclQualityEvaluationStrategy,
             bool applyEamss,
             int queueSize,
-            ILogger logger)
+            ILogger<BclReader> logger)
         {
             _tileIndexRecord = tileIndexRecord;
             _queueSize = queueSize;

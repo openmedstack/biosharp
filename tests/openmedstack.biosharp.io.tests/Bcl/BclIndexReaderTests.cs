@@ -13,7 +13,7 @@
         public async Task CanReadIndexFile()
         {
             var pow = Math.Pow(2, 16);
-            var reader = new BclIndexReader(new FileInfo("data/illumina/parserTests/bciParser/0001.bcl.bgzf"));
+            var reader = new BclIndexReader(new FileInfo("illumina_run/0001.bcl.bgzf"));
             for (var i = 0; i < reader.NumTiles; i++)
             {
                 var blockOffset = await reader.Get(i);
@@ -24,7 +24,7 @@
         [Fact]
         public async Task CanReadIndexFile2()
         {
-            var file = new FileInfo(@"..\..\..\..\..\..\200129_NB551214_0127_AH7CMYBGXF\Data\Intensities\BaseCalls\L001\0001.bcl.bgzf");
+            var file = new FileInfo(@"illumina_run/0001.bcl.bgzf");
             var reader = new BclIndexReader(file);
             var record = await reader.Get(200);
             Assert.True(record.BlockAddress < (ulong)file.Length);

@@ -41,6 +41,10 @@
         /// <inheritdoc />
         public override string ToString()
         {
+            if (string.IsNullOrWhiteSpace(Id))
+            {
+                return "";
+            }
             var builder = new StringBuilder($"@PG\tID:{Id}");
             if (!string.IsNullOrWhiteSpace(ProgramName))
             {

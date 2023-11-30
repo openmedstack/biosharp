@@ -36,16 +36,17 @@ public class BamWriter
             builder.AppendLine(referenceSequence.ToString());
         }
 
-        var header = Encoding.UTF8.GetBytes(builder.ToString());
-        await _stream.WriteAsync(BitConverter.GetBytes(header.Length), cancellationToken);
+        var header = Encoding.UTF8.GetBytes(builder.ToString().Trim());
+        await using var binaryWriter = new BinaryWriter(_stream, Encoding.UTF8, true);
+        binaryWriter.Write(header.Length);
         await _stream.WriteAsync(header, cancellationToken);
-        await _stream.WriteAsync(BitConverter.GetBytes(definition.Sq.Length), cancellationToken);
+        binaryWriter.Write(definition.Sq.Length);
         foreach (var sequence in definition.Sq)
         {
             var name = Encoding.UTF8.GetBytes(sequence.Name);
-            await _stream.WriteAsync(BitConverter.GetBytes(name.Length), cancellationToken);
+            binaryWriter.Write(name.Length);
             await _stream.WriteAsync(name, cancellationToken);
-            await _stream.WriteAsync(BitConverter.GetBytes(sequence.Length), cancellationToken);
+            binaryWriter.Write(sequence.Length);
         }
 
         var block = new List<byte>();
@@ -53,13 +54,10 @@ public class BamWriter
         {
             FillBlock(block, alignmentSection);
 
-            await _stream.WriteAsync(BitConverter.GetBytes((uint)block.Count), cancellationToken).ConfigureAwait(false);
+            binaryWriter.Write((uint)block.Count);
             await _stream.WriteAsync(block.ToArray(), cancellationToken).ConfigureAwait(false);
             block.Clear();
         }
-
-        await _stream.WriteEndOfFileAsync(cancellationToken).ConfigureAwait(false);
-        await _stream.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
     private void FillBlock(List<byte> block, AlignmentSection alignmentSection)
@@ -101,7 +99,7 @@ public class BamWriter
             {
                 var s = (string)tagValue;
                 var bytes = new byte[s.Length + 1];
-                for (int i = 0; i < s.Length; i++)
+                for (var i = 0; i < s.Length; i++)
                 {
                     bytes[i] = (byte)s[i];
                 }

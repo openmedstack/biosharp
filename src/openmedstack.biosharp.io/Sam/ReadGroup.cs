@@ -79,6 +79,10 @@
         /// <inheritdoc />
         public override string ToString()
         {
+            if (string.IsNullOrWhiteSpace(Id))
+            {
+                return "";
+            }
             var builder = new StringBuilder($"@RG\tID:{Id}");
             if (Barcodes != null)
             {

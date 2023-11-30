@@ -1,4 +1,6 @@
-﻿namespace OpenMedStack.BioSharp.Io.Bam
+﻿using System.Runtime.CompilerServices;
+
+namespace OpenMedStack.BioSharp.Io.Bam
 {
     using System;
     using System.Buffers;
@@ -75,9 +77,48 @@
                 refSeqs.Add(referenceSequence);
             }
 
+            var (fmd, pg, rg, rs) = ReadFileMetadata(text);
+            refSeqs.UnionWith(rs);
+
+            if (refSeqs.Count != numberOfReferences)
+            {
+                throw new InvalidDataException("Inconsistent reference count");
+            }
+
+            var alignments = await ReadAlignments(cancellationToken).ToListAsync(cancellationToken);
+
+            var content = new SamDefinition(fmd, refSeqs, rg, pg, alignments);
+
+            arrayPool.Return(buffer);
+            return content;
+
+            async IAsyncEnumerable<AlignmentSection> ReadAlignments([EnumeratorCancellation] CancellationToken token)
+            {
+                while (!token.IsCancellationRequested)
+                {
+                    mem = await _stream.FillBuffer(buffer.AsMemory(0, 4), true, cancellationToken)
+                        .ConfigureAwait(false);
+                    if (mem.Length < 4)
+                    {
+                        break;
+                    }
+
+                    var blockSize = (int)BitConverter.ToUInt32(mem.Span);
+                    var blockBuffer = arrayPool.Rent(blockSize);
+                    var block = await _stream.FillBuffer(blockBuffer.AsMemory(0, blockSize), cancellationToken)
+                        .ConfigureAwait(false);
+                    yield return ProcessBlock(block);
+                }
+            }
+        }
+
+        private static (FileMetadata fmd, Program pg, ReadGroup rg, HashSet<ReferenceSequence> refSeqs)
+            ReadFileMetadata(string text)
+        {
             FileMetadata fmd = null!;
             Program pg = null!;
             ReadGroup rg = null!;
+            HashSet<ReferenceSequence> refSeqs = new();
             if (!string.IsNullOrWhiteSpace(text))
             {
                 foreach (var line in text.Split('\n', StringSplitOptions.TrimEntries))
@@ -107,28 +148,7 @@
                 rg = new ReadGroup("");
             }
 
-            if (refSeqs.Count != numberOfReferences)
-            {
-                throw new InvalidDataException("Inconsistent reference count");
-            }
-
-            var alignments = new List<AlignmentSection>();
-            var d = _stream.BlockOffset.BlockAddress >> 16;
-            while ((long)d < _stream.Length)
-            {
-                mem = await _stream.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
-
-                var blockSize = (int)BitConverter.ToUInt32(mem.Span);
-                var blockBuffer = arrayPool.Rent(blockSize);
-                var block = await _stream.FillBuffer(blockBuffer.AsMemory(0, blockSize), cancellationToken)
-                    .ConfigureAwait(false);
-                alignments.Add(ProcessBlock(block));
-            }
-
-            var content = new SamDefinition(fmd, refSeqs, rg, pg, alignments);
-
-            arrayPool.Return(buffer);
-            return content;
+            return (fmd, pg, rg, refSeqs);
         }
 
         private static async Task<ReferenceSequence> ReadReferenceSequence(
