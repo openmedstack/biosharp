@@ -1,4 +1,5 @@
-﻿using System.Diagnostics.CodeAnalysis;
+﻿using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace OpenMedStack.Preator
@@ -13,30 +14,24 @@ namespace OpenMedStack.Preator
     using BioSharp.Io.Bcl;
     using BioSharp.Model.Bcl;
     using CommandLine;
-    using CommandLine.Text;
     using Microsoft.Extensions.Logging;
     using OpenMedStack.BioSharp.Io.FastQ;
 
     // ReSharper disable once ClassNeverInstantiated.Global
     [RequiresUnreferencedCode("Requires reference to RunInfo.")]
-    class Program
+    internal class Program
     {
         static async Task Main(string[] args)
         {
             var result = Parser.Default.ParseArguments<Options>(args);
-            await result.WithNotParsed(_ => NotParsed(result)).WithParsedAsync(Parsed).ConfigureAwait(false);
+            _ = await result.WithParsedAsync(Parsed).ConfigureAwait(false);
+            _ = await result.WithNotParsedAsync(NotParsed).ConfigureAwait(false);
         }
 
         [RequiresUnreferencedCode("Requires reference to RunInfo.")]
         private static async Task Parsed(Options options)
         {
             var tokenSource = new CancellationTokenSource();
-
-            void ConsoleCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
-            {
-                // ReSharper disable once AccessToDisposedClosure
-                tokenSource.Cancel(false);
-            }
 
             Console.CancelKeyPress += ConsoleCancelKeyPress;
             var stopwatch = new Stopwatch();
@@ -89,6 +84,13 @@ namespace OpenMedStack.Preator
 
             Console.CancelKeyPress -= ConsoleCancelKeyPress;
             tokenSource.Dispose();
+            return;
+
+            void ConsoleCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
+            {
+                // ReSharper disable once AccessToDisposedClosure
+                tokenSource.Cancel(false);
+            }
         }
 
         [RequiresUnreferencedCode("Requires reference to RunInfo.")]
@@ -132,10 +134,128 @@ namespace OpenMedStack.Preator
             }
         }
 
-        private static void NotParsed(ParserResult<Options> result)
+        private static Task NotParsed(IEnumerable<Error> errors)
         {
-            var text = HelpText.AutoBuild(result, h => h, e => e);
-            Console.WriteLine(text);
+            foreach (var error in errors)
+            {
+                PrintError(error);
+            }
+
+            return Task.CompletedTask;
+        }
+
+        private static void PrintError(Error error)
+        {
+            switch (error.Tag)
+            {
+                case ErrorType.BadFormatTokenError:
+                {
+                    var e = (BadFormatTokenError)error;
+                    Console.WriteLine($"Bad format token: {e.Token}");
+                }
+                    break;
+                case ErrorType.MissingValueOptionError:
+                {
+                    var e = (MissingValueOptionError)error;
+                    Console.WriteLine($"Missing value option: {e.NameInfo.NameText}");
+                }
+                    break;
+                case ErrorType.UnknownOptionError:
+                {
+                    var e = (UnknownOptionError)error;
+                    Console.WriteLine($"Unknown option: {e.Token}");
+                }
+                    break;
+                case ErrorType.MissingRequiredOptionError:
+                {
+                    var e = (MissingRequiredOptionError)error;
+                    Console.WriteLine($"Missing required option: {e.NameInfo.NameText}");
+                }
+                    break;
+                case ErrorType.MutuallyExclusiveSetError:
+                {
+                    var e = (MutuallyExclusiveSetError)error;
+                    Console.WriteLine($"Mutually exclusive set: {e.SetName}");
+                }
+                    break;
+                case ErrorType.BadFormatConversionError:
+                {
+                    var e = (BadFormatConversionError)error;
+                    Console.WriteLine($"Bad format conversion: {e.NameInfo.NameText}");
+                }
+                    break;
+                case ErrorType.SequenceOutOfRangeError:
+                {
+                    var e = (SequenceOutOfRangeError)error;
+                    Console.WriteLine($"Sequence out of range: {e.NameInfo.NameText}");
+                }
+                    break;
+                case ErrorType.RepeatedOptionError:
+                {
+                    var e = (RepeatedOptionError)error;
+                    Console.WriteLine($"Repeated option: {e.NameInfo.NameText}");
+                }
+                    break;
+                case ErrorType.NoVerbSelectedError:
+                {
+                    Console.WriteLine($"No verb selected");
+                }
+                    break;
+                case ErrorType.BadVerbSelectedError:
+                {
+                    var e = (BadVerbSelectedError)error;
+                    Console.WriteLine($"Bad verb selected: {e.Token}");
+                }
+                    break;
+                case ErrorType.HelpRequestedError:
+                {
+                    Console.WriteLine($"Help requested");
+                }
+                    break;
+                case ErrorType.HelpVerbRequestedError:
+                {
+                    Console.WriteLine($"Help verb requested");
+                }
+                    break;
+                case ErrorType.VersionRequestedError:
+                {
+                    Console.WriteLine($"Version requested");
+                }
+                    break;
+                case ErrorType.SetValueExceptionError:
+                {
+                    var e = (SetValueExceptionError)error;
+                    Console.WriteLine($"Set value exception: {e.NameInfo.NameText}");
+                }
+                    break;
+                case ErrorType.InvalidAttributeConfigurationError:
+                {
+                    var e = (InvalidAttributeConfigurationError)error;
+                    Console.WriteLine($"Invalid attribute configuration");
+                }
+                    break;
+                case ErrorType.MissingGroupOptionError:
+                {
+                    var e = (MissingGroupOptionError)error;
+                    Console.WriteLine(
+                        $"Missing group option: {e.Group} -> {string.Join(", ", e.Names.Select(n => n.NameText))}");
+                }
+                    break;
+                case ErrorType.GroupOptionAmbiguityError:
+                {
+                    var e = (GroupOptionAmbiguityError)error;
+                    Console.WriteLine(
+                        $"Group option ambiguity: {e.NameInfo.NameText}");
+                }
+                    break;
+                case ErrorType.MultipleDefaultVerbsError:
+                {
+                    Console.WriteLine($"Multiple default verbs");
+                }
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(error));
+            }
         }
     }
 }

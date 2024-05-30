@@ -6,16 +6,16 @@
         <AssemblyName>preator</AssemblyName>
         <RootNamespace>OpenMedStack.Preator</RootNamespace>
         <PublishTrimmed>true</PublishTrimmed>
-        <!--		<IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>-->
-        <!--		<ILLinkTreatWarningsAsErrors>false</ILLinkTreatWarningsAsErrors>-->
+        <TrimmerRemoveSymbols>true</TrimmerRemoveSymbols>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="CommandLineParser" Version="2.9.1"/>
         <PackageReference Include="Microsoft.Extensions.Logging.Console" Version="8.0.0"/>
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\..\..\..\commandline\src\CommandLine\CommandLine.csproj" />
+<!--        <TrimmerRootAssembly Include="CommandLine" />-->
         <ProjectReference Include="..\openmedstack.biosharp.io\openmedstack.biosharp.io.csproj"/>
     </ItemGroup>
 

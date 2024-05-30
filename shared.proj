@@ -5,7 +5,7 @@
         <Authors>OpenMedStack;Jacob Reimers</Authors>
         <Company>OpenMedStack</Company>
         <Product>OpenMedStack BioSharp</Product>
-        <Copyright>OpenMedStack © 2016 - 2022</Copyright>
+        <Copyright>OpenMedStack © 2016 - 2024</Copyright>
         <RepositoryType>git</RepositoryType>
         <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
