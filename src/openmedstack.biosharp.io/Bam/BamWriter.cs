@@ -12,7 +12,7 @@ namespace OpenMedStack.BioSharp.Io.Bam;
 
 public class BamWriter
 {
-    private static readonly byte[] MagicHeader = { 66, 65, 77, 0x01 };
+    private static readonly byte[] MagicHeader = [66, 65, 77, 0x01];
     private readonly BgzfStream _stream;
     private readonly ILogger<BamWriter> _logger;
 
@@ -31,10 +31,7 @@ public class BamWriter
         builder.AppendLine(definition.Hd.ToString());
         builder.AppendLine(definition.Pg.ToString());
         builder.AppendLine(definition.Rg.ToString());
-        foreach (var referenceSequence in definition.Sq)
-        {
-            builder.AppendLine(referenceSequence.ToString());
-        }
+        foreach (var referenceSequence in definition.Sq) builder.AppendLine(referenceSequence.ToString());
 
         var header = Encoding.UTF8.GetBytes(builder.ToString().Trim());
         await using var binaryWriter = new BinaryWriter(_stream, Encoding.UTF8, true);
@@ -78,7 +75,7 @@ public class BamWriter
         block.Add((byte)'\0');
         block.AddRange(alignmentSection.Cigar.SelectMany(x => BitConverter.GetBytes(x.Encode())));
         block.AddRange(alignmentSection.Sequence.WriteSequence());
-        block.AddRange(Array.ConvertAll(alignmentSection.Quality.ToCharArray(), x => x == ' ' ? (byte)255 : (byte)(x)));
+        block.AddRange(Array.ConvertAll(alignmentSection.Quality.ToCharArray(), x => x == ' ' ? (byte)255 : (byte)x));
 
         foreach (var tag in alignmentSection.Tags)
         {
@@ -94,15 +91,12 @@ public class BamWriter
         switch (type)
         {
             case 'A':
-                return new[] { (byte)tagValue };
+                return [(byte)tagValue];
             case 'Z':
             {
                 var s = (string)tagValue;
                 var bytes = new byte[s.Length + 1];
-                for (var i = 0; i < s.Length; i++)
-                {
-                    bytes[i] = (byte)s[i];
-                }
+                for (var i = 0; i < s.Length; i++) bytes[i] = (byte)s[i];
 
                 bytes[^1] = (byte)'\0';
                 return bytes;
@@ -125,11 +119,11 @@ public class BamWriter
             }
             case 'c':
             {
-                return new[] { (byte)(sbyte)tagValue };
+                return [(byte)(sbyte)tagValue];
             }
             case 'C':
             {
-                return new[] { (byte)tagValue };
+                return [(byte)tagValue];
             }
             case 'f':
             {
@@ -141,10 +135,7 @@ public class BamWriter
             }
             case 'B':
             {
-                if (!tagValue.GetType().IsArray)
-                {
-                    throw new InvalidDataException("Not an array");
-                }
+                if (!tagValue.GetType().IsArray) throw new InvalidDataException("Not an array");
 
                 var subtype = (byte)GetTagType(tagValue.GetType().GetElementType()!);
                 var bytes = GetArrayBytes((char)subtype, tagValue);
@@ -185,55 +176,25 @@ public class BamWriter
 
     private static char GetTagType(Type type)
     {
-        if (type == typeof(char))
-        {
-            return 'A';
-        }
+        if (type == typeof(char)) return 'A';
 
-        if (type == typeof(int))
-        {
-            return 'i';
-        }
+        if (type == typeof(int)) return 'i';
 
-        if (type == typeof(uint))
-        {
-            return 'I';
-        }
+        if (type == typeof(uint)) return 'I';
 
-        if (type == typeof(float))
-        {
-            return 'f';
-        }
+        if (type == typeof(float)) return 'f';
 
-        if (type == typeof(string))
-        {
-            return 'Z';
-        }
+        if (type == typeof(string)) return 'Z';
 
-        if (type == typeof(char[]))
-        {
-            return 'H';
-        }
+        if (type == typeof(char[])) return 'H';
 
-        if (type == typeof(sbyte))
-        {
-            return 'c';
-        }
+        if (type == typeof(sbyte)) return 'c';
 
-        if (type == typeof(byte))
-        {
-            return 'C';
-        }
+        if (type == typeof(byte)) return 'C';
 
-        if (type == typeof(short))
-        {
-            return 's';
-        }
+        if (type == typeof(short)) return 's';
 
-        if (type == typeof(ushort))
-        {
-            return 'S';
-        }
+        if (type == typeof(ushort)) return 'S';
 
         throw new InvalidDataException("Invalid tag value");
     }

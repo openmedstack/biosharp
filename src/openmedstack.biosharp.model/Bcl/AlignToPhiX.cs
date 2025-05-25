@@ -1,11 +1,9 @@
-﻿namespace OpenMedStack.BioSharp.Model.Bcl
-{
-    using System.Xml.Serialization;
+﻿namespace OpenMedStack.BioSharp.Model.Bcl;
 
-    [XmlRoot(ElementName = "AlignToPhiX")]
-    public class AlignToPhiX
-    {
-        [XmlElement(ElementName = "Lane")]
-        public string? Lane { get; set; }
-    }
+using System.Xml.Serialization;
+
+[XmlRoot(ElementName = "AlignToPhiX")]
+public class AlignToPhiX
+{
+    [XmlElement(ElementName = "Lane")] public string? Lane { get; set; }
 }

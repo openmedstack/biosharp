@@ -1,13 +1,12 @@
-﻿namespace OpenMedStack.BioSharp.Model.Bcl
+﻿namespace OpenMedStack.BioSharp.Model.Bcl;
+
+using System.Xml.Serialization;
+
+[XmlRoot(ElementName = "RunInfo")]
+public class RunInfo
 {
-    using System.Xml.Serialization;
+    [XmlElement(ElementName = "Run")] public Run Run { get; set; } = null!;
 
-    [XmlRoot(ElementName = "RunInfo")]
-    public class RunInfo
-    {
-        [XmlElement(ElementName = "Run")] public Run Run { get; set; } = null!;
-
-        [XmlAttribute(AttributeName = "Version")]
-        public int Version { get; set; }
-    }
+    [XmlAttribute(AttributeName = "Version")]
+    public int Version { get; set; }
 }

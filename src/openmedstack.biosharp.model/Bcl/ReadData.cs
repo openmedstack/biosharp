@@ -1,6 +1,5 @@
-﻿namespace OpenMedStack.BioSharp.Model.Bcl
-{
-    using System;
+﻿namespace OpenMedStack.BioSharp.Model.Bcl;
 
-    public record struct ReadData(int Tile, ReadType Type, Memory<char> Bases, Memory<char> Qualities, int ReadIndex);
-}
+using System;
+
+public record struct ReadData(int Tile, ReadType Type, Memory<char> Bases, Memory<char> Qualities, int ReadIndex);

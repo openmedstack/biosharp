@@ -9,7 +9,7 @@ using Microsoft.Extensions.Logging;
 
 public class BamIndexReader
 {
-    private static readonly byte[] MagicHeader = { 66, 65, 73, 0x01 };
+    private static readonly byte[] MagicHeader = [66, 65, 73, 0x01];
     private readonly ILogger _logger;
 
     public BamIndexReader(ILogger logger)
@@ -76,20 +76,15 @@ public class BamIndexReader
                     .ConfigureAwait(false)).Span);
             var offsets = new ulong[offsetCount];
             for (var j = 0; j < offsetCount; j++)
-            {
                 offsets[j] =
                     BitConverter.ToUInt64((await file.FillBuffer(buffer.AsMemory(0, 8), cancellationToken)
                         .ConfigureAwait(false)).Span);
-            }
 
             content[i] = new SequenceIndex(bins, offsets);
         }
 
         var memory = buffer.AsMemory(0, 8);
-        for (var i = 0; i < 8; i++)
-        {
-            memory.Span[i] = 0;
-        }
+        for (var i = 0; i < 8; i++) memory.Span[i] = 0;
 
         var fillBuffer = await file.FillBuffer(memory, true, cancellationToken).ConfigureAwait(false);
         var numberOfUnmapped = fillBuffer.Length == 0 ? 0 : BitConverter.ToUInt64(fillBuffer.Span);

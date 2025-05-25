@@ -1,0 +1,135 @@
+{
+  "metadata": {
+    "version": "1.0",
+    "description": "Repeat library for bioinformatics sequence masking",
+    "source": "OpenMedStack BioSharp default library"
+  },
+  "repeats": [
+    {
+      "id": "SAT001",
+      "name": "Alpha Satellite DNA",
+      "type": "satellite",
+      "motif": "AATAACACACCCACACCCACACCC",
+      "description": "Human alpha satellite DNA, 17bp repeat unit"
+    },
+    {
+      "id": "SAT002",
+      "name": "Beta Satellite DNA",
+      "type": "satellite",
+      "motif": "GATATGATATGATATGATATG",
+      "description": "Human beta satellite DNA"
+    },
+    {
+      "id": "LIN001",
+      "name": "LINE-1",
+      "type": "retroposon",
+      "motif": "TATATATATATATATATATATA",
+      "description": "Long interspersed nuclear element 1"
+    },
+    {
+      "id": "LIN002",
+      "name": "LINE-2",
+      "type": "retroposon",
+      "motif": "TTTTTTTTTTTTTTTTTTTTT",
+      "description": "Long interspersed nuclear element 2"
+    },
+    {
+      "id": "SINE001",
+      "name": "Alu",
+      "type": "retroposon",
+      "motif": "GGACACCATAGTTGTGCAGACGT",
+      "description": "Alu SINE, human-specific"
+    },
+    {
+      "id": "SINE002",
+      "name": "B1",
+      "type": "retroposon",
+      "motif": "TCTGCAGCGCGAGTTGACCGC",
+      "description": "Mouse B1 SINE"
+    },
+    {
+      "id": "LTR001",
+      "name": "HERV-K",
+      "type": "retroviral",
+      "motif": "GAGGCTCCTGCCTTCAGAGGCTCCTGATC",
+      "description": "Human endogenous retrovirus K"
+    },
+    {
+      "id": "LTR002",
+      "name": "HERV-W",
+      "type": "retroviral",
+      "motif": "AGGAGGAGGAGGAGGAGGAGGCTCCGAT",
+      "description": "Human endogenous retrovirus W"
+    },
+    {
+      "id": "DNA001",
+      "name": "hAT-1",
+      "type": "dna_transposon",
+      "motif": "TTAGTCACCCTTAGTACCACCTAATCT",
+      "description": "hAT family DNA transposon"
+    },
+    {
+      "id": "DNA002",
+      "name": "Tc1",
+      "type": "dna_transposon",
+      "motif": "CACTGTCTCTATTCCATGCCGTA",
+      "description": "Tc1/mariner DNA transposon"
+    },
+    {
+      "id": "REP001",
+      "name": "Simple Tandem A",
+      "type": "tandem",
+      "motif": "GATT",
+      "description": "Simple tandem repeat unit"
+    },
+    {
+      "id": "REP002",
+      "name": "Simple Tandem B",
+      "type": "tandem",
+      "motif": "CCCC",
+      "description": "Poly-C tract"
+    },
+    {
+      "id": "REP003",
+      "name": "Simple Tandem C",
+      "type": "tandem",
+      "motif": "GTGT",
+      "description": "(GT)n dinucleotide repeat"
+    },
+    {
+      "id": "REP004",
+      "name": "Simple Tandem D",
+      "type": "tandem",
+      "motif": "CACACACA",
+      "description": "Tri-nucleotide repeat (CAC)n"
+    },
+    {
+      "id": "REP005",
+      "name": "Simple Tandem E",
+      "type": "tandem",
+      "motif": "ATGATGATGATG",
+      "description": "Tri-nucleotide repeat (ATG)n"
+    },
+    {
+      "id": "LOWC001",
+      "name": "Low Complexity A",
+      "type": "low_complexity",
+      "motif": "AAAAAA",
+      "description": "Homopolymer A tract"
+    },
+    {
+      "id": "LOWC002",
+      "name": "Low Complexity B",
+      "type": "low_complexity",
+      "motif": "TTTTTT",
+      "description": "Homopolymer T tract"
+    },
+    {
+      "id": "LOWC003",
+      "name": "Low Complexity C",
+      "type": "low_complexity",
+      "motif": "GCGCGCGCGC",
+      "description": "GC-rich low complexity region"
+    }
+  ]
+}

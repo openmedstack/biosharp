@@ -37,10 +37,7 @@ public class IndexReaderWriter : IWriteFastQIndex, IReadFastQIndex, IAsyncDispos
         while (true)
         {
             var lengthBuffer = await _stream.FillBuffer(buffer.AsMemory(0, 4), true, cancellationToken);
-            if (lengthBuffer.Length == 0)
-            {
-                break;
-            }
+            if (lengthBuffer.Length == 0) break;
 
             var keyLength = BitConverter.ToInt32(lengthBuffer.Span);
             var keyBuffer = await _stream.FillBuffer(buffer.AsMemory(0, keyLength), cancellationToken);

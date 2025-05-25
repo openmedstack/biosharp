@@ -68,25 +68,25 @@ public class AlignmentTag
     /// <inheritdoc />
     public override string ToString()
     {
-        return $"{Key}:{Type}:{(Type == 'H' ? ($"{string.Join("", (char[])Value)}") : Value)}";
+        return $"{Key}:{Type}:{(Type == 'H' ? $"{string.Join("", (char[])Value)}" : Value)}";
     }
 
     public int GetSize()
     {
         return 3
-               + Type switch
-               {
-                   'A' => 1,
-                   'i' => 4,
-                   'I' => 4,
-                   'f' => 4,
-                   'Z' => Value.ToString()!.Length + 1,
-                   'H' => 2,
-                   'c' => 1,
-                   'C' => 1,
-                   's' => 2,
-                   'S' => 2,
-                   _ => 0
-               };
+          + Type switch
+            {
+                'A' => 1,
+                'i' => 4,
+                'I' => 4,
+                'f' => 4,
+                'Z' => Value.ToString()!.Length + 1,
+                'H' => 2,
+                'c' => 1,
+                'C' => 1,
+                's' => 2,
+                'S' => 2,
+                _ => 0
+            };
     }
 }

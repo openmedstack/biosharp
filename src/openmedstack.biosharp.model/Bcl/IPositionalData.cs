@@ -1,8 +1,7 @@
-﻿namespace OpenMedStack.BioSharp.Model.Bcl
+﻿namespace OpenMedStack.BioSharp.Model.Bcl;
+
+public interface IPositionalData //: IIlluminaData
 {
-    public interface IPositionalData //: IIlluminaData
-    {
-        public int XCoordinate { get; }
-        public int YCoordinate { get; }
-    }
+    public int XCoordinate { get; }
+    public int YCoordinate { get; }
 }

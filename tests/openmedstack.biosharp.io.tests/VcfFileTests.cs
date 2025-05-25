@@ -1,32 +1,32 @@
-namespace OpenMedStack.BioSharp.Io.Tests
+namespace OpenMedStack.BioSharp.Io.Tests;
+
+using System;
+using System.IO;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+using Model;
+using Vcf;
+using Xunit;
+
+public class VcfFileTests
 {
-    using System;
-    using System.IO;
-    using System.Linq;
-    using System.Text;
-    using System.Threading.Tasks;
-    using Model;
-    using Vcf;
-    using Xunit;
-
-    public class VcfFileTests
+    [Fact]
+    public async Task CanParseGzFile()
     {
-        [Fact]
-        public async Task CanParseGzFile()
-        {
-            var reader = new VcfFileReader(new VcfMetaReader());
-            const string path = "D.4x.vcf.gz";
-            var headeredContent = await reader.Read(path);
-            await using var _ = TaskAsyncEnumerableExtensions.ConfigureAwait((IAsyncDisposable)headeredContent, false);
+        var reader = new VcfFileReader(new VcfMetaReader());
+        const string path = "D.4x.vcf.gz";
+        var headeredContent = await reader.Read(path, TestContext.Current.CancellationToken);
+        await using var _ = ((IAsyncDisposable)headeredContent).ConfigureAwait(false);
 
-            Assert.NotNull(headeredContent.Header);
-            Assert.Equal(5655127, await headeredContent.CountAsync());
-        }
+        Assert.NotNull(headeredContent.Header);
+        Assert.Equal(5655127, await headeredContent.CountAsync(TestContext.Current.CancellationToken));
+    }
 
-        [Fact]
-        public async Task CanParseFile()
-        {
-            var content = @"##fileformat=VCFv4.2
+    [Fact]
+    public async Task CanParseFile()
+    {
+        var content = @"##fileformat=VCFv4.2
 ##FORMAT=<ID=GT,Number=1,Type=Integer,Description=""Genotype"">
 ##FORMAT=<ID=GP,Number=G,Type=Float,Description=""Genotype Probabilities"">
 ##FORMAT=<ID=PL,Number=G,Type=Float,Description=""Phred-scaled Genotype Likelihoods"">
@@ -34,21 +34,21 @@ namespace OpenMedStack.BioSharp.Io.Tests
 20	1291018	rs11449	G	A	.	PASS	.	GT	0/0	0/1
 20	2300608	rs84825	C	T	.	PASS	.	GT:GP	0/1:.	0/1:0.03,0.97,0
 20	2301308	rs84823	T	G	.	PASS	.	GT:PL	./.:.	1/1:10,5,0";
-            var file = new MemoryStream(Encoding.UTF8.GetBytes(content));
-            await using var _ = file;
-            var reader = new VcfFileReader(new VcfMetaReader());
-            var headeredContent = await reader.Read(file);
-            await using var __ = TaskAsyncEnumerableExtensions.ConfigureAwait((IAsyncDisposable)headeredContent, false);
+        var file = new MemoryStream(Encoding.UTF8.GetBytes(content));
+        await using var _ = file;
+        var reader = new VcfFileReader(new VcfMetaReader());
+        var headeredContent = await reader.Read(file, TestContext.Current.CancellationToken);
+        await using var __ = ((IAsyncDisposable)headeredContent).ConfigureAwait(false);
 
-            Assert.NotNull(headeredContent.Header);
-            Assert.Equal(3, await headeredContent.CountAsync());
-        }
+        Assert.NotNull(headeredContent.Header);
+        Assert.Equal(3, await headeredContent.CountAsync(TestContext.Current.CancellationToken));
+    }
 
-        [Fact]
-        public void CanParseHeaders()
-        {
-            var reader = new VcfMetaReader();
-            var file = @"##fileformat=VCFv4.2
+    [Fact]
+    public void CanParseHeaders()
+    {
+        var reader = new VcfMetaReader();
+        var file = @"##fileformat=VCFv4.2
 ##fileDate=20090805
 ##source=myImputationProgramV3.1
 ##reference=file:///seq/references/1000GenomesPilot-NCBI36.fasta
@@ -67,9 +67,8 @@ namespace OpenMedStack.BioSharp.Io.Tests
 ##FORMAT=<ID=DP,Number=1,Type=Integer,Description=""Read Depth"">
 ##FORMAT=<ID=HQ,Number=2,Type=Integer,Description=""Haplotype Quality"">";
 
-            var metaInformation = file.Split('\n').Select(x => x.Trim()).Select(reader.Read).ToList();
+        var metaInformation = file.Split('\n').Select(x => x.Trim()).Select(reader.Read).ToList();
 
-            Assert.Contains(metaInformation.OfType<KeyValueMetaInformation>(), x => x.Key == "fileformat");
-        }
+        Assert.Contains(metaInformation.OfType<KeyValueMetaInformation>(), x => x.Key == "fileformat");
     }
 }

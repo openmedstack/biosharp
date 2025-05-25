@@ -1,23 +1,19 @@
-﻿namespace OpenMedStack.BioSharp.Io.Bcl
+﻿namespace OpenMedStack.BioSharp.Io.Bcl;
+
+using System.Collections;
+using System.Collections.Generic;
+
+public class PassThroughFilter : IEnumerable<bool>
 {
-    using System.Collections;
-    using System.Collections.Generic;
-
-    public class PassThroughFilter : IEnumerable<bool>
+    /// <inheritdoc />
+    public IEnumerator<bool> GetEnumerator()
     {
-        /// <inheritdoc />
-        public IEnumerator<bool> GetEnumerator()
-        {
-            while (true)
-            {
-                yield return true;
-            }
-        }
+        while (true) yield return true;
+    }
 
-        /// <inheritdoc />
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
+    /// <inheritdoc />
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
     }
 }

@@ -1,7 +1,7 @@
 <Project>
     <PropertyGroup>
         <Version>1.1.0</Version>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <Authors>OpenMedStack;Jacob Reimers</Authors>
         <Company>OpenMedStack</Company>
         <Product>OpenMedStack BioSharp</Product>
@@ -17,5 +17,6 @@
         <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
         <WarningsAsErrors/>
         <WarningsNotAsErrors>618;1701</WarningsNotAsErrors>
+        <NoWarn>$(NoWarn);xUnit1051;xUnit1041;xUnit1031;CS0121;CS0108</NoWarn>
     </PropertyGroup>
 </Project>

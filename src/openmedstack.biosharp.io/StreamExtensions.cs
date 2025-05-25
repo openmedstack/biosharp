@@ -12,7 +12,7 @@ internal static class StreamExtensions
         Memory<byte> buffer,
         CancellationToken cancellationToken = default)
     {
-        return FillBuffer(file, buffer, false, cancellationToken);
+        return file.FillBuffer(buffer, false, cancellationToken);
     }
 
     public static async Task<Memory<byte>> FillBuffer(
@@ -27,10 +27,7 @@ internal static class StreamExtensions
             var read = await file.ReadAsync(buffer[totalRead..], cancellationToken).ConfigureAwait(false);
             if (read == 0)
             {
-                if (allowEmpty)
-                {
-                    return buffer[..totalRead];
-                }
+                if (allowEmpty) return buffer[..totalRead];
 
                 throw new IOException("Nothing read. End of stream?");
             }
@@ -49,9 +46,7 @@ internal static class StreamExtensions
         var buffer = new byte[size];
         var totalRead = 0;
         while (totalRead < buffer.Length)
-        {
             totalRead += await file.ReadAsync(buffer.AsMemory()[totalRead..], cancellationToken).ConfigureAwait(false);
-        }
 
         return buffer;
     }

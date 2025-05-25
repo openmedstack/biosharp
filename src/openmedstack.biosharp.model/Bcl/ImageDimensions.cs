@@ -1,14 +1,13 @@
-﻿namespace OpenMedStack.BioSharp.Model.Bcl
+﻿namespace OpenMedStack.BioSharp.Model.Bcl;
+
+using System.Xml.Serialization;
+
+[XmlRoot(ElementName = "ImageDimensions")]
+public class ImageDimensions
 {
-    using System.Xml.Serialization;
+    [XmlAttribute(AttributeName = "Width")]
+    public int Width { get; set; }
 
-    [XmlRoot(ElementName = "ImageDimensions")]
-    public class ImageDimensions
-    {
-        [XmlAttribute(AttributeName = "Width")]
-        public int Width { get; set; }
-
-        [XmlAttribute(AttributeName = "Height")]
-        public int Height { get; set; }
-    }
+    [XmlAttribute(AttributeName = "Height")]
+    public int Height { get; set; }
 }

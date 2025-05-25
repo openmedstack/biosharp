@@ -43,13 +43,13 @@ namespace OpenMedStack.BioSharp.Io;
 /// directly by applications wishing to create, read, or manipulate zip archive
 /// files.
 /// </summary>
-internal class CRC32
+internal class Crc32
 {
-    private const int BUFFER_SIZE = 8192;
-    private static readonly uint[] crc32Table;
+    private const int BufferSize = 8192;
+    private static readonly uint[] Crc32Table;
     private uint runningCrc32Result = 0xFFFFFFFF;
 
-    static CRC32()
+    static Crc32()
     {
         unchecked
         {
@@ -62,25 +62,19 @@ internal class CRC32
             uint i,
                  j;
 
-            crc32Table = new uint[256];
+            Crc32Table = new uint[256];
 
             uint dwCrc;
             for (i = 0; i < 256; i++)
             {
                 dwCrc = i;
                 for (j = 8; j > 0; j--)
-                {
                     if ((dwCrc & 1) == 1)
-                    {
                         dwCrc = (dwCrc >> 1) ^ dwPolynomial;
-                    }
                     else
-                    {
                         dwCrc >>= 1;
-                    }
-                }
 
-                crc32Table[i] = dwCrc;
+                Crc32Table[i] = dwCrc;
             }
         }
     }
@@ -96,14 +90,20 @@ internal class CRC32
     /// </summary>
     /// <param name="input">The stream over which to calculate the CRC32</param>
     /// <returns>the CRC32 calculation</returns>
-    public uint GetCrc32(Stream input) => GetCrc32AndCopy(input, null);
+    public uint GetCrc32(Stream input)
+    {
+        return GetCrc32AndCopy(input, null);
+    }
 
     /// <summary>
     /// Returns the CRC32 for the specified stream.
     /// </summary>
     /// <param name="input">The stream over which to calculate the CRC32</param>
     /// <returns>the CRC32 calculation</returns>
-    public Task<uint> GetCrc32Async(Stream input) => GetCrc32AndCopyAsync(input, null);
+    public Task<uint> GetCrc32Async(Stream input)
+    {
+        return GetCrc32AndCopyAsync(input, null);
+    }
 
     /// <summary>
     /// Returns the CRC32 for the specified stream, and writes the input into the
@@ -114,17 +114,14 @@ internal class CRC32
     /// <returns>the CRC32 calculation</returns>
     public uint GetCrc32AndCopy(Stream input, Stream? output)
     {
-        if (input is null)
-        {
-            throw new NullReferenceException("The input stream must not be null.");
-        }
+        if (input is null) throw new NullReferenceException("The input stream must not be null.");
 
         unchecked
         {
             //UInt32 crc32Result;
             //crc32Result = 0xFFFFFFFF;
-            var buffer = new byte[BUFFER_SIZE];
-            var readSize = BUFFER_SIZE;
+            var buffer = new byte[BufferSize];
+            var readSize = BufferSize;
 
             TotalBytesRead = 0;
             var count = input.Read(buffer, 0, readSize);
@@ -151,34 +148,25 @@ internal class CRC32
     /// <returns>the CRC32 calculation</returns>
     public async Task<uint> GetCrc32AndCopyAsync(Stream input, Stream? output)
     {
-        if (input is null)
-        {
-            throw new NullReferenceException("The input stream must not be null.");
-        }
+        if (input is null) throw new NullReferenceException("The input stream must not be null.");
 
         unchecked
         {
             //UInt32 crc32Result;
             //crc32Result = 0xFFFFFFFF;
-            var buffer = new byte[BUFFER_SIZE];
-            var readSize = BUFFER_SIZE;
+            var buffer = new byte[BufferSize];
+            var readSize = BufferSize;
 
             TotalBytesRead = 0;
             var count = await input.ReadAsync(buffer.AsMemory(0, readSize));
-            if (output != null)
-            {
-                await output.WriteAsync(buffer.AsMemory(0, count));
-            }
+            if (output != null) await output.WriteAsync(buffer.AsMemory(0, count));
 
             TotalBytesRead += count;
             while (count > 0)
             {
                 SlurpBlock(buffer, 0, count);
                 count = await input.ReadAsync(buffer.AsMemory(0, readSize));
-                if (output != null)
-                {
-                    await output.WriteAsync(buffer.AsMemory(0, count));
-                }
+                if (output != null) await output.WriteAsync(buffer.AsMemory(0, count));
 
                 TotalBytesRead += count;
             }
@@ -196,17 +184,14 @@ internal class CRC32
     /// <param name="count">how many bytes within the block to slurp</param>
     public void SlurpBlock(byte[] block, int offset, int count)
     {
-        if (block is null)
-        {
-            throw new NullReferenceException("The data buffer must not be null.");
-        }
+        if (block is null) throw new NullReferenceException("The data buffer must not be null.");
 
         for (var i = 0; i < count; i++)
         {
             var x = offset + i;
             runningCrc32Result =
-                ((runningCrc32Result) >> 8)
-              ^ crc32Table[(block[x]) ^ ((runningCrc32Result) & 0x000000FF)];
+                (runningCrc32Result >> 8)
+              ^ Crc32Table[block[x] ^ (runningCrc32Result & 0x000000FF)];
         }
 
         TotalBytesRead += count;

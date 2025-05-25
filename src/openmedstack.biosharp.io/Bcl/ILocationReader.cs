@@ -1,10 +1,9 @@
-﻿namespace OpenMedStack.BioSharp.Io.Bcl
-{
-    using System;
-    using System.Collections.Generic;
-    using Model.Bcl;
+﻿namespace OpenMedStack.BioSharp.Io.Bcl;
 
-    public interface ILocationReader : IAsyncEnumerable<IPositionalData>, IAsyncDisposable
-    {
-    }
+using System;
+using System.Collections.Generic;
+using Model.Bcl;
+
+public interface ILocationReader : IAsyncEnumerable<IPositionalData>, IAsyncDisposable
+{
 }

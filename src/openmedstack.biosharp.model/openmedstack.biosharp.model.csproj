@@ -1,6 +1,6 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
-    <Import Project="../../shared.proj" />
+    <Import Project="../../shared.proj"/>
     <PropertyGroup>
         <RootNamespace>OpenMedStack.BioSharp.Model</RootNamespace>
     </PropertyGroup>

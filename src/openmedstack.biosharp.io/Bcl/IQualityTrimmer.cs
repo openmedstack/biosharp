@@ -1,10 +1,9 @@
-﻿namespace OpenMedStack.BioSharp.Io.Bcl
-{
-    using System;
-    using Model.Bcl;
+﻿namespace OpenMedStack.BioSharp.Io.Bcl;
 
-    public interface IQualityTrimmer
-    {
-        bool Trim(Memory<ReadData> data);
-    }
+using System;
+using Model.Bcl;
+
+public interface IQualityTrimmer
+{
+    bool Trim(Memory<ReadData> data);
 }

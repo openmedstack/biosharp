@@ -1,6 +1,5 @@
-﻿namespace OpenMedStack.BioSharp.Model
+﻿namespace OpenMedStack.BioSharp.Model;
+
+public interface IVariantMetaInformation
 {
-    public interface IVariantMetaInformation
-    {
-    }
 }

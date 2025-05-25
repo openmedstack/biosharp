@@ -1,6 +1,6 @@
 namespace OpenMedStack.BioSharp.Io.Sam;
 
-public enum CigarOp: byte
+public enum CigarOp : byte
 {
     Match = 0,
     Insertion = 1,

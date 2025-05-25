@@ -1,13 +1,12 @@
-﻿namespace OpenMedStack.BioSharp.Model.Bcl
+﻿namespace OpenMedStack.BioSharp.Model.Bcl;
+
+using System.Xml.Serialization;
+
+[XmlRoot(ElementName = "TileSet")]
+public class TileSet
 {
-    using System.Xml.Serialization;
+    [XmlElement(ElementName = "Tiles")] public Tiles? Tiles { get; set; }
 
-    [XmlRoot(ElementName = "TileSet")]
-    public class TileSet
-    {
-        [XmlElement(ElementName = "Tiles")] public Tiles? Tiles { get; set; }
-
-        [XmlAttribute(AttributeName = "TileNamingConvention")]
-        public string? TileNamingConvention { get; set; }
-    }
+    [XmlAttribute(AttributeName = "TileNamingConvention")]
+    public string? TileNamingConvention { get; set; }
 }

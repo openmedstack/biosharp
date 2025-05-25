@@ -1,78 +1,81 @@
-﻿namespace OpenMedStack.BioSharp.Model
+﻿namespace OpenMedStack.BioSharp.Model;
+
+using System;
+using System.Collections;
+using System.Collections.Generic;
+
+public class Sequence : IEnumerable<BasePair>
 {
-    using System;
-    using System.Collections;
-    using System.Collections.Generic;
+    private readonly ReadOnlyMemory<char> _data;
+    private readonly ReadOnlyMemory<char> _qualities;
 
-    public class Sequence : IEnumerable<BasePair>
+    internal Sequence(SequenceHeader header, ReadOnlyMemory<char> data, ReadOnlyMemory<char> qualities)
+        : this(header.ToString(), data, qualities)
     {
-        private readonly ReadOnlyMemory<char> _data;
-        private readonly ReadOnlyMemory<char> _qualities;
+        Header = header;
+    }
 
-        internal Sequence(SequenceHeader header, ReadOnlyMemory<char> data, ReadOnlyMemory<char> qualities)
-            : this(header.ToString(), data, qualities)
-        {
-            Header = header;
-        }
+    internal Sequence(string id, ReadOnlyMemory<char> data, ReadOnlyMemory<char> qualities)
+    {
+        if (data.Length != qualities.Length) throw new ArgumentException("Invalid data", nameof(qualities));
 
-        internal Sequence(string id, ReadOnlyMemory<char> data, ReadOnlyMemory<char> qualities)
-        {
-            if (data.Length != qualities.Length)
-            {
-                throw new ArgumentException("Invalid data", nameof(qualities));
-            }
+        Header = SequenceHeader.Empty;
+        Id = id;
+        _data = data;
+        _qualities = qualities;
+    }
 
-            Header = SequenceHeader.Empty;
-            Id = id;
-            _data = data;
-            _qualities = qualities;
-        }
+    public Sequence Slice(int start, int length)
+    {
+        if (start < 0 || length < 0 || start + length > _data.Length)
+            throw new ArgumentOutOfRangeException(nameof(start), "Invalid range for slicing sequence.");
 
-        public string Id { get; }
+        var dataSlice = _data.Slice(start, length);
+        var qualitiesSlice = _qualities.Slice(start, length);
+        return new Sequence($"{Id}:{start}-{start + length}", dataSlice, qualitiesSlice);
+    }
 
-        public SequenceHeader Header { get; }
+    public string Id { get; }
 
-        public int Length
-        {
-            get { return _data.Length; }
-        }
+    public SequenceHeader Header { get; }
 
-        public char this[int index]
-        {
-            get { return _data.Span[index]; }
-        }
+    public int Length
+    {
+        get { return _data.Length; }
+    }
 
-        public IEnumerator<BasePair> GetEnumerator()
-        {
-            for (var i = 0; i < _data.Length; i++)
-            {
-                yield return new BasePair(_data.Span[i], _qualities.Span[i]);
-            }
-        }
+    public char this[int index]
+    {
+        get { return _data.Span[index]; }
+    }
 
-        IEnumerator IEnumerable.GetEnumerator()
-        {
-            return GetEnumerator();
-        }
+    public IEnumerator<BasePair> GetEnumerator()
+    {
+        for (var i = 0; i < _data.Length; i++) yield return new BasePair(_data.Span[i], _qualities.Span[i]);
+    }
 
-        public ReadOnlyMemory<char> GetData()
-        {
-            return _data;
-        }
+    IEnumerator IEnumerable.GetEnumerator()
+    {
+        return GetEnumerator();
+    }
 
-        public ReadOnlyMemory<char> GetQuality()
-        {
-            return _qualities;
-        }
+    public ReadOnlyMemory<char> GetData()
+    {
+        return _data;
+    }
 
-        /// <inheritdoc />
-        public override string ToString()
-        {
-            return string.Concat($"{Id}:{Length}",
-                Environment.NewLine,
-                new string(_data.Span),
-                Environment.NewLine,
-                new string(_qualities.Span));
-        }
+    public ReadOnlyMemory<char> GetQuality()
+    {
+        return _qualities;
+    }
+
+    /// <inheritdoc />
+    public override string ToString()
+    {
+        return string.Concat($"{Id}:{Length}",
+            Environment.NewLine,
+            new string(_data.Span),
+            Environment.NewLine,
+            new string(_qualities.Span));
     }
 }

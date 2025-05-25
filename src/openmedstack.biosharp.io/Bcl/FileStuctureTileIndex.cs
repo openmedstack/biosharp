@@ -16,7 +16,7 @@ public class FileStuctureTileIndex : IAsyncEnumerable<TileIndexRecord>
 
     /// <inheritdoc />
     public async IAsyncEnumerator<TileIndexRecord> GetAsyncEnumerator(
-        CancellationToken cancellationToken = new ())
+        CancellationToken cancellationToken = new())
     {
         await Task.Yield();
         foreach (var tile in _tiles)

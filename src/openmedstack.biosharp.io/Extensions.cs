@@ -13,7 +13,7 @@ public static class Extensions
 
     public static uint Encode(this (uint count, CigarOp op) ops)
     {
-        return ops.count << 4 | (byte)ops.op;
+        return (ops.count << 4) | (byte)ops.op;
     }
 
     public static (uint count, CigarOp op) Decode(this uint ops)
@@ -32,10 +32,7 @@ public static class Extensions
             buffer.Add(SequenceChars[b & 0b1111]);
         }
 
-        if (buffer.Last() == '=')
-        {
-            buffer.RemoveAt(buffer.Count - 1);
-        }
+        if (buffer.Last() == '=') buffer.RemoveAt(buffer.Count - 1);
 
         return new string(CollectionsMarshal.AsSpan(buffer));
     }

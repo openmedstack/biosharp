@@ -1,31 +1,27 @@
-﻿namespace OpenMedStack.BioSharp.Model.Bcl
+﻿namespace OpenMedStack.BioSharp.Model.Bcl;
+
+using System.Xml.Serialization;
+
+[XmlRoot(ElementName = "Read")]
+public class Read
 {
-    using System.Xml.Serialization;
+    private string _isIndexedRead = "N";
+    public ReadType Type { get; set; }
 
-    [XmlRoot(ElementName = "Read")]
-    public class Read
+    [XmlAttribute(AttributeName = "Number")]
+    public int Number { get; set; }
+
+    [XmlAttribute(AttributeName = "NumCycles")]
+    public int NumCycles { get; set; }
+
+    [XmlAttribute(AttributeName = "IsIndexedRead")]
+    public string IsIndexedRead
     {
-        private string _isIndexedRead = "N";
-        public ReadType Type { get; set; }
-
-        [XmlAttribute(AttributeName = "Number")]
-        public int Number { get; set; }
-
-        [XmlAttribute(AttributeName = "NumCycles")]
-        public int NumCycles { get; set; }
-
-        [XmlAttribute(AttributeName = "IsIndexedRead")]
-        public string IsIndexedRead
+        get { return _isIndexedRead; }
+        set
         {
-            get { return _isIndexedRead; }
-            set
-            {
-                _isIndexedRead = value;
-                if (_isIndexedRead == "Y" && Type == ReadType.S)
-                {
-                    Type = ReadType.B;
-                }
-            }
+            _isIndexedRead = value;
+            if (_isIndexedRead == "Y" && Type == ReadType.S) Type = ReadType.B;
         }
     }
 }

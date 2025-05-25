@@ -12,8 +12,8 @@ public class BamWriterTests
     [Fact]
     public async Task CanWrite()
     {
-        var reader = new BamReader("mapt.NA12156.altex.bam",NullLogger<BamReader>.Instance);
-        var result = await reader.Read( CancellationToken.None);
+        var reader = new BamReader("mapt.NA12156.altex.bam", NullLogger<BamReader>.Instance);
+        var result = await reader.Read(CancellationToken.None);
 
         var alignmentCount = result.AlignmentSections.Length;
         await using (var output = new BgzfStream(File.Open("bam_test.bam", FileMode.Create, FileAccess.Write),
@@ -24,7 +24,7 @@ public class BamWriterTests
         }
 
         reader = new BamReader("bam_test.bam", NullLogger<BamReader>.Instance);
-        var readBack = await reader.Read( CancellationToken.None);
+        var readBack = await reader.Read(CancellationToken.None);
 
         Assert.Equal(alignmentCount, readBack.AlignmentSections.Length);
     }

@@ -63,9 +63,9 @@ public class BgzfStreamTests
         var data = Encoding.UTF8.GetBytes(second);
         await using (var bgzf = new BgzfStream(ms, CompressionLevel.NoCompression))
         {
-            await bgzf.WriteAsync(Encoding.UTF8.GetBytes(HelloWorld));
+            await bgzf.WriteAsync(Encoding.UTF8.GetBytes(HelloWorld), TestContext.Current.CancellationToken);
             position = bgzf.BlockOffset;
-            await bgzf.WriteAsync(data);
+            await bgzf.WriteAsync(data, TestContext.Current.CancellationToken);
         }
 
         ms.Position = 0;
@@ -75,9 +75,8 @@ public class BgzfStreamTests
         var readBuffer = new byte[14];
         var read = 0;
         while (read < readBuffer.Length)
-        {
-            read += await gzip.ReadAsync(readBuffer.AsMemory(read, readBuffer.Length - read));
-        }
+            read += await gzip.ReadAsync(readBuffer.AsMemory(read, readBuffer.Length - read),
+                TestContext.Current.CancellationToken);
 
         Assert.Equal(data, readBuffer);
         Assert.Equal(second, Encoding.UTF8.GetString(readBuffer));
@@ -98,10 +97,7 @@ public class BgzfStreamTests
         using var gzip = new BgzfStream(ms, CompressionMode.Decompress);
         var readBuffer = new byte[data.Length];
         var read = 0;
-        while (read < data.Length)
-        {
-            read += gzip.Read(readBuffer.AsSpan(read, readBuffer.Length - read));
-        }
+        while (read < data.Length) read += gzip.Read(readBuffer.AsSpan(read, readBuffer.Length - read));
 
         Assert.Equal(data, readBuffer);
         Assert.Equal(HelloWorld, Encoding.UTF8.GetString(readBuffer));
@@ -136,13 +132,13 @@ public class BgzfStreamTests
         using var ms = new MemoryStream();
         await using (var bgzf = new BgzfStream(ms, CompressionLevel.SmallestSize))
         {
-            await bgzf.WriteAsync(data);
+            await bgzf.WriteAsync(data, TestContext.Current.CancellationToken);
         }
 
         ms.Position = 0;
         await using var gzip = new BgzfStream(ms, CompressionMode.Decompress);
         var readBuffer = new byte[data.Length];
-        var read = await gzip.ReadAsync(readBuffer.AsMemory(0, data.Length));
+        var read = await gzip.ReadAsync(readBuffer.AsMemory(0, data.Length), TestContext.Current.CancellationToken);
 
         Assert.Equal(data, readBuffer);
         Assert.Equal(data.Length, read);
@@ -155,7 +151,7 @@ public class BgzfStreamTests
         await using var ms = new MemoryStream();
         await using (var bgzf = new BgzfStream(ms, CompressionLevel.Fastest))
         {
-            await bgzf.WriteAsync(data);
+            await bgzf.WriteAsync(data, TestContext.Current.CancellationToken);
         }
 
         ms.Position = 0;
@@ -163,9 +159,7 @@ public class BgzfStreamTests
         var readBuffer = new byte[data.Length];
         var read = 0;
         while (read < data.Length)
-        {
-            read += await gzip.ReadAsync(readBuffer, read, data.Length - read);
-        }
+            read += await gzip.ReadAsync(readBuffer, read, data.Length - read, TestContext.Current.CancellationToken);
 
         Assert.Equal(data, readBuffer);
         Assert.Equal(HelloWorld, Encoding.UTF8.GetString(readBuffer));

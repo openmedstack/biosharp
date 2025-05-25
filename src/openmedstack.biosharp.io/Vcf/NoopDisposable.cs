@@ -1,12 +1,11 @@
-﻿namespace OpenMedStack.BioSharp.Io.Vcf
-{
-    using System;
+﻿namespace OpenMedStack.BioSharp.Io.Vcf;
 
-    internal struct NoopDisposable : IDisposable
+using System;
+
+internal struct NoopDisposable : IDisposable
+{
+    /// <inheritdoc />
+    public void Dispose()
     {
-        /// <inheritdoc />
-        public void Dispose()
-        {
-        }
     }
 }
