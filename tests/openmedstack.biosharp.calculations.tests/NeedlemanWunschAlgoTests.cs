@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using OpenMedStack.BioSharp.Io.FastA;
 
 namespace OpenMedStack.BioSharp.Calculations.Tests;
@@ -13,6 +14,22 @@ using Xunit;
 
 public class NeedlemanWunschAlgoTests
 {
+    private static bool IsRealGzip(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            Span<byte> magic = stackalloc byte[2];
+            using var fs = new FileStream(path, FileMode.Open, FileAccess.Read);
+            return fs.Read(magic) == 2 && magic[0] == 0x1f && magic[1] == 0x8b;
+        }
+        catch { return false; }
+    }
+
     [Theory]
     [InlineData("SEND", "SEND", "AND", "A-ND")]
     [InlineData("SEND", "SEND", "END", "-END")]
@@ -32,6 +49,11 @@ public class NeedlemanWunschAlgoTests
     public async Task AlignSequences()
     {
         const string fastq = "ERR164409.fastq.gz";
+        if (!IsRealGzip(fastq))
+        {
+            Assert.Skip("ERR164409.fastq.gz is not available (Git LFS pointer or missing)");
+        }
+
         var reader = new FastQReader(NullLogger.Instance);
         var sequence = await reader.Read(fastq, CancellationToken.None).FirstAsync();
 
@@ -44,6 +66,11 @@ public class NeedlemanWunschAlgoTests
     public async Task AlignChromosomes()
     {
         const string fastq = "chr1.fa.gz";
+        if (!IsRealGzip(fastq))
+        {
+            Assert.Skip("chr1.fa.gz is not available (Git LFS pointer or missing)");
+        }
+
         var reader = new FastAReader();
         var sequence = await reader.ReadGz(fastq).FirstAsync();
         var sequence1 = sequence[500_000..500_100]; // Slice to a manageable size for testing
@@ -55,3 +82,4 @@ public class NeedlemanWunschAlgoTests
         Assert.Equal(0, aligned.index);
     }
 }
+

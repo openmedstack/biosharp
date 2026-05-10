@@ -63,7 +63,10 @@ public static class TipFinder
 
         while (current != null)
         {
-            if (!visited.Add(current.Id)) break; // cycle detected
+            if (!visited.Add(current.Id))
+            {
+                break; // cycle detected
+            }
 
             // If we hit a branch (out-degree > 1), this dead-end is a genuine tip
             if (current.OutDegree > 1)
@@ -88,14 +91,19 @@ public static class TipFinder
             // this dead-end is just the end of a linear chain. Not a tip.
             if (current.InDegree == 0)
                 // Chain start — return null (not a tip)
+            {
                 return null;
+            }
 
             tipNodes.Add(current.Id);
             var pred = GetPredecessor(current, nodes);
             current = pred;
         }
 
-        if (tipNodes.Count == 0 || !hitBranchOrMerge) return null; // Not a genuine tip
+        if (tipNodes.Count == 0 || !hitBranchOrMerge)
+        {
+            return null; // Not a genuine tip
+        }
 
         // Build sequence (reverse: tipNodes = [leaf, ..., next-to-branch])
         var sb = new System.Text.StringBuilder();
@@ -103,9 +111,13 @@ public static class TipFinder
         {
             var kmer = tipNodes[i];
             if (sb.Length == 0)
+            {
                 sb.Append(kmer);
+            }
             else
+            {
                 sb.Append(kmer[^1]); // overlap = k-1
+            }
         }
 
         return sb.ToString();
@@ -117,8 +129,12 @@ public static class TipFinder
     private static KmerNode? GetPredecessor(KmerNode node, IReadOnlyDictionary<string, KmerNode> nodes)
     {
         foreach (var pair in nodes)
+        {
             if (pair.Value.OutboundEdges.Contains(node.Id))
+            {
                 return pair.Value;
+            }
+        }
 
         return null;
     }
@@ -133,11 +149,16 @@ public static class TipFinder
     {
         var count = 0;
         foreach (var pair in nodes)
+        {
             if (pair.Value.OutboundEdges.Contains(node.Id))
             {
                 count++;
-                if (count > 1) return true;
+                if (count > 1)
+                {
+                    return true;
+                }
             }
+        }
 
         return count > 1;
     }

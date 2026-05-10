@@ -43,10 +43,16 @@ public class TileIndex : IAsyncEnumerable<TileIndexRecord>
             var tile = (int)BitConverter.ToUInt32(buf.AsSpan(0, 4));
 
             // Note: tile numbers are stored as unsigned ints; cast to int after reading.
-            if (tile < 0) throw new Exception("Tile number too large in " + _tileIndexFile.FullName);
+            if (tile < 0)
+            {
+                throw new Exception("Tile number too large in " + _tileIndexFile.FullName);
+            }
 
             var numClusters = BitConverter.ToInt32(buf.AsSpan(4, 4));
-            if (numClusters < 0) throw new Exception("Cluster size too large in " + _tileIndexFile.FullName);
+            if (numClusters < 0)
+            {
+                throw new Exception("Cluster size too large in " + _tileIndexFile.FullName);
+            }
 
             yield return new TileIndexRecord(tile, numClusters, absoluteRecordIndex, numTiles++);
 

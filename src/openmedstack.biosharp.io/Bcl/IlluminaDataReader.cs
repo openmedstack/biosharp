@@ -46,7 +46,10 @@ public class IlluminaDataReader
     [RequiresUnreferencedCode("Requires reference to RunInfo.")]
     public Run RunInfo()
     {
-        if (_run != null) return _run;
+        if (_run != null)
+        {
+            return _run;
+        }
 
         if (_runInfo == null)
         {
@@ -95,7 +98,10 @@ public class IlluminaDataReader
             var first = true;
             foreach (var group in _run.Reads.Read.GroupBy(r => r.NumCycles).OrderBy(x => x.Key))
             {
-                foreach (var read in group) read.Type = first ? ReadType.B : ReadType.T;
+                foreach (var read in group)
+                {
+                    read.Type = first ? ReadType.B : ReadType.T;
+                }
 
                 first = false;
             }
@@ -126,7 +132,9 @@ public class IlluminaDataReader
     {
         var runInfo = RunInfo();
         await foreach (var reader in CreateLaneReaders(lane, runInfo, cancellationToken).ConfigureAwait(false))
+        {
             yield return await reader.ConfigureAwait(false);
+        }
     }
 
     [RequiresUnreferencedCode("Requires reference to RunInfo.")]

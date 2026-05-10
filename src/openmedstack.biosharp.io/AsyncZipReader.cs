@@ -29,13 +29,19 @@ internal abstract class AsyncZipReader<T> : IDisposableAsyncEnumerable<T>
     public async ValueTask DisposeAsync()
     {
         _archive?.Dispose();
-        if (_stream != null) await _stream.DisposeAsync().ConfigureAwait(false);
+        if (_stream != null)
+        {
+            await _stream.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     /// <inheritdoc />
     public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = new())
     {
-        if (_enumerableCreated) throw new InvalidOperationException("Cannot create second enumerable");
+        if (_enumerableCreated)
+        {
+            throw new InvalidOperationException("Cannot create second enumerable");
+        }
 
         _enumerableCreated = true;
         return _asyncCreator().GetAsyncEnumerator(cancellationToken);

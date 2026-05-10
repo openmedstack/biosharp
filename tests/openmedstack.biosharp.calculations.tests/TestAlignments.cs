@@ -26,11 +26,17 @@ internal class TestAlignments
             var rf = i < refStr.Length ? refStr[i] : '-';
             var rd = i < readStr.Length ? readStr[i] : '-';
             if (rf == '-' || rd == '-')
+            {
                 sb.Append(' ');
+            }
             else if (char.ToUpper(rf) == char.ToUpper(rd))
+            {
                 sb.Append('|');
+            }
             else
+            {
                 sb.Append('X');
+            }
         }
 
         return sb.ToString();

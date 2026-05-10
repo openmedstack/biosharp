@@ -13,7 +13,10 @@ internal static class DictionaryExtensions
     {
         lock (dictionary)
         {
-            if (!dictionary.ContainsKey(key)) dictionary[key] = valueFactory(key, state);
+            if (!dictionary.ContainsKey(key))
+            {
+                dictionary[key] = valueFactory(key, state);
+            }
         }
 
         return dictionary[key];
@@ -24,7 +27,10 @@ internal static class DictionaryExtensions
     {
         lock (dictionary)
         {
-            if (!dictionary.ContainsKey(key)) dictionary[key] = new T();
+            if (!dictionary.ContainsKey(key))
+            {
+                dictionary[key] = new T();
+            }
         }
 
         return dictionary[key];

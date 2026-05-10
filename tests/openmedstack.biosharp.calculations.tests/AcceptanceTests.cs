@@ -49,6 +49,7 @@ public class AcceptanceTests : IDisposable
     public void Dispose()
     {
         if (Directory.Exists(_testDir))
+        {
             try
             {
                 Directory.Delete(_testDir, true);
@@ -57,6 +58,7 @@ public class AcceptanceTests : IDisposable
             {
                 /* ignore */
             }
+        }
     }
 
     // ================================================================
@@ -116,10 +118,16 @@ public class AcceptanceTests : IDisposable
         await engine.LoadTranscriptsAsync(_fastaPath);
 
         var annotations = new List<VariantAnnotation>();
-        await foreach (var ann in engine.AnnotateVcfAsync(_vcfPath, "NM_001", 5.0f)) annotations.Add(ann);
+        await foreach (var ann in engine.AnnotateVcfAsync(_vcfPath, "NM_001", 5.0f))
+        {
+            annotations.Add(ann);
+        }
 
         Assert.Equal(2, annotations.Count); // 2 variants for NM_001 only
-        foreach (var ann in annotations) Assert.Equal("NM_001", ann.AffectedGene);
+        foreach (var ann in annotations)
+        {
+            Assert.Equal("NM_001", ann.AffectedGene);
+        }
     }
 
     // AC1.5: AnnotateVcfAsync filters by quality (phred-scaled)
@@ -138,7 +146,10 @@ public class AcceptanceTests : IDisposable
         await engine.LoadTranscriptsAsync(_fastaPath);
 
         var annotations = new List<VariantAnnotation>();
-        await foreach (var ann in engine.AnnotateVcfAsync(vcfFilePath, null, 5.0f)) annotations.Add(ann);
+        await foreach (var ann in engine.AnnotateVcfAsync(vcfFilePath, null, 5.0f))
+        {
+            annotations.Add(ann);
+        }
 
         // Only high-quality variant annotated → 2 (one per transcript)
         Assert.Equal(2, annotations.Count);
@@ -1049,7 +1060,9 @@ public class AcceptanceTests : IDisposable
 
         var annotations = new List<VariantAnnotation>();
         await foreach (var ann in engine.AnnotateVcfAsync(vcfPath, null, 5.0f))
+        {
             annotations.Add(ann);
+        }
 
         Assert.Single(annotations);
     }

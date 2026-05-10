@@ -42,11 +42,16 @@ public static class StructuralVariantDetector
         var longTipThreshold = graph.K * 2;
         var tips = await TipFinder.FindTips(graph, longTipThreshold);
         foreach (var tip in tips)
+        {
             if (tip.IsLongTip)
             {
                 var tipVariant = AnalyzeTip(tip, reference, chromosome, refStart);
-                if (tipVariant != null) variants.Add(tipVariant);
+                if (tipVariant != null)
+                {
+                    variants.Add(tipVariant);
+                }
             }
+        }
 
         // Step 3: Sort variants by position
         variants.Sort((a, b) => a.Position.CompareTo(b.Position));
@@ -69,7 +74,10 @@ public static class StructuralVariantDetector
     {
         var variants = new List<LocalVariantResult>();
 
-        if (bubble.Paths.Length < 2) return variants;
+        if (bubble.Paths.Length < 2)
+        {
+            return variants;
+        }
 
         // Identify reference path by alignment to reference sequence, then coverage
         var scoredPaths = bubble.Paths.Select(p => new
@@ -86,18 +94,27 @@ public static class StructuralVariantDetector
         var refPathStr = sortedPaths[0].Path.Sequence;
         var altPathObjects = sortedPaths.Skip(1).ToList();
 
-        if (altPathObjects.Count == 0) return variants;
+        if (altPathObjects.Count == 0)
+        {
+            return variants;
+        }
 
         var position = FindPositionInReference(refPathStr, reference, refStart);
 
-        if (position < 0) return variants;
+        if (position < 0)
+        {
+            return variants;
+        }
 
         var altSequence = ConsensusFromAltPaths(altPathObjects.Select(x => x.Path).ToList());
         var altCoverage = altPathObjects.Sum(x => x.Path.Coverage);
         var refCoverage = sortedPaths[0].Path.Coverage;
         var totalCoverage = altCoverage + refCoverage;
 
-        if (totalCoverage == 0 || altCoverage == 0) return variants;
+        if (totalCoverage == 0 || altCoverage == 0)
+        {
+            return variants;
+        }
 
         var lengthDiff = altSequence.Length - refPathStr.Length;
         var variant = new LocalVariantResult
@@ -146,15 +163,22 @@ public static class StructuralVariantDetector
 
             if (lengthDiff > 0)
                 // Alt is longer - insertion
+            {
                 variant.SvType = SvType.Insertion;
+            }
             else
                 // Alt is shorter - deletion
+            {
                 variant.SvType = SvType.Deletion;
+            }
         }
         else
         {
             // Small length diff (< 5 bp or < 10% of ref) - treat as indel, not SV
-            if (altSequence != refPathStr) variant.IsStructuralVariant = false;
+            if (altSequence != refPathStr)
+            {
+                variant.IsStructuralVariant = false;
+            }
         }
 
         // Set assembly info
@@ -171,7 +195,9 @@ public static class StructuralVariantDetector
     private static LocalVariantResult? AnalyzeTip(Tip tip, string reference, string chromosome, int refStart)
     {
         if (tip.Length < 5) // minimum size for a meaningful variant
+        {
             return null;
+        }
 
         // The tip represents bases not in the reference - potential insertion
         var altCoverage = 1; // tip coverage would come from read depth, use 1 as default
@@ -182,7 +208,9 @@ public static class StructuralVariantDetector
 
         if (alignPos < 0)
             // Tip doesn't align to reference - still report as insertion at approximate position
+        {
             alignPos = refStart;
+        }
 
         var variant = new LocalVariantResult
         {
@@ -214,16 +242,28 @@ public static class StructuralVariantDetector
     /// </summary>
     private static int ComputeQuality(int altCount, int totalCount)
     {
-        if (totalCount == 0) return 0;
+        if (totalCount == 0)
+        {
+            return 0;
+        }
 
-        if (altCount == 0) return 0;
+        if (altCount == 0)
+        {
+            return 0;
+        }
 
         var ratio = (double)altCount / totalCount;
         // Simple Phred: Q = -10 * log10(1-ratio), clamped to [10, 40]
         var errorProb = 1.0 - ratio;
-        if (errorProb >= 1.0) return 0;
+        if (errorProb >= 1.0)
+        {
+            return 0;
+        }
 
-        if (errorProb <= 0.0) return 40;
+        if (errorProb <= 0.0)
+        {
+            return 40;
+        }
 
         var q = -10.0 * Math.Log10(errorProb);
         return Math.Clamp((int)q, 10, 40);
@@ -235,7 +275,10 @@ public static class StructuralVariantDetector
     /// </summary>
     private static int FindPositionInReference(string seq, string reference, int refStart)
     {
-        if (string.IsNullOrEmpty(seq) || seq.Length > reference.Length) return -1;
+        if (string.IsNullOrEmpty(seq) || seq.Length > reference.Length)
+        {
+            return -1;
+        }
 
         var bestPos = -1;
         var bestMatches = 0;
@@ -245,8 +288,12 @@ public static class StructuralVariantDetector
         {
             var matches = 0;
             for (var j = 0; j < window; j++)
+            {
                 if (char.ToUpper(reference[i + j]) == char.ToUpper(seq[j]))
+                {
                     matches++;
+                }
+            }
 
             if (matches > bestMatches)
             {
@@ -256,7 +303,10 @@ public static class StructuralVariantDetector
         }
 
         // Require at least 60% match for a valid position
-        if (bestPos < 0 || bestMatches < window * 0.6) return -1;
+        if (bestPos < 0 || bestMatches < window * 0.6)
+        {
+            return -1;
+        }
 
         return bestPos;
     }
@@ -267,9 +317,15 @@ public static class StructuralVariantDetector
     /// </summary>
     private static string ConsensusFromAltPaths(List<SequencePath> altPaths)
     {
-        if (altPaths.Count == 0) return string.Empty;
+        if (altPaths.Count == 0)
+        {
+            return string.Empty;
+        }
 
-        if (altPaths.Count == 1) return altPaths[0].Sequence;
+        if (altPaths.Count == 1)
+        {
+            return altPaths[0].Sequence;
+        }
 
         // Pad all sequences to the same length (use max length)
         var maxLen = altPaths.Max(p => p.Sequence.Length);
@@ -280,6 +336,7 @@ public static class StructuralVariantDetector
         {
             Array.Fill(baseCounts, 0);
             for (var j = 0; j < altPaths.Count; j++)
+            {
                 if (i < altPaths[j].Sequence.Length)
                 {
                     var baseChar = char.ToUpper(altPaths[j].Sequence[i]);
@@ -292,12 +349,17 @@ public static class StructuralVariantDetector
                         default: baseCounts[0]++; break; // N = ambiguous, default to A
                     }
                 }
+            }
 
             // Pick the base with highest coverage
             var maxIdx = 0;
             for (var b = 1; b < baseCounts.Length; b++)
+            {
                 if (baseCounts[b] > baseCounts[maxIdx])
+                {
                     maxIdx = b;
+                }
+            }
 
             consensus[i] = new char[] { 'A', 'C', 'G', 'T' }[maxIdx];
         }
@@ -313,7 +375,10 @@ public static class StructuralVariantDetector
     /// </summary>
     private static int ScoreAlignmentToRef(string seq, string reference, int refStart)
     {
-        if (string.IsNullOrEmpty(seq) || seq.Length > reference.Length) return 0;
+        if (string.IsNullOrEmpty(seq) || seq.Length > reference.Length)
+        {
+            return 0;
+        }
 
         var bestScores = 0;
 
@@ -322,10 +387,17 @@ public static class StructuralVariantDetector
         {
             var matches = 0;
             for (var j = 0; j < window; j++)
+            {
                 if (char.ToUpper(reference[i + j]) == char.ToUpper(seq[j]))
+                {
                     matches++;
+                }
+            }
 
-            if (matches > bestScores) bestScores = matches;
+            if (matches > bestScores)
+            {
+                bestScores = matches;
+            }
         }
 
         return bestScores;
@@ -337,7 +409,10 @@ public static class StructuralVariantDetector
     /// </summary>
     private static string ReverseComplement(string sequence)
     {
-        if (string.IsNullOrEmpty(sequence)) return sequence;
+        if (string.IsNullOrEmpty(sequence))
+        {
+            return sequence;
+        }
 
         var complement = new char[sequence.Length];
         for (var i = 0; i < sequence.Length; i++)
@@ -366,7 +441,9 @@ public static class StructuralVariantDetector
         foreach (var path in bubble.Paths)
         {
             if (path == null || string.IsNullOrEmpty(path.Sequence))
+            {
                 continue;
+            }
 
             var seq = path.Sequence.ToUpper();
             if (seq.Length < k)

@@ -32,7 +32,10 @@ public class AlignmentDebugTests
             lines.Add($"Left:{a?.LeftSoftClip} Right:{a?.RightSoftClip}");
             lines.Add($"Ref:{a?.AlignedReference ?? "null"}");
             lines.Add($"Read:{a?.AlignedRead ?? "null"}");
-            if (a != null) lines.Add($"Vis:|{SmithWatermanAligner.CreateAlignmentString(a)}|");
+            if (a != null)
+            {
+                lines.Add($"Vis:|{SmithWatermanAligner.CreateAlignmentString(a)}|");
+            }
 
             lines.Add("");
         }

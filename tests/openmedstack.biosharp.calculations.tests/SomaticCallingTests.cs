@@ -34,7 +34,10 @@ public class SomaticCallingTests
     {
         var filter = new DeBruijn.BloomFilter(200, 0.01);
         foreach (var kmer in kmers)
+        {
             filter.Add(kmer);
+        }
+
         return filter;
     }
 
@@ -42,7 +45,10 @@ public class SomaticCallingTests
     {
         var kmers = new List<string>();
         for (var i = 0; i <= sequence.Length - k; i++)
+        {
             kmers.Add(sequence.Substring(i, k));
+        }
+
         return kmers;
     }
 

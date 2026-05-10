@@ -39,16 +39,30 @@ public record AnnotationContext
     public IReadOnlyList<(int Start, int End)>? Introns { get; init; }
 
     /// <summary>
+    /// Optional exon coordinate pairs (1-based inclusive start and end).
+    /// Used by the splice site predictor to locate exon-intron boundaries for PWM scoring.
+    /// </summary>
+    public IReadOnlyList<(int Start, int End)>? ExonBoundaries { get; init; }
+
+    /// <summary>
     /// Creates a basic AnnotationContext from CDS boundaries and transcript length.
     /// </summary>
     public static AnnotationContext FromCdsBoundaries(int cdsStart, int cdsEnd, int transcriptLength)
     {
-        if (cdsStart < 1) throw new ArgumentException("CDS start must be >= 1.", nameof(cdsStart));
+        if (cdsStart < 1)
+        {
+            throw new ArgumentException("CDS start must be >= 1.", nameof(cdsStart));
+        }
 
-        if (cdsEnd < cdsStart) throw new ArgumentException("CDS end must be >= CDS start.", nameof(cdsEnd));
+        if (cdsEnd < cdsStart)
+        {
+            throw new ArgumentException("CDS end must be >= CDS start.", nameof(cdsEnd));
+        }
 
         if (transcriptLength < cdsEnd)
+        {
             throw new ArgumentException("Transcript length must be >= CDS end.", nameof(transcriptLength));
+        }
 
         return new AnnotationContext
         {
@@ -68,15 +82,30 @@ public record AnnotationContext
         int geneEnd,
         IReadOnlyList<(int Start, int End)>? introns = null)
     {
-        if (cdsStart < 1) throw new ArgumentException("CDS start must be >= 1.", nameof(cdsStart));
+        if (cdsStart < 1)
+        {
+            throw new ArgumentException("CDS start must be >= 1.", nameof(cdsStart));
+        }
 
-        if (cdsEnd < cdsStart) throw new ArgumentException("CDS end must be >= CDS start.", nameof(cdsEnd));
+        if (cdsEnd < cdsStart)
+        {
+            throw new ArgumentException("CDS end must be >= CDS start.", nameof(cdsEnd));
+        }
 
-        if (geneStart < 1) throw new ArgumentException("Gene start must be >= 1.", nameof(geneStart));
+        if (geneStart < 1)
+        {
+            throw new ArgumentException("Gene start must be >= 1.", nameof(geneStart));
+        }
 
-        if (geneEnd < geneStart) throw new ArgumentException("Gene end must be >= gene start.", nameof(geneEnd));
+        if (geneEnd < geneStart)
+        {
+            throw new ArgumentException("Gene end must be >= gene start.", nameof(geneEnd));
+        }
 
-        if (geneEnd < cdsEnd) throw new ArgumentException("Gene end must be >= CDS end.", nameof(geneEnd));
+        if (geneEnd < cdsEnd)
+        {
+            throw new ArgumentException("Gene end must be >= CDS end.", nameof(geneEnd));
+        }
 
         return new AnnotationContext
         {
@@ -99,7 +128,10 @@ public record AnnotationContext
         const int regionWindow = 3000;
 
         // Positions before the transcript are unknown
-        if (position < 1) return VariantConsequence.Unknown;
+        if (position < 1)
+        {
+            return VariantConsequence.Unknown;
+        }
 
         // Gene/intron annotation present: apply full logic
         if (GeneBoundaries != null)
@@ -107,32 +139,79 @@ public record AnnotationContext
             var (geneStart, geneEnd) = GeneBoundaries.Value;
 
             // Position outside the entire gene -- intergenic
-            if (position < geneStart || position > geneEnd) return VariantConsequence.Intergenic;
+            if (position < geneStart || position > geneEnd)
+            {
+                return VariantConsequence.Intergenic;
+            }
+
+            // Multi-exon transcripts: check introns first (position may be between two coding exons)
+            // Only do this when ExonBoundaries are available and we have more than one exon,
+            // because in that case the position can be between CdsStart and CdsEnd yet be intronic.
+            if (ExonBoundaries is { Count: > 1 })
+            {
+                foreach (var (intronStart, intronEnd) in Introns ?? Array.Empty<(int, int)>())
+                {
+                    if (position >= intronStart && position <= intronEnd)
+                    {
+                        // Check splice site proximity to nearest exon boundary
+                        if (position - intronStart < spliceWindow || intronEnd - position < spliceWindow)
+                        {
+                            return VariantConsequence.SpliceSite;
+                        }
+
+                        return VariantConsequence.Intronic;
+                    }
+                }
+            }
 
             // Splice site: within 3bp of exon-intron boundary (at CDS edges)
-            if (position >= CdsStart - spliceWindow && position < CdsStart) return VariantConsequence.SpliceSite;
+            if (position >= CdsStart - spliceWindow && position < CdsStart)
+            {
+                return VariantConsequence.SpliceSite;
+            }
 
-            if (position > CdsEnd && position <= CdsEnd + spliceWindow) return VariantConsequence.SpliceSite;
+            if (position > CdsEnd && position <= CdsEnd + spliceWindow)
+            {
+                return VariantConsequence.SpliceSite;
+            }
 
             // Within CDS -- coding region; let coding-variant classifier handle it
-            if (position >= CdsStart && position <= CdsEnd) return null;
+            if (position >= CdsStart && position <= CdsEnd)
+            {
+                return null;
+            }
 
-            // Introns have priority over upstream/downstream
+            // Introns have priority over upstream/downstream (single-exon or no ExonBoundaries)
             foreach (var (intronStart, intronEnd) in Introns ?? Array.Empty<(int, int)>())
+            {
                 if (position >= intronStart && position <= intronEnd)
+                {
+                    if (position - intronStart < spliceWindow || intronEnd - position < spliceWindow)
+                    {
+                        return VariantConsequence.SpliceSite;
+                    }
+
                     return VariantConsequence.Intronic;
+                }
+            }
 
             // Check if position is upstream or downstream of CDS
             if (position >= geneStart && position < CdsStart)
             {
-                if (CdsStart - position <= regionWindow) return VariantConsequence.Upstream;
+                if (CdsStart - position <= regionWindow)
+                {
+                    return VariantConsequence.Upstream;
+                }
 
                 return VariantConsequence.Intergenic;
             }
 
             if (position > CdsEnd && position <= geneEnd)
             {
-                if (position - CdsEnd <= regionWindow) return VariantConsequence.Downstream;
+                if (position - CdsEnd <= regionWindow)
+                {
+                    return VariantConsequence.Downstream;
+                }
 
                 return VariantConsequence.Intergenic;
             }
@@ -143,28 +222,48 @@ public record AnnotationContext
 
         // No gene/intron annotation: transcript-level logic (no splice window)
         // Within CDS — coding region; let coding-variant classifier handle it
-        if (position >= CdsStart && position <= CdsEnd) return null;
+        if (position >= CdsStart && position <= CdsEnd)
+        {
+            return null;
+        }
 
         // Beyond transcript -- intergenic
-        if (position > TranscriptLength) return VariantConsequence.Intergenic;
+        if (position > TranscriptLength)
+        {
+            return VariantConsequence.Intergenic;
+        }
 
         // Within 3kb before CDS -- upstream
-        if (position < CdsStart && CdsStart - position <= regionWindow) return VariantConsequence.Upstream;
+        if (position < CdsStart && CdsStart - position <= regionWindow)
+        {
+            return VariantConsequence.Upstream;
+        }
 
         // Within 3kb after CDS -- downstream
-        if (position > CdsEnd && position - CdsEnd <= regionWindow) return VariantConsequence.Downstream;
+        if (position > CdsEnd && position - CdsEnd <= regionWindow)
+        {
+            return VariantConsequence.Downstream;
+        }
 
         // Within transcript but outside CDS and beyond 3kb -> Intergenic
         // (without gene boundaries, anything more than 3kb from CDS is intergenic)
         if (position < CdsStart)
         {
-            if (CdsStart - position > regionWindow) return VariantConsequence.Intergenic;
+            if (CdsStart - position > regionWindow)
+            {
+                return VariantConsequence.Intergenic;
+            }
+
             return VariantConsequence.VariantInUtr;
         }
 
         if (position > CdsEnd)
         {
-            if (position - CdsEnd > regionWindow) return VariantConsequence.Intergenic;
+            if (position - CdsEnd > regionWindow)
+            {
+                return VariantConsequence.Intergenic;
+            }
+
             return VariantConsequence.VariantInUtr;
         }
 

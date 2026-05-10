@@ -12,9 +12,15 @@ public static class PearsonCorrelationExtensions
         var o = other.ToArray();
         var sourceArray = new double[1, s.Length];
         var otherArray = new double[1, s.Length];
-        for (var i = 0; i < s.Length; i++) sourceArray[0, i] = s[i];
+        for (var i = 0; i < s.Length; i++)
+        {
+            sourceArray[0, i] = s[i];
+        }
 
-        for (var i = 0; i < o.Length; i++) otherArray[0, i] = o[i];
+        for (var i = 0; i < o.Length; i++)
+        {
+            otherArray[0, i] = o[i];
+        }
 
         return sourceArray.CalculatePearsonCorrelation(otherArray);
     }
@@ -25,9 +31,15 @@ public static class PearsonCorrelationExtensions
         var o = other.ToArray();
         var sourceArray = new byte[1, s.Length];
         var otherArray = new byte[1, s.Length];
-        for (var i = 0; i < s.Length; i++) sourceArray[0, i] = s[i];
+        for (var i = 0; i < s.Length; i++)
+        {
+            sourceArray[0, i] = s[i];
+        }
 
-        for (var i = 0; i < o.Length; i++) otherArray[0, i] = o[i];
+        for (var i = 0; i < o.Length; i++)
+        {
+            otherArray[0, i] = o[i];
+        }
 
         return sourceArray.CalculatePearsonCorrelation(otherArray);
     }

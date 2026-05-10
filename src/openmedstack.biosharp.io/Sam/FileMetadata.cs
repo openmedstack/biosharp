@@ -1,7 +1,7 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Sam;
 
 using System;
-using System.Linq;
+using System.Collections.Generic;
 using System.Text;
 using System.Text.RegularExpressions;
 
@@ -10,7 +10,9 @@ public partial record FileMetadata
     internal FileMetadata(string vn, SortingOrder so, AlignmentGrouping go, string? subSort = null)
     {
         if (!FileMetadataRegex().IsMatch(vn))
+        {
             throw new ArgumentException("Value does not match regex: /^[0-9]+\\.[0-9]+$/", nameof(vn));
+        }
 
         Vn = vn;
         So = so;
@@ -27,10 +29,21 @@ public partial record FileMetadata
 
     public static FileMetadata Parse(string line)
     {
-        var parts = line[4..]
-            .Split('\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(x => x.Split(':'))
-            .ToDictionary(x => x[0], x => string.Join(':', x.Skip(1)));
+        var span = line.AsSpan(4);
+        Span<Range> tabRanges = stackalloc Range[20];
+        var count = span.Split(tabRanges, '\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var parts = new Dictionary<string, string>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var field = span[tabRanges[i]];
+            var colon = field.IndexOf(':');
+            if (colon < 1)
+            {
+                continue;
+            }
+
+            parts[new string(field[..colon])] = new string(field[(colon + 1)..]);
+        }
         return new FileMetadata(
             parts["VN"],
             parts.TryGetValue("SO", out var so) ? Enum.Parse<SortingOrder>(so, true) : SortingOrder.Unknown,
@@ -70,10 +83,16 @@ public partial record FileMetadata
     /// <inheritdoc />
     public override string ToString()
     {
-        if (So == SortingOrder.Unknown) return "";
+        if (So == SortingOrder.Unknown)
+        {
+            return "";
+        }
 
         var builder = new StringBuilder($"@HD\tVN:{Vn}\tSO:{So.ToString().ToLowerInvariant()}");
-        if (SubSort != null) builder.Append($"\tSS:{SubSort}");
+        if (SubSort != null)
+        {
+            builder.Append($"\tSS:{SubSort}");
+        }
 
         return builder.ToString();
     }

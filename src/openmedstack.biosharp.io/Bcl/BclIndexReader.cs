@@ -23,7 +23,10 @@ public class BclIndexReader : IBclIndexReader
     public BclIndexReader(FileSystemInfo bclFile)
     {
         var path = bclFile.FullName;
-        if (!Path.GetExtension(bclFile.Name).Equals(".bci", StringComparison.OrdinalIgnoreCase)) path += ".bci";
+        if (!Path.GetExtension(bclFile.Name).Equals(".bci", StringComparison.OrdinalIgnoreCase))
+        {
+            path += ".bci";
+        }
 
         BciFile = new FileInfo(path);
         _fileStream = new FileStream(
@@ -43,7 +46,10 @@ public class BclIndexReader : IBclIndexReader
 
     public async Task<BlockOffsetRecord> Get(int recordNumber)
     {
-        if (recordNumber < _nextRecordNumber) throw new ArgumentException("Can only read forward");
+        if (recordNumber < _nextRecordNumber)
+        {
+            throw new ArgumentException("Can only read forward");
+        }
 
         if (recordNumber > _nextRecordNumber)
         {

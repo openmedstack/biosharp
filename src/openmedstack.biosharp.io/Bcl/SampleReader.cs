@@ -47,9 +47,14 @@ public class SampleReader : IAsyncDisposable
         await foreach (var data in dataReader.Where(x => qualityTrimmer.Trim(x)).ConfigureAwait(false))
         {
             if (!await positionalEnumerator.MoveNextAsync().ConfigureAwait(false))
+            {
                 throw new Exception("Could not read position for sequence read");
+            }
 
-            if (!filter.MoveNext()) throw new Exception("Could not read filter for cluster");
+            if (!filter.MoveNext())
+            {
+                throw new Exception("Could not read filter for cluster");
+            }
 
             var barcode = _sample.ToString();
             var barcodes = data.Where(x => x.Type == ReadType.B)

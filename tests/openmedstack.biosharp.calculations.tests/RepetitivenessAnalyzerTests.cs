@@ -14,13 +14,20 @@ public class RepetitivenessAnalyzerTests
     private static DeBruijn.Bubble CreateBubble(string[] sequences, int[]? coverages = null)
     {
         if (sequences == null)
+        {
             throw new ArgumentNullException(nameof(sequences));
+        }
 
         var paths = new List<DeBruijn.SequencePath>(sequences.Length);
         if (coverages == null)
+        {
             coverages = new int[sequences.Length];
+        }
 
-        for (var i = 0; i < sequences.Length; i++) paths.Add(new DeBruijn.SequencePath(sequences[i], coverages[i]));
+        for (var i = 0; i < sequences.Length; i++)
+        {
+            paths.Add(new DeBruijn.SequencePath(sequences[i], coverages[i]));
+        }
 
         return new DeBruijn.Bubble("start", "end", paths.ToArray());
     }
@@ -32,7 +39,11 @@ public class RepetitivenessAnalyzerTests
         params (string key, int value)[] pairs)
     {
         var dict = new Dictionary<string, int>();
-        foreach (var (key, value) in pairs) dict[key] = value;
+        foreach (var (key, value) in pairs)
+        {
+            dict[key] = value;
+        }
+
         return dict;
     }
 

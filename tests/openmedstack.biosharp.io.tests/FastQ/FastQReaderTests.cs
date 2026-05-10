@@ -22,7 +22,9 @@ public class FastQReaderTests
     {
         var parser = new FastQReader(NullLogger.Instance);
         await foreach (var sequence in parser.Read(FastQerr, TestContext.Current.CancellationToken))
+        {
             Assert.NotEmpty(sequence);
+        }
     }
 
     [Fact]
@@ -50,5 +52,30 @@ public class FastQReaderTests
         Assert.True(output.Length > 0);
 
         await output.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task CanReadPlainFastQ()
+    {
+        var tempPath = Path.GetTempFileName();
+        try
+        {
+            await File.WriteAllTextAsync(tempPath, "@read1\nACGT\n+\nIIII\n", TestContext.Current.CancellationToken);
+            var parser = new FastQReader(NullLogger.Instance);
+
+            var sequences = new System.Collections.Generic.List<Model.Sequence>();
+            await foreach (var sequence in parser.Read(tempPath, TestContext.Current.CancellationToken))
+            {
+                sequences.Add(sequence);
+            }
+
+            Assert.Single(sequences);
+            Assert.Equal("read1", sequences[0].Id);
+            Assert.Equal("ACGT", sequences[0].GetData().Span.ToString());
+        }
+        finally
+        {
+            File.Delete(tempPath);
+        }
     }
 }

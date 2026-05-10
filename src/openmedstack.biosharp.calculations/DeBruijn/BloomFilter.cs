@@ -34,10 +34,14 @@ public sealed class BloomFilter
     public BloomFilter(int expectedInsertions, double targetFpr = 0.01)
     {
         if (expectedInsertions <= 0)
+        {
             throw new ArgumentOutOfRangeException(nameof(expectedInsertions), "Expected insertions must be positive.");
+        }
 
         if (targetFpr <= 0.0 || targetFpr >= 1.0)
+        {
             throw new ArgumentOutOfRangeException(nameof(targetFpr), "Expected FPR must be in (0, 1).");
+        }
 
         _targetFpr = targetFpr;
         _expectedInsertions = (ulong)expectedInsertions;
@@ -113,7 +117,11 @@ public sealed class BloomFilter
         {
             var m = TotalBits;
             var n = ActualInsertions;
-            if (n == 0 || m == 0) return 0.0;
+            if (n == 0 || m == 0)
+            {
+                return 0.0;
+            }
+
             var ratio = Math.Pow(1.0 - Math.Exp(-(double)_numHashFunctions * n / m), _numHashFunctions);
             return ratio;
         }
@@ -125,7 +133,9 @@ public sealed class BloomFilter
     public void Add(string kmer)
     {
         if (string.IsNullOrEmpty(kmer))
+        {
             throw new ArgumentException("K-mer must be non-empty.", nameof(kmer));
+        }
 
         var (h1, h2) = Hash(kmer);
         for (var i = 0; i < _numHashFunctions; i++)
@@ -149,8 +159,15 @@ public sealed class BloomFilter
     /// </summary>
     public void Add(IEnumerable<string> kmers)
     {
-        if (kmers == null) throw new ArgumentNullException(nameof(kmers));
-        foreach (var kmer in kmers) Add(kmer);
+        if (kmers == null)
+        {
+            throw new ArgumentNullException(nameof(kmers));
+        }
+
+        foreach (var kmer in kmers)
+        {
+            Add(kmer);
+        }
     }
 
     /// <summary>
@@ -160,7 +177,10 @@ public sealed class BloomFilter
     /// </summary>
     public bool Contains(string kmer)
     {
-        if (string.IsNullOrEmpty(kmer)) return false;
+        if (string.IsNullOrEmpty(kmer))
+        {
+            return false;
+        }
 
         var (h1, h2) = Hash(kmer);
 
@@ -173,7 +193,9 @@ public sealed class BloomFilter
             var mask = 1UL << bit;
 
             if ((_bits[word] & mask) == 0)
+            {
                 return false;
+            }
         }
 
         return true;
@@ -195,12 +217,20 @@ public sealed class BloomFilter
     /// </summary>
     public void Union(BloomFilter other)
     {
-        if (other == null) throw new ArgumentNullException(nameof(other));
+        if (other == null)
+        {
+            throw new ArgumentNullException(nameof(other));
+        }
+
         if (other._bitCount != _bitCount)
+        {
             throw new ArgumentException("Bloom filter bit array sizes must match for union.");
+        }
 
         for (var i = 0; i < _bits.Length; i++)
+        {
             _bits[i] |= other._bits[i];
+        }
 
         // Update actual insertions estimate
         _actualInsertions = EstimateInsertionsFromFill();
@@ -213,7 +243,11 @@ public sealed class BloomFilter
     {
         var setBits = CountSetBits();
         var m = TotalBits;
-        if (setBits >= m) return _expectedInsertions;
+        if (setBits >= m)
+        {
+            return _expectedInsertions;
+        }
+
         return (ulong)Math.Round((double)m / _numHashFunctions * Math.Log((double)m / (m - setBits)));
     }
 
@@ -224,7 +258,10 @@ public sealed class BloomFilter
     {
         ulong count = 0;
         for (var i = 0; i < _bits.Length; i++)
+        {
             count += (ulong)System.Numerics.BitOperations.PopCount(_bits[i]);
+        }
+
         return count;
     }
 
@@ -273,15 +310,24 @@ public sealed class BloomFilter
     /// </summary>
     public static BloomFilter Union(IReadOnlyList<BloomFilter> filters)
     {
-        if (filters == null) throw new ArgumentNullException(nameof(filters));
+        if (filters == null)
+        {
+            throw new ArgumentNullException(nameof(filters));
+        }
 
         // Validate: check nulls BEFORE accessing any member
         foreach (var filter in filters)
+        {
             if (filter == null)
+            {
                 throw new ArgumentNullException(nameof(filter));
+            }
+        }
 
         if (filters.Count == 0)
+        {
             return new BloomFilter(1, 0.01); // Empty filter
+        }
 
         // Use the parameter values from the first filter so hash params stay consistent
         var first = filters.First();
@@ -298,7 +344,9 @@ public sealed class BloomFilter
         {
             var limit = Math.Min((long)targetBitCount, (long)filter._bitCount);
             for (var i = 0; i < limit; i++)
+            {
                 result._bits[i] |= filter._bits[i];
+            }
         }
 
         return result;
@@ -311,18 +359,29 @@ public sealed class BloomFilter
     /// </summary>
     public static BloomFilter Intersection(IReadOnlyList<BloomFilter> filters)
     {
-        if (filters == null) throw new ArgumentNullException(nameof(filters));
+        if (filters == null)
+        {
+            throw new ArgumentNullException(nameof(filters));
+        }
 
         // Validate: check nulls BEFORE accessing any member (Min would NRE otherwise)
         foreach (var filter in filters)
+        {
             if (filter == null)
+            {
                 throw new ArgumentNullException(nameof(filter));
+            }
+        }
 
         if (filters.Count == 0)
+        {
             return new BloomFilter(1, 0.01); // Empty filter
+        }
 
         if (filters.Count == 1)
+        {
             return filters[0];
+        }
 
         // Use the same m and bit array size from the first filter so hash positions stay consistent
         var first = filters[0];
@@ -333,11 +392,17 @@ public sealed class BloomFilter
         // AND all bit arrays together
         var resultBits = new ulong[bitCount];
         for (var i = 0; i < bitCount; i++)
+        {
             resultBits[i] = (ulong)filters[0]._bits[i];
+        }
 
         for (var f = 1; f < filters.Count; f++)
+        {
             for (var i = 0; i < bitCount; i++)
+            {
                 resultBits[i] &= filters[f]._bits[i];
+            }
+        }
 
         var result = new BloomFilter(mBits, bitCount, resultBits, first._numHashFunctions);
 

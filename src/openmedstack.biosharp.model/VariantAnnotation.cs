@@ -7,6 +7,28 @@ namespace OpenMedStack.BioSharp.Model;
 /// </summary>
 public record VariantAnnotation
 {
+    /// <summary>Chromosome or reference name.</summary>
+    public string Chromosome { get; init; } = string.Empty;
+
+    /// <summary>1-based position on the reference.</summary>
+    public int Position { get; init; }
+
+    /// <summary>Reference allele.</summary>
+    public string Reference { get; init; } = string.Empty;
+
+    /// <summary>Alternate allele.</summary>
+    public string Alternate { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Combined HGVS notation string (e.g. "NM_001.1:c.100A>T").
+    /// Convenience alias for HgvsCoding when set.
+    /// </summary>
+    public string HgvsNotation { get; init; } = string.Empty;
+
+    /// <summary>
+    /// Clinical significance (from ClinVar or manual annotation).
+    /// </summary>
+    public string ClinicalSignificance { get; init; } = string.Empty;
     /// <summary>
     /// Gene or transcript identifier the annotation was made against.
     /// </summary>

@@ -52,7 +52,10 @@ public class BamReader
         var arrayPool = ArrayPool<byte>.Shared;
         var buffer = arrayPool.Rent(1024);
         var mem = await _stream.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
-        if (mem.Length != 4 || !mem.Span.SequenceEqual(MagicHeader)) throw new InvalidDataException("Invalid Header");
+        if (mem.Length != 4 || !mem.Span.SequenceEqual(MagicHeader))
+        {
+            throw new InvalidDataException("Invalid Header");
+        }
 
         mem = await _stream.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
 
@@ -81,7 +84,10 @@ public class BamReader
         var (fmd, pg, rg, rs) = ReadFileMetadata(text);
         refSeqs.UnionWith(rs);
 
-        if (refSeqs.Count != numberOfReferences) throw new InvalidDataException("Inconsistent reference count");
+        if (refSeqs.Count != numberOfReferences)
+        {
+            throw new InvalidDataException("Inconsistent reference count");
+        }
 
         var alignments = await ReadAlignments(cancellationToken).ToListAsync(cancellationToken);
 
@@ -97,13 +103,18 @@ public class BamReader
             {
                 mem = await _stream.FillBuffer(buffer.AsMemory(0, 4), true, token)
                     .ConfigureAwait(false);
-                if (mem.Length < 4) break;
+                if (mem.Length < 4)
+                {
+                    break;
+                }
 
                 var blockSize = (int)BitConverter.ToUInt32(mem.Span);
                 var blockBuffer = arrayPool.Rent(blockSize);
                 var block = await _stream.FillBuffer(blockBuffer.AsMemory(0, blockSize), token)
                     .ConfigureAwait(false);
-                yield return ProcessBlock(block.ToArray().AsMemory());
+                var section = ProcessBlock(block);
+                arrayPool.Return(blockBuffer);
+                yield return section;
             }
         }
     }
@@ -119,7 +130,7 @@ public class BamReader
         {
             foreach (var line in text.Split('\n', StringSplitOptions.TrimEntries))
             {
-                var span = line.Substring(1, 2);
+                var span = line.AsSpan(1, 2);
                 switch (span)
                 {
                     case "HD":
@@ -194,9 +205,15 @@ public class BamReader
         var tags = ReadTags(block[tagStart..]).ToArray();
 
         var sequence = block.Slice(sequenceStart, sequenceLength).Span.ReadSequence();
-        var qualScores = block.Slice(qStart, baseSeqLength);
-        var qualityChars = Array.ConvertAll(qualScores.ToArray(), b => b == 255 ? ' ' : (char)b);
-        var quality = new string(qualityChars);
+        var qualMemory = block.Slice(qStart, baseSeqLength);
+        var quality = string.Create(baseSeqLength, qualMemory, static (chars, mem) =>
+        {
+            var bytes = mem.Span;
+            for (var i = 0; i < bytes.Length; i++)
+            {
+                chars[i] = bytes[i] == 255 ? ' ' : (char)bytes[i];
+            }
+        });
         return new AlignmentSection(
             qName,
             alignmentFlag,
@@ -218,9 +235,10 @@ public class BamReader
         var position = 0;
         while (position < memory.Length)
         {
-            var key = Encoding.UTF8.GetString(memory.Span[..2]);
-            var type = (char)memory.Span[2];
-            var (length, value) = ReadTagValue(memory.Span[3..], type);
+            var slice = memory.Span[position..];
+            var key = Encoding.ASCII.GetString(slice[..2]);
+            var type = (char)slice[2];
+            var (length, value) = ReadTagValue(slice[3..], type);
 
             position += 3 + length;
             yield return new AlignmentTag(key, type, value);
@@ -362,9 +380,15 @@ public class BamReader
         // Collect all chunks from matching bins
         var allChunks = new List<(uint bin, Chunk chunk)>();
         foreach (var bin in bins)
+        {
             if ((int)bin < sequenceIndex.Content.Length)
+            {
                 foreach (var chunk in sequenceIndex.Content[bin].Chunks)
+                {
                     allChunks.Add((bin, chunk));
+                }
+            }
+        }
 
         if (allChunks.Count == 0)
         {
@@ -382,6 +406,9 @@ public class BamReader
             FileAccess.Read,
             FileShare.Read);
 
+        var blockSizeBuf = ArrayPool<byte>.Shared.Rent(4);
+        try
+        {
         foreach (var (_, chunk) in allChunks)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -389,37 +416,56 @@ public class BamReader
             fileStream.Seek((long)chunk.Begin, SeekOrigin.Begin);
 
             // Read block size
-            var blockSizeBuf = new byte[4];
-            var readCount = await fileStream.ReadAsync(blockSizeBuf, 0, 4, cancellationToken);
-            if (readCount < 4) break;
+            var readCount = await fileStream.ReadAsync(blockSizeBuf.AsMemory(0, 4), cancellationToken);
+            if (readCount < 4)
+            {
+                break;
+            }
 
-            var blockSize = (int)BitConverter.ToUInt32(blockSizeBuf);
-            if (blockSize == 0) continue;
+            var blockSize = (int)BitConverter.ToUInt32(blockSizeBuf.AsSpan(0, 4));
+            if (blockSize == 0)
+            {
+                continue;
+            }
 
-            var blockBuf = new byte[blockSize];
+            var blockBuf = ArrayPool<byte>.Shared.Rent(blockSize);
+            try
+            {
             var totalRead = 0;
             while (totalRead < blockSize)
             {
                 var remaining = blockSize - totalRead;
                 var actuallyRead =
-                    await fileStream.ReadAsync(blockBuf, totalRead, Math.Min(remaining, 8192), cancellationToken);
-                if (actuallyRead == 0) break;
+                    await fileStream.ReadAsync(blockBuf.AsMemory(totalRead, Math.Min(remaining, 8192)), cancellationToken);
+                if (actuallyRead == 0)
+                {
+                    break;
+                }
 
                 totalRead += actuallyRead;
             }
 
-            if (totalRead < blockSize) continue;
+            if (totalRead < blockSize)
+            {
+                continue;
+            }
 
             var block = new ReadOnlyMemory<byte>(blockBuf, 0, totalRead);
 
             // Extract position from alignment block
-            if (block.Length < 8) continue;
+            if (block.Length < 8)
+            {
+                continue;
+            }
 
             var position = BitConverter.ToInt32(block.Slice(4, 4).Span) + 1;
 
             // Check if unmapped
             var alignmentFlag = (AlignmentSection.AlignmentFlag)BitConverter.ToUInt16(block.Slice(14, 2).Span);
-            if ((alignmentFlag & AlignmentSection.AlignmentFlag.SegmentUnmapped) != 0) continue;
+            if ((alignmentFlag & AlignmentSection.AlignmentFlag.SegmentUnmapped) != 0)
+            {
+                continue;
+            }
 
             var refConsumed = 0;
             var nameLen = (int)block.Span[8];
@@ -434,14 +480,23 @@ public class BamReader
                 var opcode = (byte)(encoded & 0xf);
                 // M(0), D(7), N(8), =(9), X(10) consume reference
                 if (opcode == 0 || opcode == 4 || opcode == 7 || opcode == 8 || opcode == 9 || opcode == 10)
+                {
                     refConsumed += (int)count;
+                }
             }
 
             var alignmentEnd = position + refConsumed - 1;
 
             // Overlap check: [start, end) overlaps [position, alignmentEnd]
-            if (alignmentEnd >= start && position <= end) yield return ProcessBlock(block.ToArray().AsMemory());
+            if (alignmentEnd >= start && position <= end)
+            {
+                yield return ProcessBlock(block.ToArray().AsMemory());
+            }
+            } // end try blockBuf
+            finally { ArrayPool<byte>.Shared.Return(blockBuf); }
         }
+        } // end try blockSizeBuf
+        finally { ArrayPool<byte>.Shared.Return(blockSizeBuf); }
     }
 
     /// <summary>
@@ -455,7 +510,11 @@ public class BamReader
     {
         var results = new List<AlignmentSection>();
         await foreach (var section in QueryRegionAsync(referenceName, start, end, cancellationToken)
-            .ConfigureAwait(false)) results.Add(section);
+            .ConfigureAwait(false))
+        {
+            results.Add(section);
+        }
+
         return results;
     }
 
@@ -469,7 +528,10 @@ public class BamReader
             var idx = 0;
             foreach (var sq in _readDefinition.Sq)
             {
-                if (sq != null && sq.Name == referenceName) return idx;
+                if (sq != null && sq.Name == referenceName)
+                {
+                    return idx;
+                }
 
                 idx++;
             }
@@ -488,13 +550,17 @@ public class BamReader
             var buf = new byte[1024];
             await header.FillBuffer(buf.AsMemory(0, 4), cancellationToken);
             var textLen = (int)BitConverter.ToUInt32(buf);
-            if (textLen <= 0 || textLen > 100000) return -1;
+            if (textLen <= 0 || textLen > 100000)
+            {
+                return -1;
+            }
 
             await header.FillBuffer(buf.AsMemory(0, textLen), cancellationToken);
             var headerText = Encoding.UTF8.GetString(buf[..(textLen - 1)]);
 
             var refIdx = 0;
             foreach (var line in headerText.Split('\n', StringSplitOptions.TrimEntries))
+            {
                 if (line.StartsWith("@SQ"))
                 {
                     var nameStart = line.IndexOf("SN:");
@@ -502,11 +568,15 @@ public class BamReader
                     {
                         var snParts = line[(nameStart + 3)..].Split('\t');
                         var sn = snParts[0][3..]; // remove "SN:" prefix
-                        if (sn == referenceName) return refIdx;
+                        if (sn == referenceName)
+                        {
+                            return refIdx;
+                        }
                     }
 
                     refIdx++;
                 }
+            }
         }
 
         return -1;

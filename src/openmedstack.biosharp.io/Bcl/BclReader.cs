@@ -44,7 +44,7 @@ using Model.Bcl;
 * <p/>
 * So the output base/quality will be a (T/34)
 */
-public class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
+public partial class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
 {
     private readonly ILogger<BclReader> _logger;
     private const int DefaultQueueSize = 256; //1024 * 1024;
@@ -137,7 +137,10 @@ public class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
         var stream = await Open(bclFileInfo, new BlockOffsetRecord(0, 0)).ConfigureAwait(false);
         var read = await stream.ReadAsync(byteBuffer.AsMemory()).ConfigureAwait(false);
 
-        if (read != HeaderSize) throw new IOException($"BCL {bclFileInfo.FullName} has invalid header structure.");
+        if (read != HeaderSize)
+        {
+            throw new IOException($"BCL {bclFileInfo.FullName} has invalid header structure.");
+        }
 
         reader.NumClustersPerCycle[0] = BitConverter.ToInt32(byteBuffer);
 
@@ -218,7 +221,10 @@ public class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
         var arrayPool = ArrayPool<byte>.Shared;
         var discard = arrayPool.Rent(offset.BlockOffset);
         var read = stream.Read(discard.AsSpan(0, offset.BlockOffset));
-        if (read != offset.BlockOffset) throw new Exception("Could not go to block offset");
+        if (read != offset.BlockOffset)
+        {
+            throw new Exception("Could not go to block offset");
+        }
 
         arrayPool.Return(discard);
         //var ms = new MemoryStream();
@@ -230,10 +236,7 @@ public class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
 
     private async IAsyncEnumerable<ReadData[]> Read([EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        _logger.LogInformation(
-            "Start reading {clusters} clusters from tile {tile}",
-            _tileIndexRecord.NumClustersInTile == int.MaxValue ? "all" : _tileIndexRecord.NumClustersInTile,
-            _tileIndexRecord.Tile);
+        LogStartReadingClustersClustersFromTileTile(_tileIndexRecord.NumClustersInTile == int.MaxValue ? "all" : _tileIndexRecord.NumClustersInTile, _tileIndexRecord.Tile);
 
         var queue = ArrayPool<byte>.Shared.Rent(_queueSize);
         var bclDataArray = ArrayPool<BclData>.Shared.Rent(_queueSize);
@@ -243,9 +246,15 @@ public class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
             var buffer = queue.AsMemory(0, _queueSize);
             // See how many clusters we can read and then make BclData objects for them
             var clustersRead = await Streams[0].FillBuffer(buffer, true, cancellationToken).ConfigureAwait(false);
-            if (clustersRead.Length == 0) break;
+            if (clustersRead.Length == 0)
+            {
+                break;
+            }
 
-            for (var i = 0; i < clustersRead.Length; ++i) bclDataArray[i] = new BclData(OutputLengths);
+            for (var i = 0; i < clustersRead.Length; ++i)
+            {
+                bclDataArray[i] = new BclData(OutputLengths);
+            }
 
             var bclDatas = bclDataArray.AsMemory(0, clustersRead.Length);
             // Process the data from the first cycle since we had to read it to know how many clusters we'd get
@@ -270,29 +279,35 @@ public class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
             foreach (var bclData in bclDataArray.Take(clustersRead.Length))
             {
                 if (_applyEamss)
+                {
                     for (var i = 0; i < bclData.Bases.Length; i++)
+                    {
                         RunEamssForReadInPlace(bclData.Bases[i], bclData.Qualities[i]);
+                    }
+                }
 
                 var ri = readIndex++;
                 var readData = new ReadData[bclData.Bases.Length];
                 for (var i = 0; i < bclData.Bases.Length; i++)
+                {
                     readData[i] = new ReadData(_tileIndexRecord.Tile, ReadTypes[i], bclData.Bases[i],
                         bclData.Qualities[i], ri);
+                }
+
                 yield return readData;
-                if (readIndex == _tileIndexRecord.NumClustersInTile) break;
+                if (readIndex == _tileIndexRecord.NumClustersInTile)
+                {
+                    break;
+                }
             }
         }
 
         ArrayPool<byte>.Shared.Return(queue);
         ArrayPool<BclData>.Shared.Return(bclDataArray);
 
-        _logger.LogInformation(
-            "Finished reading {readIndex} clusters from tile {tile} out of {numberOfClusters}",
-            readIndex,
-            _tileIndexRecord.Tile,
-            _tileIndexRecord.NumClustersInTile == int.MaxValue
-                ? "whole file"
-                : _tileIndexRecord.NumClustersInTile);
+        LogFinishedReadingReadindexClustersFromTileTileOutOfNumberofclusters(readIndex, _tileIndexRecord.Tile, _tileIndexRecord.NumClustersInTile == int.MaxValue
+            ? "whole file"
+            : _tileIndexRecord.NumClustersInTile);
     }
 
     private async Task ReadAndUpdateData(
@@ -415,9 +430,15 @@ public class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
         {
             var quality = 0xff & qualities[i];
 
-            if (quality >= EamssM2GeThreshold)
-                eamssTally -= 2;
-            else if (quality < EamssS1LtThreshold) eamssTally += 1;
+            switch (quality)
+            {
+                case >= EamssM2GeThreshold:
+                    eamssTally -= 2;
+                    break;
+                case < EamssS1LtThreshold:
+                    eamssTally += 1;
+                    break;
+            }
 
             if (eamssTally >= maxTally)
             {
@@ -426,34 +447,44 @@ public class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
             }
         }
 
-        if (maxTally >= 1)
+        if (maxTally < 1)
         {
-            var numGs = 0;
-            var exceptions = 0;
+            return;
+        }
 
-            for (var i = indexOfMax; i >= 0; i--)
-                if (bases[i] == 'G')
+        var numGs = 0;
+        var exceptions = 0;
+
+        for (var i = indexOfMax; i >= 0; i--)
+        {
+            if (bases[i] == 'G')
+            {
+                ++numGs;
+            }
+            else
+            {
+                var skip = SkipBy(i, numGs, exceptions, bases);
+                if (skip > -1)
                 {
-                    ++numGs;
+                    exceptions += skip;
+                    numGs += skip;
+                    i -= skip - 1;
                 }
                 else
                 {
-                    var skip = SkipBy(i, numGs, exceptions, bases);
-                    if (skip > -1)
-                    {
-                        exceptions += skip;
-                        numGs += skip;
-                        i -= skip - 1;
-                    }
-                    else
-                    {
-                        break;
-                    }
+                    break;
                 }
+            }
+        }
 
-            if (numGs >= 10) indexOfMax = indexOfMax + 1 - numGs;
+        if (numGs >= 10)
+        {
+            indexOfMax = indexOfMax + 1 - numGs;
+        }
 
-            for (var i = indexOfMax; i < qualities.Length; i++) qualities[i] = MaskingQuality;
+        for (var i = indexOfMax; i < qualities.Length; i++)
+        {
+            qualities[i] = MaskingQuality;
         }
     }
 
@@ -475,13 +506,18 @@ public class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
         for (var backup = 1; backup <= index; backup++)
         {
             var exceptionLimit = Math.Max((numGs + backup) / 10, 1);
-            if (prevExceptions + backup > exceptionLimit) break;
-
-            if (bases[index - backup] == 'G')
+            if (prevExceptions + backup > exceptionLimit)
             {
-                skip = backup;
                 break;
             }
+
+            if (bases[index - backup] != 'G')
+            {
+                continue;
+            }
+
+            skip = backup;
+            break;
         }
 
         return skip;
@@ -492,11 +528,15 @@ public class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
     {
         await Task.WhenAll(Streams.Select(x => x.DisposeAsync().AsTask().ContinueWith(t =>
         {
-            if (t.Exception is not null)
+            if (t.Exception is null)
             {
-                _logger.LogError(t.Exception, "{msg}", t.Exception.Message);
-                foreach (var innerException in t.Exception.InnerExceptions)
-                    _logger.LogError(innerException, "{msg}", innerException.Message);
+                return;
+            }
+
+            _logger.LogError(t.Exception, "{Msg}", t.Exception.Message);
+            foreach (var innerException in t.Exception.InnerExceptions)
+            {
+                _logger.LogError(innerException, "{Msg}", innerException.Message);
             }
         }))).ConfigureAwait(false);
         GC.SuppressFinalize(this);
@@ -530,4 +570,10 @@ public class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
 
         public char[][] Qualities { get; }
     }
+
+    [LoggerMessage(LogLevel.Information, "Start reading {clusters} clusters from tile {tile}")]
+    partial void LogStartReadingClustersClustersFromTileTile(object? clusters, int tile);
+
+    [LoggerMessage(LogLevel.Information, "Finished reading {ReadIndex} clusters from tile {Tile} out of {NumberOfClusters}")]
+    partial void LogFinishedReadingReadindexClustersFromTileTileOutOfNumberofclusters(int readIndex, int tile, object? numberOfClusters);
 }

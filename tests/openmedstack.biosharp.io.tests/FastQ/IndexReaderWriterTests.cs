@@ -26,7 +26,9 @@ public class IndexReaderWriterTests
             ("3", new BlockOffsetRecord(0, 867))
         };
         foreach (var (key, blockOffsetRecord) in indexEntries)
+        {
             await _sut.Write(key, blockOffsetRecord, TestContext.Current.CancellationToken);
+        }
 
         await _stream.FlushAsync(TestContext.Current.CancellationToken);
         _stream.Position = 0;

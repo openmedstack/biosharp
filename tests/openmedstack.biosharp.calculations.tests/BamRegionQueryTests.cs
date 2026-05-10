@@ -1,6 +1,7 @@
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Logging.Abstractions;
 using OpenMedStack.BioSharp.Io.Bam;
 using Xunit;
 
@@ -19,13 +20,15 @@ public partial class BamRegionQueryTests
     {
         // mapt.NA12156 has an empty header (textLen=0), but may still have regions
         // We test that the call doesn't throw
-        var bamPath = "/Users/jacobreimers/code/openmedstack/biosharp/data/mapt.NA12156.altex.bam";
+        var bamPath = "data/mapt.NA12156.altex.bam";
         var baiPath = bamPath + ".bai";
 
-        if (!File.Exists(baiPath)) Assert.Skip("BAM index not available");
+        if (!File.Exists(baiPath))
+        {
+            Assert.Skip("BAM index not available");
+        }
 
-        var reader = new BamReader(bamPath,
-            new Microsoft.Extensions.Logging.Abstractions.NullLogger<BamReader>());
+        var reader = new BamReader(bamPath, new NullLogger<BamReader>());
 
         // This tests the QueryRegionAsync path - no BamReader.Read() was called so
         // there are no reference sequence names. The BAM header is empty (textLen=0)
@@ -101,6 +104,9 @@ public partial class BamRegionQueryTests
         var count = BamIndexCalculator.Reg2Bins(100, 100, binList);
         Assert.True(count >= 0);
         // Verify no bins were written beyond count
-        for (var i = 0; i < count && i < 60596; i++) Assert.True(binList[i] <= 60596);
+        for (var i = 0; i < count && i < 60596; i++)
+        {
+            Assert.True(binList[i] <= 60596);
+        }
     }
 }

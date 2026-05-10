@@ -43,7 +43,10 @@ public class DeBruijnGraphTests
         await foreach (var output in graph.Assemble(CancellationToken.None).ConfigureAwait(false))
         {
             _output.WriteLine(output);
-            if (output == resultSeq) sequencesFound++;
+            if (output == resultSeq)
+            {
+                sequencesFound++;
+            }
         }
 
         Assert.True(sequencesFound > 0);
@@ -72,7 +75,10 @@ public class DeBruijnGraphTests
         var sequencesFound = 0;
         await foreach (var output in graph.Assemble(CancellationToken.None).ConfigureAwait(false))
         {
-            if (output != resultSeq) continue;
+            if (output != resultSeq)
+            {
+                continue;
+            }
 
             _output.WriteLine(output);
             sequencesFound++;
@@ -84,6 +90,13 @@ public class DeBruijnGraphTests
     [Fact]
     public async Task CanAssembleFromFiles()
     {
+        const string path = "ERR164409.fastq.gz";
+        // Skip when the file is a Git LFS pointer or not present.
+        if (!File.Exists(path) || !IsRealGzip(path))
+        {
+            Assert.Skip("Sample FASTQ not available (Git LFS pointer or missing)");
+        }
+
         var output = File.OpenWrite("output.log");
         await using var _ = output.ConfigureAwait(false);
         var writer = new StreamWriter(output, Encoding.UTF8);
@@ -91,9 +104,21 @@ public class DeBruijnGraphTests
         var reader = new FastQReader(new XUnitLogger("test", _output, null));
         var graph = new DeBruijnGraph(
             1,
-            reader.Read(
-                "ERR164409.fastq.gz", TestContext.Current.CancellationToken));
+            reader.Read(path, TestContext.Current.CancellationToken));
         await foreach (var seq in graph.Assemble(CancellationToken.None).ConfigureAwait(false))
+        {
             await writer.WriteLineAsync(seq);
+        }
+    }
+
+    private static bool IsRealGzip(string path)
+    {
+        try
+        {
+            using var fs = File.OpenRead(path);
+            var magic = new byte[2];
+            return fs.Read(magic, 0, 2) == 2 && magic[0] == 0x1f && magic[1] == 0x8b;
+        }
+        catch { return false; }
     }
 }

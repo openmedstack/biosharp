@@ -152,6 +152,7 @@ public class RepeatMaskingTests
 
         Assert.True(regions.Count >= 0);
         if (regions.Any())
+        {
             Assert.All(regions, r =>
             {
                 Assert.True(r.Start >= 0);
@@ -159,6 +160,7 @@ public class RepeatMaskingTests
                 Assert.NotNull(r.MaskedSequence);
                 Assert.Equal(new string('N', r.Length), r.MaskedSequence);
             });
+        }
     }
 
     /// <summary>

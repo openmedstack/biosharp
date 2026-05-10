@@ -2,7 +2,6 @@ namespace OpenMedStack.BioSharp.Calculations.Alignment;
 
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using Model;
 using DeBruijn;
 
@@ -19,6 +18,8 @@ using DeBruijn;
 /// </summary>
 public class ReadRealigner
 {
+    private readonly Dictionary<(bool IsLeftClip, int BoundaryPosition), (int Start, int Length)> _windowCache = new();
+
     /// <summary>
     /// Minimum fraction of read length that qualifies as a "significant" soft-clip.
     /// Default: 0.20 (20%).
@@ -42,6 +43,11 @@ public class ReadRealigner
     /// Default: 30.
     /// </summary>
     public int MinRealignScore { get; set; } = 30;
+
+    /// <summary>
+    /// Skip clip realignment when the clip is dominated by a single base.
+    /// </summary>
+    public bool SkipLowComplexityClips { get; set; } = true;
 
     /// <summary>
     /// Result of realigning a soft-clipped read region.
@@ -84,6 +90,13 @@ public class ReadRealigner
         /// <summary>Chromosome of the original alignment. Useful for translocation detection.</summary>
         public string? Chromosome { get; }
 
+        /// <summary>
+        /// True when the clip was rejected by a heuristic (low complexity or below size/fraction
+        /// threshold) rather than being attempted and failing to align.
+        /// The pipeline uses this to distinguish heuristic skips from genuine unmapped clips.
+        /// </summary>
+        public bool IsSkippedByHeuristic { get; }
+
         public RealignmentResult(
             string summary,
             string clipSequence,
@@ -96,7 +109,8 @@ public class ReadRealigner
             int clipSize,
             bool isLeftClip,
             string? chromosome,
-            bool isSv)
+            bool isSv,
+            bool isSkippedByHeuristic = false)
         {
             Summary = summary;
             ClipSequence = clipSequence;
@@ -110,6 +124,7 @@ public class ReadRealigner
             IsLeftClip = isLeftClip;
             Chromosome = chromosome;
             IsStructuralVariant = isSv;
+            IsSkippedByHeuristic = isSkippedByHeuristic;
         }
     }
 
@@ -126,10 +141,11 @@ public class ReadRealigner
         AlignmentResult alignment,
         Sequence reference,
         string chromosome,
-        string readSequence)
+        Sequence read)
     {
         var results = new List<RealignmentResult>();
-        var readLen = readSequence.Length;
+        var readData = read.GetData().Span;
+        var readLen = readData.Length;
 
         // Left clip: bases at the 5' end of the read that were not aligned
         if (alignment.LeftSoftClip > 0)
@@ -137,10 +153,18 @@ public class ReadRealigner
             var clipLen = alignment.LeftSoftClip;
             if (clipLen >= readLen * MinClipFraction && clipLen >= MinClipSize)
             {
-                var clipSeq = readSequence.Substring(0, clipLen);
-                var result = RealignClip(clipSeq, clipLen, true, 0, alignment.ReferenceStartPosition,
+                var result = RealignClip(readData.Slice(0, clipLen), clipLen, true, 0, alignment.ReferenceStartPosition,
                     reference, chromosome);
                 results.Add(result);
+            }
+            else
+            {
+                // Below threshold — record as a heuristic skip so the pipeline can count it.
+                results.Add(new RealignmentResult(
+                    $"Left clip at 0 ({clipLen} bp): below size/fraction threshold",
+                    new string(readData.Slice(0, clipLen)), null, string.Empty,
+                    alignment.ReferenceStartPosition, false, null, 0, clipLen, true, chromosome, false,
+                    isSkippedByHeuristic: true));
             }
         }
 
@@ -150,23 +174,46 @@ public class ReadRealigner
             var clipLen = alignment.RightSoftClip;
             if (clipLen >= readLen * MinClipFraction && clipLen >= MinClipSize)
             {
-                var clipStartInRead = alignment.LeftSoftClip + alignment.AlignedRead.Length;
-                var clipSeq = readSequence.Substring(clipStartInRead, clipLen);
-                var refEndPos = alignment.ReferenceStartPosition + alignment.AlignedReference.Count(c => c != '-');
+                var clipStartInRead = readLen - clipLen;
+                var refEndPos = alignment.ReferenceStartPosition + DnaEncoding.CountNonGap(alignment.AlignedReference.AsSpan());
                 if (refEndPos < reference.Length)
                 {
-                    var result = RealignClip(clipSeq, clipLen, false, clipStartInRead, refEndPos,
+                    var result = RealignClip(readData.Slice(clipStartInRead, clipLen), clipLen, false, clipStartInRead,
+                        refEndPos,
                         reference, chromosome);
                     results.Add(result);
                 }
+            }
+            else
+            {
+                var clipStartInRead = readLen - clipLen;
+                results.Add(new RealignmentResult(
+                    $"Right clip at {clipStartInRead} ({clipLen} bp): below size/fraction threshold",
+                    new string(readData.Slice(clipStartInRead, clipLen)), null, string.Empty,
+                    alignment.ReferenceStartPosition, false, null, clipStartInRead, clipLen, false, chromosome, false,
+                    isSkippedByHeuristic: true));
             }
         }
 
         return results.ToArray();
     }
 
+    public RealignmentResult[] Realign(
+        AlignmentResult alignment,
+        Sequence reference,
+        string chromosome,
+        string readSequence)
+    {
+        var syntheticRead = new Sequence(
+            $"realign_{alignment.ReferenceStartPosition}",
+            readSequence.ToCharArray(),
+            new string('I', readSequence.Length).ToCharArray());
+
+        return Realign(alignment, reference, chromosome, syntheticRead);
+    }
+
     private RealignmentResult RealignClip(
-        string clipSequence,
+        ReadOnlySpan<char> clipSequence,
         int clipSize,
         bool isLeftClip,
         int clipPositionInRead,
@@ -174,35 +221,35 @@ public class ReadRealigner
         Sequence reference,
         string chromosome)
     {
-        // Extract local reference window around the clip boundary
-        var windowStart = 0;
-        var windowEnd = reference.Length;
-
-        if (isLeftClip)
+        if (SkipLowComplexityClips && DnaEncoding.IsLowComplexity(clipSequence))
         {
-            // Left clip: look upstream from the alignment start
-            windowStart = Math.Max(0, boundaryPosition - LocalWindowSize);
-            windowEnd = boundaryPosition;
-        }
-        else
-        {
-            // Right clip: look downstream from the alignment end
-            windowStart = boundaryPosition;
-            windowEnd = Math.Min(reference.Length, boundaryPosition + LocalWindowSize);
-        }
-
-        var windowLen = windowEnd - windowStart;
-        if (windowLen <= 0)
             return new RealignmentResult(
-                "Clip at boundary: no reference window available", clipSequence, null,
-                "", windowStart, false, null, clipPositionInRead, clipSize, isLeftClip, chromosome, false);
+                $"Clip at {clipPositionInRead} ({clipSize} bp, left={isLeftClip}): skipped low-complexity clip",
+                new string(clipSequence), null, string.Empty, boundaryPosition, false, null,
+                clipPositionInRead, clipSize, isLeftClip, chromosome, false, isSkippedByHeuristic: true);
+        }
 
-        var refWindowSpan = reference.GetData()!.Span.Slice(windowStart, windowLen);
-        var refWindowStr = new string(refWindowSpan.ToArray());
+        if (!_windowCache.TryGetValue((isLeftClip, boundaryPosition), out var window))
+        {
+            var windowStart = isLeftClip
+                ? Math.Max(0, boundaryPosition - LocalWindowSize)
+                : boundaryPosition;
+            var windowEnd = isLeftClip
+                ? boundaryPosition
+                : Math.Min(reference.Length, boundaryPosition + LocalWindowSize);
+            window = (windowStart, windowEnd - windowStart);
+            _windowCache[(isLeftClip, boundaryPosition)] = window;
+        }
 
-        // Re-align the clipped region against the local reference window
-        var readSeq = new Sequence($"clip_{clipPositionInRead}",
-            clipSequence.AsMemory(), new string('I', clipSequence.Length).AsMemory());
+        var windowLen = window.Length;
+        if (windowLen <= 0)
+        {
+            return new RealignmentResult(
+                "Clip at boundary: no reference window available", new string(clipSequence), null,
+                string.Empty, window.Start, false, null, clipPositionInRead, clipSize, isLeftClip, chromosome, false);
+        }
+
+        var refWindowSpan = reference.GetData().Span.Slice(window.Start, windowLen);
 
         AlignmentResult? alignResult = null;
         var wasRealigned = false;
@@ -212,8 +259,8 @@ public class ReadRealigner
         try
         {
             alignResult = SmithWatermanAligner.Align(
-                new Sequence("refWindow", refWindowStr.AsMemory(), new string('I', refWindowStr.Length).AsMemory()),
-                readSeq,
+                refWindowSpan,
+                clipSequence,
                 2,
                 -3,
                 -5,
@@ -223,8 +270,8 @@ public class ReadRealigner
         catch
         {
             return new RealignmentResult(
-                "Realignment failed", clipSequence, null, refWindowStr,
-                windowStart, false, null, clipPositionInRead, clipSize, isLeftClip, chromosome, false);
+                "Realignment failed", new string(clipSequence), null, new string(refWindowSpan),
+                window.Start, false, null, clipPositionInRead, clipSize, isLeftClip, chromosome, false);
         }
 
         if (alignResult != null && alignResult.Score >= MinRealignScore)
@@ -232,8 +279,8 @@ public class ReadRealigner
             wasRealigned = true;
 
             // Check for structural variant indicators
-            var refConsumed = alignResult.AlignedReference.Count(c => c != '-');
-            var readConsumed = alignResult.AlignedRead.Count(c => c != '-');
+            var refConsumed = DnaEncoding.CountNonGap(alignResult.AlignedReference.AsSpan());
+            var readConsumed = DnaEncoding.CountNonGap(alignResult.AlignedRead.AsSpan());
             var insBases = readConsumed - refConsumed;
 
             if (insBases > 0)
@@ -251,11 +298,11 @@ public class ReadRealigner
             else if (alignResult is { AlignedReference: not null, AlignedRead: not null })
             {
                 // Check for inversion: do the clipped bases match the reverse complement of the reference?
-                var altMatched = new string(alignResult.AlignedRead.Where(c => c != '-').ToArray());
-                var refMatched = new string(alignResult.AlignedReference.Where(c => c != '-').ToArray());
+                var altMatched = DnaEncoding.ExtractUngapped(alignResult.AlignedRead.AsSpan());
+                var refMatched = DnaEncoding.ExtractUngapped(alignResult.AlignedReference.AsSpan());
                 if (altMatched.Length == refMatched.Length && altMatched.Length > 0)
                 {
-                    var altRevComp = ReverseComplement(altMatched);
+                    var altRevComp = DnaEncoding.ReverseComplement(altMatched.AsSpan());
                     if (altRevComp == refMatched)
                     {
                         isSv = true;
@@ -265,44 +312,19 @@ public class ReadRealigner
             }
 
             // Get the position where the clipped region aligns
-            var alignPos = alignResult.ReferenceStartPosition + windowStart;
+            var alignPos = alignResult.ReferenceStartPosition + window.Start;
 
             var summary =
                 $"Clip at {clipPositionInRead} ({clipSize} bp, left={isLeftClip}): realigned with score {alignResult.Score}";
 
-            return new RealignmentResult(summary, clipSequence, alignResult,
-                refWindowStr, alignPos, wasRealigned, svType,
+            return new RealignmentResult(summary, new string(clipSequence), alignResult,
+                new string(refWindowSpan), alignPos, wasRealigned, svType,
                 clipPositionInRead, clipSize, isLeftClip, chromosome, isSv);
         }
 
         return new RealignmentResult(
             $"Clip at {clipPositionInRead} ({clipSize} bp, left={isLeftClip}): no realignment found",
-            clipSequence, null, refWindowStr, windowStart, false, null,
+            new string(clipSequence), null, new string(refWindowSpan), window.Start, false, null,
             clipPositionInRead, clipSize, isLeftClip, chromosome, false);
-    }
-
-    /// <summary>
-    /// Returns the reverse complement of a DNA sequence.
-    /// Used to detect inversions (clipped read aligns in reverse complement).
-    /// </summary>
-    private static string ReverseComplement(string sequence)
-    {
-        if (string.IsNullOrEmpty(sequence)) return sequence;
-
-        var complement = new char[sequence.Length];
-        for (var i = 0; i < sequence.Length; i++)
-        {
-            var baseChar = char.ToUpper(sequence[sequence.Length - 1 - i]);
-            complement[i] = baseChar switch
-            {
-                'A' => 'T',
-                'T' => 'A',
-                'C' => 'G',
-                'G' => 'C',
-                _ => baseChar
-            };
-        }
-
-        return new string(complement);
     }
 }

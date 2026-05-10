@@ -46,8 +46,10 @@ public class IlluminaRunDataReaderTests : IAsyncLifetime
         var sequences = _reader!.ReadClusterData(1, TestContext.Current.CancellationToken);
         var count = 0;
         await foreach (var sequence in sequences)
+        {
             count += await sequence.ReadBclData(DefaultQualityTrimmer.Instance, CancellationToken.None)
                 .CountAsync(TestContext.Current.CancellationToken);
+        }
 
         // The data sample has many tiles across 1 lane. Just verify it reads something.
         Assert.True(count > 0);

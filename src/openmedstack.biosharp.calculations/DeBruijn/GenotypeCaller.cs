@@ -70,12 +70,23 @@ public static class GenotypeCaller
     {
         isSuspicious = altRefRatio < SuspiciousThreshold;
 
-        if (altRefRatio >= HomozygousAltThreshold) return GenotypeType.HomozygousAlt;
-        if (altRefRatio >= HeterozygousLowerBound) return GenotypeType.Heterozygous;
+        if (altRefRatio >= HomozygousAltThreshold)
+        {
+            return GenotypeType.HomozygousAlt;
+        }
+
+        if (altRefRatio >= HeterozygousLowerBound)
+        {
+            return GenotypeType.Heterozygous;
+        }
+
         // Ratio ≤ 0.4 — could be homo ref or low alt
         if (altRefRatio >= SuspiciousThreshold)
             // Borderline 0.2-0.4: conservative = homozygous ref
+        {
             return GenotypeType.HomozygousRef;
+        }
+
         // Ratio < 0.2 — suspicious, treat as homo ref
         return GenotypeType.HomozygousRef;
     }
@@ -87,7 +98,11 @@ public static class GenotypeCaller
     /// </summary>
     public static bool IsSuspicious(int refCoverage, int altCoverage)
     {
-        if (refCoverage == 0) return false; // No ref coverage = homozygous alt
+        if (refCoverage == 0)
+        {
+            return false; // No ref coverage = homozygous alt
+        }
+
         var ratio = (double)altCoverage / refCoverage;
         return ratio < SuspiciousThreshold;
     }

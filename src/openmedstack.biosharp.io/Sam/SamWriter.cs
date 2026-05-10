@@ -25,8 +25,10 @@ public class SamWriter
         await writer.WriteLineAsync(definition.Pg.ToString().AsMemory(), cancellationToken).ConfigureAwait(false);
         await writer.WriteLineAsync(definition.Rg.ToString().AsMemory(), cancellationToken).ConfigureAwait(false);
         foreach (var referenceSequence in definition.Sq)
+        {
             await writer.WriteLineAsync(referenceSequence.ToString().AsMemory(), cancellationToken)
                 .ConfigureAwait(false);
+        }
 
         foreach (var alignmentSection in definition.AlignmentSections)
         {
@@ -42,7 +44,10 @@ public class SamWriter
     /// </summary>
     private static string CigarString(AlignmentSection section)
     {
-        if (section.Cigar == null || section.Cigar.Length == 0) return "*";
+        if (section.Cigar == null || section.Cigar.Length == 0)
+        {
+            return "*";
+        }
 
         var sb = new StringBuilder();
         var samOps = new[] { 'M', 'I', 'D', 'N', 'S', 'H', 'P', '=', 'X' }; // 0-8
@@ -70,7 +75,10 @@ public class SamWriter
         var tags = new StringBuilder();
         foreach (var tag in section.Tags)
         {
-            if (tags.Length > 0) tags.Append("\t");
+            if (tags.Length > 0)
+            {
+                tags.Append("\t");
+            }
 
             tags.Append(tag.ToString());
         }

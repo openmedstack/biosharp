@@ -5,7 +5,9 @@
         <IsPackable>false</IsPackable>
         <RootNamespace>OpenMedStack.BioSharp.Calculations.Tests</RootNamespace>
         <IsPackable>false</IsPackable>
-        <NoWarn>$(NoWarn);xUnit1051;xUnit1041;xUnit1031;CS0121</NoWarn>
+        <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+        <IsTrimmable>false</IsTrimmable>
+        <NoWarn>$(NoWarn);xUnit1051;xUnit1041;xUnit1031;CS0121;IL2026</NoWarn>
     </PropertyGroup>
 
     <ItemGroup>
@@ -28,6 +30,8 @@
     <ItemGroup>
         <PackageReference Include="MartinCostello.Logging.XUnit.v3" Version="0.7.1"/>
         <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.5.1"/>
+        <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="10.0.7"/>
+        <PackageReference Include="Microsoft.Extensions.Logging" Version="10.0.7"/>
         <PackageReference Include="xunit.v3" Version="3.2.2"/>
         <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5">
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -37,5 +41,6 @@
     <ItemGroup>
         <ProjectReference Include="..\..\src\openmedstack.biosharp.calculations\openmedstack.biosharp.calculations.csproj"/>
         <ProjectReference Include="..\..\src\openmedstack.biosharp.io\openmedstack.biosharp.io.csproj"/>
+        <ProjectReference Include="..\..\src\openmedstack.biosharp.report\openmedstack.biosharp.report.csproj"/>
     </ItemGroup>
 </Project>

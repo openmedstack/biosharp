@@ -32,16 +32,25 @@ public static class CigarBuilder
         var readSeq = result.AlignedRead;
         var len = refSeq.Length;
 
-        if (len == 0) return string.Empty;
+        if (len == 0)
+        {
+            return string.Empty;
+        }
 
         var leftClip = result.LeftSoftClip;
         var rightClip = result.RightSoftClip;
         var start = trimPrefix;
-        if (start < 0 || start >= len) start = 0;
+        if (start < 0 || start >= len)
+        {
+            start = 0;
+        }
 
         var ops = new List<CigarOpCount>();
 
-        if (leftClip > 0 && result.ReferenceStartPosition > 0) ops.Add(new CigarOpCount(leftClip, OpSoftClip));
+        if (leftClip > 0 && result.ReferenceStartPosition > 0)
+        {
+            ops.Add(new CigarOpCount(leftClip, OpSoftClip));
+        }
 
         for (var i = start; i < len; i++)
         {
@@ -49,14 +58,23 @@ public static class CigarBuilder
             var readChar = readSeq[i];
 
             if (refChar == '-')
+            {
                 AppendOp(ops, OpInsertion);
+            }
             else if (readChar == '-')
+            {
                 AppendOp(ops, OpDeletion);
+            }
             else
+            {
                 AppendOp(ops, OpMatch);
+            }
         }
 
-        if (rightClip > 0) ops.Add(new CigarOpCount(rightClip, OpSoftClip));
+        if (rightClip > 0)
+        {
+            ops.Add(new CigarOpCount(rightClip, OpSoftClip));
+        }
 
         return FormatCigar(ops);
     }
@@ -70,12 +88,15 @@ public static class CigarBuilder
     /// <param name="leftClip">Number of soft-clipped bases at the 5' end.</param>
     /// <param name="rightClip">Number of soft-clipped bases at the 3' end.</param>
     /// <returns>A CIGAR string.</returns>
-    public static string BuildCigar(string alignedRef, string alignedRead, int leftClip = 0, int rightClip = 0)
+    public static string BuildCigar(ReadOnlySpan<char> alignedRef, ReadOnlySpan<char> alignedRead, int leftClip = 0, int rightClip = 0)
     {
         var len = Math.Max(alignedRef.Length, alignedRead.Length);
         var ops = new List<CigarOpCount>();
 
-        if (leftClip > 0) ops.Add(new CigarOpCount(leftClip, OpSoftClip));
+        if (leftClip > 0)
+        {
+            ops.Add(new CigarOpCount(leftClip, OpSoftClip));
+        }
 
         for (var i = 0; i < len; i++)
         {
@@ -83,14 +104,23 @@ public static class CigarBuilder
             var readChar = i < alignedRead.Length ? alignedRead[i] : '-';
 
             if (refChar == '-')
+            {
                 AppendOp(ops, OpInsertion);
+            }
             else if (readChar == '-')
+            {
                 AppendOp(ops, OpDeletion);
+            }
             else
+            {
                 AppendOp(ops, OpMatch);
+            }
         }
 
-        if (rightClip > 0) ops.Add(new CigarOpCount(rightClip, OpSoftClip));
+        if (rightClip > 0)
+        {
+            ops.Add(new CigarOpCount(rightClip, OpSoftClip));
+        }
 
         return FormatCigar(ops);
     }
@@ -109,8 +139,8 @@ public static class CigarBuilder
     /// Builds CIGAR operations from aligned strings directly.
     /// </summary>
     public static (int, char)[] BuildCigarOps(
-        string alignedRef,
-        string alignedRead,
+        ReadOnlySpan<char> alignedRef,
+        ReadOnlySpan<char> alignedRead,
         int leftClip = 0,
         int rightClip = 0,
         int trimPrefix = 0)
@@ -118,7 +148,10 @@ public static class CigarBuilder
         var len = Math.Max(alignedRef.Length, alignedRead.Length);
         var ops = new List<(int, char)>();
 
-        if (leftClip > 0) ops.Add((leftClip, OpSoftClip));
+        if (leftClip > 0)
+        {
+            ops.Add((leftClip, OpSoftClip));
+        }
 
         var start = trimPrefix < 0 || trimPrefix >= len ? 0 : trimPrefix;
 
@@ -128,14 +161,23 @@ public static class CigarBuilder
             var readChar = i < alignedRead.Length ? alignedRead[i] : '-';
 
             if (refChar == '-')
+            {
                 ops.Add((1, OpInsertion));
+            }
             else if (readChar == '-')
+            {
                 ops.Add((1, OpDeletion));
+            }
             else
+            {
                 ops.Add((1, OpMatch));
+            }
         }
 
-        if (rightClip > 0) ops.Add((rightClip, OpSoftClip));
+        if (rightClip > 0)
+        {
+            ops.Add((rightClip, OpSoftClip));
+        }
 
         // Merge consecutive same-type operations
         var merged = new List<(int, char)>();
@@ -162,10 +204,17 @@ public static class CigarBuilder
     /// </summary>
     internal static string FormatCigar(List<CigarOpCount> ops)
     {
-        if (ops.Count == 0) return "*";
+        if (ops.Count == 0)
+        {
+            return "*";
+        }
 
         var sb = new System.Text.StringBuilder();
-        foreach (var opEntry in ops) sb.Append(opEntry.Count).Append(opEntry.Op);
+        foreach (var opEntry in ops)
+        {
+            sb.Append(opEntry.Count).Append(opEntry.Op);
+        }
+
         return sb.ToString();
     }
 

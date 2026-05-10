@@ -46,7 +46,10 @@ public class FastAWriter
             await writer.WriteLineAsync('>' + sequence.Id).ConfigureAwait(false);
 
             var letters = new char[sequence.Length];
-            for (var i = 0; i < sequence.Length; i++) letters[i] = sequence[i];
+            for (var i = 0; i < sequence.Length; i++)
+            {
+                letters[i] = sequence[i];
+            }
 
             for (var i = 0; i < letters.Length; i += lineLength)
             {

@@ -29,7 +29,10 @@ public class FullPipelineTests
     {
         var kmerList = kmers.ToList();
         if (kmerList.Count == 0)
+        {
             throw new ArgumentNullException(nameof(kmers), "Cannot create Bloom filter with no k-mers.");
+        }
+
         var filter = new DeBruijn.BloomFilter(kmerList.Count * 100, 0.0001);
         filter.Add(kmerList);
         return filter;
@@ -39,7 +42,9 @@ public class FullPipelineTests
     {
         var seq = sequence.ToUpper();
         for (var i = 0; i <= seq.Length - k; i++)
+        {
             yield return seq.Substring(i, k);
+        }
     }
 
     /// <summary>
@@ -125,9 +130,11 @@ public class FullPipelineTests
             // Masked sequence should have Ns where repeats were
             var masked = repeatSeq;
             foreach (var region in maskedRegions.OrderByDescending(r => r.Start))
+            {
                 masked = masked.Substring(0, region.Start) +
                     new string('N', region.Length) +
                     masked.Substring(region.End);
+            }
 
             // Build graph from masked sequence -- should produce a valid graph
             var maskedSeqs = MakeReads(new[] { masked });
@@ -501,11 +508,13 @@ public class FullPipelineTests
             // Build kmer counts from bubble paths for repetitiveness scoring
             var counts = new Dictionary<string, int>();
             foreach (var path in bubble.Paths)
+            {
                 for (var j = 0; j <= path.Sequence.Length - 10; j++)
                 {
                     var kmer = path.Sequence.Substring(j, 10);
                     counts[kmer] = counts.GetValueOrDefault(kmer, 0) + path.Coverage;
                 }
+            }
 
             _ = DeBruijn.RepetitivenessAnalyzer.AnalyzeBubble(bubble, (IReadOnlyDictionary<string, int>)counts);
 

@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <Import Project="../../shared.proj"/>
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <RootNamespace>OpenMedStack.BioSharp.Benchmarks</RootNamespace>
+        <IsPackable>false</IsPackable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="BenchmarkDotNet" Version="0.14.0"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="../../src/openmedstack.biosharp.calculations/openmedstack.biosharp.calculations.csproj"/>
+        <ProjectReference Include="../../src/openmedstack.biosharp.io/openmedstack.biosharp.io.csproj"/>
+        <ProjectReference Include="../../src/openmedstack.biosharp.model/openmedstack.biosharp.model.csproj"/>
+    </ItemGroup>
+
+</Project>

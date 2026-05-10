@@ -60,7 +60,7 @@ public class IlluminaDataReaderTests : IAsyncLifetime
     {
         var sequences = await _reader!.ReadClusterData(1, TestContext.Current.CancellationToken)
             .SelectMany(x => x.ReadBclData(DefaultQualityTrimmer.Instance, CancellationToken.None))
-            .Select(x => x.Header!.Barcode)
+            .Select(x => x.Header.Barcode)
             .Distinct()
             .CountAsync(TestContext.Current.CancellationToken);
 

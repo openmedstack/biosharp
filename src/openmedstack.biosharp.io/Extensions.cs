@@ -1,7 +1,4 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Runtime.InteropServices;
 using OpenMedStack.BioSharp.Io.Sam;
 
 namespace OpenMedStack.BioSharp.Io;
@@ -25,28 +22,50 @@ public static class Extensions
 
     public static string ReadSequence(this Span<byte> bytes)
     {
-        var buffer = new List<char>();
+        var maxLength = bytes.Length * 2;
+        Span<char> buffer = maxLength <= 512 ? stackalloc char[maxLength] : new char[maxLength];
+        var len = 0;
         foreach (var b in bytes)
         {
-            buffer.Add(SequenceChars[b >> 4]);
-            buffer.Add(SequenceChars[b & 0b1111]);
+            buffer[len++] = SequenceChars[b >> 4];
+            buffer[len++] = SequenceChars[b & 0b1111];
         }
 
-        if (buffer.Last() == '=') buffer.RemoveAt(buffer.Count - 1);
+        if (len > 0 && buffer[len - 1] == '=')
+        {
+            len--;
+        }
 
-        return new string(CollectionsMarshal.AsSpan(buffer));
+        return new string(buffer[..len]);
     }
 
-    public static Span<byte> WriteSequence(this string sequence)
+    public static byte[] WriteSequence(this string sequence) =>
+        WriteSequence(sequence.AsSpan());
+
+    public static byte[] WriteSequence(ReadOnlySpan<char> sequence)
     {
-        var buffer = new List<byte>();
+        var result = new byte[(sequence.Length + 1) / 2];
         for (var i = 0; i < sequence.Length; i += 2)
         {
             var first = (byte)(SequenceChars.IndexOf(sequence[i]) << 4);
             var second = i == sequence.Length - 1 ? 0 : SequenceChars.IndexOf(sequence[i + 1]) & 0b1111;
-            buffer.Add((byte)(first | second));
+            result[i / 2] = (byte)(first | second);
         }
 
-        return CollectionsMarshal.AsSpan(buffer);
+        return result;
     }
+
+    /// <summary>
+    /// Splits <paramref name="source"/> using <see cref="MemoryExtensions.Split(ReadOnlySpan{char},Span{Range},char,StringSplitOptions)"/>,
+    /// writing segment <see cref="Range"/> values into <paramref name="destination"/>.
+    /// Combine with <c>source.AsSpan()[range]</c> to access each segment as a <see cref="ReadOnlySpan{T}"/>
+    /// without allocating a <see cref="string"/> array.
+    /// </summary>
+    /// <returns>The number of segments written to <paramref name="destination"/>.</returns>
+    public static int SplitRanges(
+        this string source,
+        Span<Range> destination,
+        char separator,
+        StringSplitOptions options = StringSplitOptions.None)
+        => source.AsSpan().Split(destination, separator, options);
 }

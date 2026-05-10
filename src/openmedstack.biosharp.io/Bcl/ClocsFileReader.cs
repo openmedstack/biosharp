@@ -95,7 +95,10 @@ public class ClocsFileReader : ILocationReader
         while (HasNext())
         {
             var mem = await _byteIterator.BaseStream.FillBuffer(buffer, cancellationToken).ConfigureAwait(false);
-            if (mem.Length != buffer.Length) throw new Exception("Missing position data");
+            if (mem.Length != buffer.Length)
+            {
+                throw new Exception("Missing position data");
+            }
 
             var xByte = buffer[0];
             var yByte = buffer[1];
@@ -126,7 +129,10 @@ public class ClocsFileReader : ILocationReader
             }
 
             _currentBin += 1;
-            if (_currentBin < _numBins) StartBlock();
+            if (_currentBin < _numBins)
+            {
+                StartBlock();
+            }
         }
     }
 
@@ -142,8 +148,10 @@ public class ClocsFileReader : ILocationReader
     {
         var valuesRemain = _currentClusterInBin < _numClustersInBin || _currentBin < _numBins - 1;
         if (!valuesRemain && _byteIterator.PeekChar() > -1)
+        {
             throw new Exception(
                 $"Read the number of expected bins( {_numBins}) but still had more elements in file( {_clocsFile.FullName}) ");
+        }
 
         return valuesRemain;
     }

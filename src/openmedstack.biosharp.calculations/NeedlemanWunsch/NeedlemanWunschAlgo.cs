@@ -470,7 +470,10 @@ public static class NeedlemanWunschAlgo
         byte penalty)
     {
         var scoreData = new int[left.Length + 1][];
-        for (var i = 0; i <= left.Length; i++) scoreData[i] = new int[reference.Length + 1];
+        for (var i = 0; i <= left.Length; i++)
+        {
+            scoreData[i] = new int[reference.Length + 1];
+        }
 
         var traverseData = new Direction[left.Length + 1, reference.Length + 1];
         scoreData[0][0] = 0;
@@ -496,9 +499,11 @@ public static class NeedlemanWunschAlgo
 
                 if (!Blossum62.TryGetValue(new ReadOnlyMemory<char>([reference[i2], left[j2]]),
                     out var blosumValue))
+                {
                     Blossum62.TryGetValue(
                         new ReadOnlyMemory<char>([char.ToUpper(reference[i2]), char.ToUpper(left[j2])]),
                         out blosumValue);
+                }
 
                 options[0] = (
                     scoreData[j2][i2] + blosumValue,

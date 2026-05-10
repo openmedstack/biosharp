@@ -59,10 +59,30 @@ public class AlignmentTag
 
     public object Value { get; }
 
-    public static AlignmentTag Parse(string tag)
+    public static AlignmentTag Parse(string tag) => Parse(tag.AsSpan());
+
+    public static AlignmentTag Parse(ReadOnlySpan<char> tag)
     {
-        var parts = tag.Split(':', StringSplitOptions.TrimEntries);
-        return new AlignmentTag(parts[0][..2], parts[1][0], parts[2]);
+        Span<Range> ranges = stackalloc Range[3];
+        tag.Split(ranges, ':', StringSplitOptions.TrimEntries);
+        var key = new string(tag[ranges[0]][..2]);
+        var type = tag[ranges[1]][0];
+        var value = tag[ranges[2]];
+        object parsedValue = type switch
+        {
+            'A' => value[0],
+            'i' => int.Parse(value),
+            'I' => uint.Parse(value),
+            'f' => float.Parse(value),
+            'Z' => new string(value),
+            'H' => value[..2].ToArray(),
+            'c' => sbyte.Parse(value),
+            'C' => byte.Parse(value),
+            's' => short.Parse(value),
+            'S' => ushort.Parse(value),
+            _ => throw new InvalidDataException("Invalid tag value")
+        };
+        return new AlignmentTag(key, type, parsedValue);
     }
 
     /// <inheritdoc />

@@ -1,7 +1,7 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Sam;
 
 using System;
-using System.Linq;
+using System.Collections.Generic;
 
 public record ReferenceSequence
 {
@@ -43,10 +43,21 @@ public record ReferenceSequence
 
     public static ReferenceSequence Parse(string line)
     {
-        var parts = line[4..]
-            .Split('\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(x => x.Split(':'))
-            .ToDictionary(x => x[0], x => string.Join(':', x.Skip(1)));
+        var span = line.AsSpan(4);
+        Span<Range> tabRanges = stackalloc Range[20];
+        var count = span.Split(tabRanges, '\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var parts = new Dictionary<string, string>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var field = span[tabRanges[i]];
+            var colon = field.IndexOf(':');
+            if (colon < 1)
+            {
+                continue;
+            }
+
+            parts[new string(field[..colon])] = new string(field[(colon + 1)..]);
+        }
 
         return new ReferenceSequence(
             parts["SN"],

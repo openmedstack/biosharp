@@ -1,7 +1,7 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Sam;
 
 using System;
-using System.Linq;
+using System.Collections.Generic;
 using System.Text;
 
 public record ReadGroup
@@ -55,10 +55,21 @@ public record ReadGroup
 
     public static ReadGroup Parse(string line)
     {
-        var parts = line[4..]
-            .Split('\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(x => x.Split(':'))
-            .ToDictionary(x => x[0], x => string.Join(':', x.Skip(1)));
+        var span = line.AsSpan(4);
+        Span<Range> tabRanges = stackalloc Range[20];
+        var count = span.Split(tabRanges, '\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var parts = new Dictionary<string, string>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var field = span[tabRanges[i]];
+            var colon = field.IndexOf(':');
+            if (colon < 1)
+            {
+                continue;
+            }
+
+            parts[new string(field[..colon])] = new string(field[(colon + 1)..]);
+        }
         return new ReadGroup(
             parts["ID"],
             parts.TryGetValue("BC", out var bc) ? bc : null,
@@ -79,34 +90,76 @@ public record ReadGroup
     /// <inheritdoc />
     public override string ToString()
     {
-        if (string.IsNullOrWhiteSpace(Id)) return "";
+        if (string.IsNullOrWhiteSpace(Id))
+        {
+            return "";
+        }
 
         var builder = new StringBuilder($"@RG\tID:{Id}");
-        if (Barcodes != null) builder.Append($"\tBC:{Barcodes}");
+        if (Barcodes != null)
+        {
+            builder.Append($"\tBC:{Barcodes}");
+        }
 
-        if (SequencingCenter != null) builder.Append($"\tCN:{SequencingCenter}");
+        if (SequencingCenter != null)
+        {
+            builder.Append($"\tCN:{SequencingCenter}");
+        }
 
-        if (Description != null) builder.Append($"\tDS:{Description}");
+        if (Description != null)
+        {
+            builder.Append($"\tDS:{Description}");
+        }
 
-        if (RunTime != null) builder.Append($"\tDT:{RunTime}");
+        if (RunTime != null)
+        {
+            builder.Append($"\tDT:{RunTime}");
+        }
 
-        if (FlowOrder != null) builder.Append($"\tFO:{FlowOrder}");
+        if (FlowOrder != null)
+        {
+            builder.Append($"\tFO:{FlowOrder}");
+        }
 
-        if (NucleotideBases != null) builder.Append($"\tKS:{NucleotideBases}");
+        if (NucleotideBases != null)
+        {
+            builder.Append($"\tKS:{NucleotideBases}");
+        }
 
-        if (Library != null) builder.Append($"\tLB:{Library}");
+        if (Library != null)
+        {
+            builder.Append($"\tLB:{Library}");
+        }
 
-        if (Programs != null) builder.Append($"\tPG:{Programs}");
+        if (Programs != null)
+        {
+            builder.Append($"\tPG:{Programs}");
+        }
 
-        if (PredictedMedianInsertSize != null) builder.Append($"\tPI:{PredictedMedianInsertSize}");
+        if (PredictedMedianInsertSize != null)
+        {
+            builder.Append($"\tPI:{PredictedMedianInsertSize}");
+        }
 
-        if (Platform != null) builder.Append($"\tPL:{Platform}");
+        if (Platform != null)
+        {
+            builder.Append($"\tPL:{Platform}");
+        }
 
-        if (PlatformModel != null) builder.Append($"\tPM:{PlatformModel}");
+        if (PlatformModel != null)
+        {
+            builder.Append($"\tPM:{PlatformModel}");
+        }
 
-        if (PlatformUnit != null) builder.Append($"\tPU:{PlatformUnit}");
+        if (PlatformUnit != null)
+        {
+            builder.Append($"\tPU:{PlatformUnit}");
+        }
 
-        if (Sample != null) builder.Append($"\tSM:{Sample}");
+        if (Sample != null)
+        {
+            builder.Append($"\tSM:{Sample}");
+        }
 
         return builder.ToString();
     }

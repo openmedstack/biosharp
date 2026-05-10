@@ -26,7 +26,10 @@ public static class BubbleFinder
         foreach (var branch in branches)
         {
             var succs = branch.OutboundEdges.ToList();
-            if (succs.Count < 2) continue;
+            if (succs.Count < 2)
+            {
+                continue;
+            }
 
             // For each successor, find all reachable nodes (excluding the branch itself)
             var reachableBySucc = new Dictionary<string, HashSet<string>>();
@@ -38,15 +41,22 @@ public static class BubbleFinder
                 while (queue.Count > 0)
                 {
                     var node = queue.Dequeue();
-                    if (node != branch.Id) reachable.Add(node);
+                    if (node != branch.Id)
+                    {
+                        reachable.Add(node);
+                    }
 
                     if (nodes.TryGetValue(node, out var nd) && nd.OutDegree > 0)
+                    {
                         foreach (var nx in nd.OutboundEdges)
+                        {
                             if (!visited.Contains(nx))
                             {
                                 visited.Add(nx);
                                 queue.Enqueue(nx);
                             }
+                        }
+                    }
                 }
 
                 reachableBySucc[succ] = reachable;
@@ -88,10 +98,16 @@ public static class BubbleFinder
                         }
                     }
 
-                    if (paths.Count >= 2) break;
+                    if (paths.Count >= 2)
+                    {
+                        break;
+                    }
                 }
 
-                if (paths.Count >= 2) bubbles.Add(new Bubble(branch.Id, converge, paths.ToArray()));
+                if (paths.Count >= 2)
+                {
+                    bubbles.Add(new Bubble(branch.Id, converge, paths.ToArray()));
+                }
             }
         }
 
@@ -112,17 +128,25 @@ public static class BubbleFinder
         while (queue.Count > 0)
         {
             var cur = queue.Dequeue();
-            if (cur == end) return Reconstruct(pred, end);
+            if (cur == end)
+            {
+                return Reconstruct(pred, end);
+            }
 
-            if (!nodes.TryGetValue(cur, out var nd) || nd.OutDegree <= 0) continue;
+            if (!nodes.TryGetValue(cur, out var nd) || nd.OutDegree <= 0)
+            {
+                continue;
+            }
 
             foreach (var nx in nd.OutboundEdges)
+            {
                 if (!visited.Contains(nx))
                 {
                     visited.Add(nx);
                     pred[nx] = cur;
                     queue.Enqueue(nx);
                 }
+            }
         }
 
         return null;
@@ -141,7 +165,10 @@ public static class BubbleFinder
         while (true)
         {
             path.Add(node);
-            if (!pred.TryGetValue(node, out var p) || p == "") break;
+            if (!pred.TryGetValue(node, out var p) || p == "")
+            {
+                break;
+            }
 
             node = p;
         }
@@ -150,10 +177,16 @@ public static class BubbleFinder
 
         var sb = new System.Text.StringBuilder();
         for (var i = 0; i < path.Count; i++)
+        {
             if (i == 0)
+            {
                 sb.Append(path[0]);
+            }
             else
+            {
                 sb.Append(path[i][path[i].Length - 1]);
+            }
+        }
 
         return sb.ToString();
     }

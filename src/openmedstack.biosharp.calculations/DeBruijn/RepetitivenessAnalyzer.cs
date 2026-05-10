@@ -28,39 +28,57 @@ public static class RepetitivenessAnalyzer
         int highCopyThreshold = DefaultHighCopyThreshold)
     {
         if (bubble == null)
+        {
             throw new ArgumentNullException(nameof(bubble));
+        }
 
         if (bubble.Paths == null || bubble.Paths.Length == 0)
+        {
             throw new ArgumentException("Bubble must have at least one path.", nameof(bubble));
+        }
 
         if (kmerCounts == null)
+        {
             throw new ArgumentNullException(nameof(kmerCounts));
+        }
 
         // Extract unique k-mers from all paths
         var kmers = new HashSet<string>();
         foreach (var path in bubble.Paths)
+        {
             if (path != null && !string.IsNullOrEmpty(path.Sequence))
                 // Extract k-mers from path sequence (each position is the start of a k-mer)
                 // For simplicity, we use the path itself as a pseudo-k-mer and each
                 // character position as contributing to k-mer set
                 // In a real implementation, we'd extract (k)-length substrings
+            {
                 kmers.Add(path.Sequence);
+            }
+        }
 
         var kmersList = kmers.ToList();
         var totalKmers = kmersList.Count;
 
-        if (totalKmers == 0) return new RepetitivenessScore(0, 0, 0, Array.Empty<string>(), BubbleConfidence.Low, 0.0);
+        if (totalKmers == 0)
+        {
+            return new RepetitivenessScore(0, 0, 0, Array.Empty<string>(), BubbleConfidence.Low, 0.0);
+        }
 
         // Count repeat k-mers and compute average copy number
         var repeatList = new List<string>();
         var totalCopy = 0;
 
         foreach (var kmer in kmersList)
+        {
             if (kmerCounts.TryGetValue(kmer, out var copyNum))
             {
                 totalCopy += copyNum;
-                if (copyNum >= highCopyThreshold) repeatList.Add(kmer);
+                if (copyNum >= highCopyThreshold)
+                {
+                    repeatList.Add(kmer);
+                }
             }
+        }
 
         // Compute average copy number
         var avgCopyNum = totalCopy / totalKmers;
@@ -89,20 +107,28 @@ public static class RepetitivenessAnalyzer
     {
         // No reads = low confidence
         if (totalKmers == 0)
+        {
             return BubbleConfidence.Low;
+        }
 
         // Many repeats with low coverage = low confidence
         if (repeatCount > 3 || repeatCount == totalKmers)
+        {
             return BubbleConfidence.Low;
+        }
 
         // If a significant portion of k-mers are repeats, reduce confidence
         var repeatRatio = (double)repeatCount / totalKmers;
         if (repeatRatio >= 0.5)
+        {
             return BubbleConfidence.Medium;
+        }
 
         // High coverage, few repeats = high confidence
         if (avgCopyNum > highCopyThreshold && repeatCount == 0)
+        {
             return BubbleConfidence.High;
+        }
 
         return BubbleConfidence.Medium;
     }
@@ -111,20 +137,28 @@ public static class RepetitivenessAnalyzer
     {
         // No reads = low confidence
         if (totalKmers == 0)
+        {
             return 0.0;
+        }
 
         // Many repeats with low coverage = low confidence
         if (repeatCount > 3 || repeatCount == totalKmers)
+        {
             return 1.0;
+        }
 
         // If a significant portion of k-mers are repeats, reduce confidence
         var repeatRatio = (double)repeatCount / totalKmers;
         if (repeatRatio >= 0.5)
+        {
             return 2.0;
+        }
 
         // High coverage, few repeats = high confidence
         if (avgCopyNum > highCopyThreshold && repeatCount == 0)
+        {
             return 10.0;
+        }
 
         return 5.0;
     }

@@ -14,7 +14,10 @@ public class ReadRealignerTests
         var refChars = new char[1000];
         var bases = "ACGT";
         for (var i = 0; i < 1000; i++)
+        {
             refChars[i] = bases[i % 4];
+        }
+
         _reference = new Sequence("chr1", refChars.AsMemory(), new string('I', 1000).AsMemory());
     }
 
@@ -28,9 +31,17 @@ public class ReadRealignerTests
         var read = new Sequence("read1", readSeq.AsMemory(), new string('I', 100).AsMemory());
 
         // First 80 bases of reference are all 'A' so the 50bp all-A clip scores well
-        for (var i = 0; i < 80; i++) refChars[i] = 'A';
+        for (var i = 0; i < 80; i++)
+        {
+            refChars[i] = 'A';
+        }
+
         var bases = "ACGT";
-        for (var i = 80; i < 1000; i++) refChars[i] = bases[i % 4];
+        for (var i = 80; i < 1000; i++)
+        {
+            refChars[i] = bases[i % 4];
+        }
+
         var reference = new Sequence("chr1", refChars.AsMemory(), new string('I', 1000).AsMemory());
 
         var align = new AlignmentResult(
@@ -45,7 +56,8 @@ public class ReadRealignerTests
             MinClipFraction = 0.20f,
             MinClipSize = 10,
             // Lower threshold to make the test pass with our specific data
-            MinRealignScore = 20
+            MinRealignScore = 20,
+            SkipLowComplexityClips = false
         };
 
         var results = realigner.Realign(align, reference, "chr1", readSeq);
@@ -71,7 +83,13 @@ public class ReadRealignerTests
 
         var realigner = new ReadRealigner { MinClipFraction = 0.20f, MinClipSize = 10 };
         var results = realigner.Realign(align, _reference, "chr1", readSeq);
-        Assert.Empty(results);
+
+        // Clips below the threshold are returned as heuristic-skip markers, not attempted.
+        Assert.All(results, r =>
+        {
+            Assert.False(r.WasRealigned);
+            Assert.True(r.IsSkippedByHeuristic);
+        });
     }
 
     [Fact]

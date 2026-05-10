@@ -26,7 +26,10 @@ public class FastAReader
                 Share = FileShare.Read
             });
         await using var _ = file.ConfigureAwait(false);
-        await foreach (var sequence in Read(file, cancellationToken).ConfigureAwait(false)) yield return sequence;
+        await foreach (var sequence in Read(file, cancellationToken).ConfigureAwait(false))
+        {
+            yield return sequence;
+        }
     }
 
     public async IAsyncEnumerable<Sequence> Read(
@@ -43,7 +46,10 @@ public class FastAReader
             var id = string.IsNullOrWhiteSpace(line)
                 ? await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false)
                 : line;
-            if (id == null) break;
+            if (id == null)
+            {
+                break;
+            }
 
             line = "";
 
@@ -51,9 +57,15 @@ public class FastAReader
             while (true)
             {
                 line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
-                if (line == null) break;
+                if (line == null)
+                {
+                    break;
+                }
 
-                if (line!.StartsWith('>') || string.IsNullOrWhiteSpace(line)) break;
+                if (line.StartsWith('>') || string.IsNullOrWhiteSpace(line))
+                {
+                    break;
+                }
 
                 letters.Append(line);
             }
@@ -62,7 +74,7 @@ public class FastAReader
             const char defaultQuality = (char)255;
             Array.Fill(qualities, defaultQuality);
             var readOnlyMemory = letters.ToString().AsMemory();
-            yield return new Sequence(id![1..], readOnlyMemory, qualities);
+            yield return new Sequence(id[1..], readOnlyMemory, qualities);
         }
     }
 
@@ -83,12 +95,17 @@ public class FastAReader
         if (compressedFile)
         {
             await using var zip = new GZipStream(file, CompressionMode.Decompress);
-            await foreach (var sequence in Read(zip, cancellationToken).ConfigureAwait(false)) yield return sequence;
+            await foreach (var sequence in Read(zip, cancellationToken).ConfigureAwait(false))
+            {
+                yield return sequence;
+            }
         }
         else
         {
             await foreach (var sequence in ReadGz(file, compressedFile, cancellationToken).ConfigureAwait(false))
+            {
                 yield return sequence;
+            }
         }
     }
 
@@ -101,11 +118,16 @@ public class FastAReader
         {
             await using var archive = new GZipStream(file, CompressionMode.Decompress);
             await foreach (var sequence in Read(archive, cancellationToken).ConfigureAwait(false))
+            {
                 yield return sequence;
+            }
         }
         else
         {
-            await foreach (var sequence in Read(file, cancellationToken).ConfigureAwait(false)) yield return sequence;
+            await foreach (var sequence in Read(file, cancellationToken).ConfigureAwait(false))
+            {
+                yield return sequence;
+            }
         }
     }
 }

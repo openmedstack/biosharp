@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <Import Project="../../shared.proj"/>
+    <PropertyGroup>
+        <RootNamespace>OpenMedStack.BioSharp.Report</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\openmedstack.biosharp.model\openmedstack.biosharp.model.csproj"/>
+        <ProjectReference Include="..\openmedstack.biosharp.calculations\openmedstack.biosharp.calculations.csproj"/>
+    </ItemGroup>
+
+</Project>

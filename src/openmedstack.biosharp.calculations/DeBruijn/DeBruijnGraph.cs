@@ -1,6 +1,7 @@
 namespace OpenMedStack.BioSharp.Calculations.DeBruijn;
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -23,49 +24,96 @@ public class DeBruijnGraph
         _reads = reads;
     }
 
-    private async IAsyncEnumerable<string> CreateKMers(
-        [EnumeratorCancellation] CancellationToken cancellationToken)
-    {
-        await foreach (var line in _reads.WithCancellation(cancellationToken).ConfigureAwait(false))
-        {
-            var data = line.GetData();
-            for (var i = 0; i <= line.Length - _k; i++) yield return new string(data.Span.Slice(i, _k).ToArray());
-        }
-    }
-
     private async Task BuildGraph(CancellationToken cancellationToken)
     {
-        if (_built) return;
+        if (_built)
+        {
+            return;
+        }
 
         _built = true;
-        if (_filtered) return;
-
-        var kmers = await CreateKMers(cancellationToken).ToListAsync(cancellationToken).ConfigureAwait(false);
-
-        foreach (var kmer in kmers.Distinct())
+        if (_filtered)
         {
-            var left = kmer[..^1];
-            var right = kmer[1..];
+            return;
+        }
 
-            // Left node: create if needed, then add edge with coverage
-            if (!_graph.TryGetValue(left, out var leftNode))
+        // Buffer reads so k-mer extraction can be parallelized
+        var allReads = new List<ReadOnlyMemory<char>>();
+        await foreach (var line in _reads.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            allReads.Add(line.GetData());
+        }
+
+        if (allReads.Count == 0)
+        {
+            return;
+        }
+
+        // Parallel k-mer extraction: each thread maintains its own partial graph
+        var partitions = new ConcurrentBag<Dictionary<string, KmerNode>>();
+        Parallel.ForEach(
+            allReads,
+            () => new Dictionary<string, KmerNode>(),
+            (data, _, local) =>
             {
-                leftNode = new KmerNode(left, 0, new List<string>());
-                _graph[left] = leftNode;
-            }
+                var span = data.Span;
+                for (var index = 0; index <= span.Length - _k; index++)
+                {
+                    var kmer = new string(span.Slice(index, _k));
+                    var left = kmer[..^1];
+                    var right = kmer[1..];
 
-            if (!leftNode.OutboundEdges.Contains(right)) leftNode.OutboundEdges.Add(right);
+                    if (!local.TryGetValue(left, out var leftNode))
+                    {
+                        leftNode = new KmerNode(left, 0, []);
+                        local[left] = leftNode;
+                    }
 
-            leftNode.OutboundCoverage[right] = leftNode.OutboundCoverage.GetValueOrDefault(right, 0) + 1;
+                    if (!leftNode.OutboundEdges.Contains(right))
+                    {
+                        leftNode.OutboundEdges.Add(right);
+                    }
 
-            // Right node: create if needed
-            if (!_graph.TryGetValue(right, out var rightNode))
+                    leftNode.OutboundCoverage[right] = leftNode.OutboundCoverage.GetValueOrDefault(right, 0) + 1;
+
+                    if (!local.TryGetValue(right, out var rightNode))
+                    {
+                        rightNode = new KmerNode(right, 0, []);
+                        local[right] = rightNode;
+                    }
+
+                    rightNode.InboundEdges++;
+                }
+                return local;
+            },
+            local => partitions.Add(local));
+
+        // Merge partial graphs serially into the shared graph
+        foreach (var partition in partitions)
+        {
+            foreach (var (key, node) in partition)
             {
-                rightNode = new KmerNode(right, 0, new List<string>());
-                _graph[right] = rightNode;
-            }
+                if (!_graph.TryGetValue(key, out var existing))
+                {
+                    _graph[key] = node;
+                    continue;
+                }
 
-            rightNode.InboundEdges++;
+                foreach (var edge in node.OutboundEdges)
+                {
+                    if (!existing.OutboundEdges.Contains(edge))
+                    {
+                        existing.OutboundEdges.Add(edge);
+                    }
+                }
+
+                foreach (var (edge, cov) in node.OutboundCoverage)
+                {
+                    existing.OutboundCoverage[edge] = existing.OutboundCoverage.GetValueOrDefault(edge, 0) + cov;
+                }
+
+                existing.InboundEdges += node.InboundEdges;
+            }
         }
     }
 
@@ -104,11 +152,16 @@ public class DeBruijnGraph
         {
             cancellationToken.ThrowIfCancellationRequested();
             var seq = WalkFrom(candidate.Key, coverage, visited, _k);
-            if (seq != null) sequences.Add(seq);
+            if (seq != null)
+            {
+                sequences.Add(seq);
+            }
         }
 
         foreach (var seq in sequences)
+        {
             yield return seq;
+        }
     }
 
     /// <summary>
@@ -128,7 +181,10 @@ public class DeBruijnGraph
 
         while (true)
         {
-            if (!coverage.TryGetValue(cur, out var edges) || edges.Count == 0) break;
+            if (!coverage.TryGetValue(cur, out var edges) || edges.Count == 0)
+            {
+                break;
+            }
 
             // Pick the neighbor with the highest remaining coverage;
             // break ties by lexicographic order for determinism.
@@ -138,9 +194,15 @@ public class DeBruijnGraph
                 .First();
 
             // Skip edges already visited (circular paths)
-            if (!visited.Add((cur, best.Key))) break;
+            if (!visited.Add((cur, best.Key)))
+            {
+                break;
+            }
 
-            if (best.Key.Length > 0) sb.Append(best.Key[^1]); // append last char of neighbor (overlap is k-2)
+            if (best.Key.Length > 0)
+            {
+                sb.Append(best.Key[^1]); // append last char of neighbor (overlap is k-2)
+            }
 
             cur = best.Key;
         }
@@ -178,10 +240,16 @@ public class DeBruijnGraph
         var allCoverages = new List<int>();
         foreach (var node in _graph.Values)
         {
-            foreach (var cov in node.OutboundCoverage.Values) allCoverages.Add(cov);
+            foreach (var cov in node.OutboundCoverage.Values)
+            {
+                allCoverages.Add(cov);
+            }
         }
 
-        if (allCoverages.Count == 0) return;
+        if (allCoverages.Count == 0)
+        {
+            return;
+        }
 
         if (minCoverage == null)
         {

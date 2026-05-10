@@ -48,11 +48,20 @@ public class CohortVariant
         get
         {
             if (SampleCount == 1)
+            {
                 return CohortVariantType.SingleSample; // Only in one sample
+            }
+
             if (AlleleFrequency >= 0.9)
+            {
                 return CohortVariantType.Oncogenic; // Present in most samples
+            }
+
             if (AlleleFrequency >= 0.5)
+            {
                 return CohortVariantType.Present; // Present in majority
+            }
+
             return CohortVariantType.Subclonal; // Present in minority
         }
     }
@@ -136,13 +145,24 @@ public static class CohortVariantCaller
         double? minAlleleFraction = null)
     {
         if (tumorNormalPairs == null)
+        {
             throw new ArgumentNullException(nameof(tumorNormalPairs));
+        }
+
         if (normalFilter == null)
+        {
             throw new ArgumentNullException(nameof(normalFilter));
+        }
+
         if (string.IsNullOrEmpty(reference))
+        {
             throw new ArgumentNullException(nameof(reference));
+        }
+
         if (string.IsNullOrEmpty(chromosome))
+        {
             throw new ArgumentNullException(nameof(chromosome));
+        }
 
         var minAlleleFrac = minAlleleFraction ?? 0.20;
         var minQuality = DefaultMinVariantQuality;
@@ -177,13 +197,17 @@ public static class CohortVariantCaller
             // Minimum 2 samples to be considered a coherent cohort variant
             // (use 1 for single-sample detection)
             if (sampleCount < 1)
+            {
                 continue;
+            }
 
             var avgQuality = detections.Average(d => d.variant.Quality);
 
             // Filter by quality threshold
             if (avgQuality < minQuality && detections.Count == 1)
+            {
                 continue; // single sample with low quality -> skip
+            }
 
             var avgMaf = detections.Average(d => d.variant.TumorAlleleFraction);
 
@@ -203,7 +227,11 @@ public static class CohortVariantCaller
         cohortVariants.Sort((a, b) =>
         {
             var cmp = a.Position.CompareTo(b.Position);
-            if (cmp != 0) return cmp;
+            if (cmp != 0)
+            {
+                return cmp;
+            }
+
             return b.SampleCount.CompareTo(a.SampleCount); // high frequency first
         });
 
@@ -221,7 +249,9 @@ public static class CohortVariantCaller
         double minFrequency)
     {
         if (variants == null)
+        {
             throw new ArgumentNullException(nameof(variants));
+        }
 
         return variants.Where(v => v.AlleleFrequency >= minFrequency).ToList();
     }
@@ -237,7 +267,9 @@ public static class CohortVariantCaller
         CohortVariantType type)
     {
         if (variants == null)
+        {
             throw new ArgumentNullException(nameof(variants));
+        }
 
         return variants.Where(v => v.Type == type).ToList();
     }
@@ -248,7 +280,9 @@ public static class CohortVariantCaller
     public static CohortSummary GetSummary(IList<CohortVariant> variants, int totalSamples)
     {
         if (variants == null)
+        {
             throw new ArgumentNullException(nameof(variants));
+        }
 
         var totalVariants = variants.Count;
         var variantsInAllSamples = variants.Count(v => v.SampleCount >= totalSamples);

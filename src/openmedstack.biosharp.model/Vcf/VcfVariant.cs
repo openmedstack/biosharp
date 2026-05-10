@@ -1,7 +1,6 @@
 ﻿namespace OpenMedStack.BioSharp.Model.Vcf;
 
 using System;
-using System.Linq;
 
 /// <summary>
 /// Defines the VcfVariant type.
@@ -54,17 +53,19 @@ public record VcfVariant
     {
         try
         {
-            var parts = line.Split('\t');
+            var span = line.AsSpan();
+            Span<Range> ranges = stackalloc Range[8];
+            var count = span.Split(ranges, '\t');
             return new VcfVariant
             {
-                Chromosome = parts[0],
-                Position = int.Parse(parts[1]),
-                MarkerIdentifiers = parts[2],
-                Reference = parts[3],
-                Alternate = parts[4],
-                ErrorProbabilities = GetProbabilities(parts[5]),
-                FailedFilter = parts.Length > 6 ? [parts[6]] : [],
-                AdditionalInformation = parts.Length > 7 ? parts[7] : ""
+                Chromosome = new string(span[ranges[0]]),
+                Position = int.Parse(span[ranges[1]]),
+                MarkerIdentifiers = new string(span[ranges[2]]),
+                Reference = new string(span[ranges[3]]),
+                Alternate = new string(span[ranges[4]]),
+                ErrorProbabilities = GetProbabilities(span[ranges[5]]),
+                FailedFilter = count > 6 ? [new string(span[ranges[6]])] : [],
+                AdditionalInformation = count > 7 ? new string(span[ranges[7]]) : ""
             };
         }
         catch (Exception)
@@ -74,8 +75,16 @@ public record VcfVariant
         }
     }
 
-    private static int[] GetProbabilities(string part)
+    private static int[] GetProbabilities(ReadOnlySpan<char> part)
     {
-        return part.Split('/').Select(p => p == "." ? 0 : (int)Math.Round(float.Parse(p))).ToArray();
+        Span<Range> ranges = stackalloc Range[8];
+        var count = part.Split(ranges, '/');
+        var result = new int[count];
+        for (var i = 0; i < count; i++)
+        {
+            var segment = part[ranges[i]];
+            result[i] = segment.Length == 1 && segment[0] == '.' ? 0 : (int)Math.Round(float.Parse(segment));
+        }
+        return result;
     }
 }

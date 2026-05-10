@@ -47,7 +47,10 @@ public class FastQWriter : IAsyncDisposable
     {
         await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
 
-        foreach (var sequence in sequences) await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
+        foreach (var sequence in sequences)
+        {
+            await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
+        }
 
         await _gzip.FlushAsync(cancellationToken).ConfigureAwait(false);
 

@@ -21,7 +21,10 @@ public class Read
         set
         {
             _isIndexedRead = value;
-            if (_isIndexedRead == "Y" && Type == ReadType.S) Type = ReadType.B;
+            if (_isIndexedRead == "Y" && Type == ReadType.S)
+            {
+                Type = ReadType.B;
+            }
         }
     }
 }

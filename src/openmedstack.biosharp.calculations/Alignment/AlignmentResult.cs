@@ -17,5 +17,7 @@ public record AlignmentResult(
     /// <summary>Number of unaligned read bases at the 5' end (left soft clip).</summary>
     int LeftSoftClip = 0,
     /// <summary>Number of unaligned read bases at the 3' end (right soft clip).</summary>
-    int RightSoftClip = 0
+    int RightSoftClip = 0,
+    /// <summary>True when banding or X-drop pruned part of the DP search space.</summary>
+    bool WasPruned = false
     );

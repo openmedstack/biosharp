@@ -76,10 +76,14 @@ public class MultiSampleGraphTests
         var kmer2 = ExtractKmers("TTTTACGACTAGT", 5);
 
         foreach (var km in kmer1)
+        {
             Assert.True(union.Contains(km), $"Union should contain k-mer '{km}' from sample s1");
+        }
 
         foreach (var km in kmer2)
+        {
             Assert.True(union.Contains(km), $"Union should contain k-mer '{km}' from sample s2");
+        }
     }
 
     /// <summary>
@@ -197,8 +201,10 @@ public class MultiSampleGraphTests
 
         // Each returned k-mer should NOT be in s2
         foreach (var km in uniqueInS1)
+        {
             Assert.False(await graph.HasKmerInSampleAsync("s2", km),
                 $"K-mer '{km}' claimed unique to s1 but found in s2");
+        }
     }
 
     /// <summary>
@@ -318,7 +324,10 @@ public class MultiSampleGraphTests
     {
         var kmers = new List<string>();
         for (var i = 0; i <= sequence.Length - k; i++)
+        {
             kmers.Add(sequence.Substring(i, k));
+        }
+
         return kmers;
     }
 }

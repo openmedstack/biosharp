@@ -24,12 +24,18 @@ public static class VcfRecordBuilder
         {
             info += $";SVTYPE={variant.SvType.Value}";
 
-            if (variant.EndPosition > 0) info += $";END={variant.EndPosition}";
+            if (variant.EndPosition > 0)
+            {
+                info += $";END={variant.EndPosition}";
+            }
 
             info += ";CIPOS=0,2";
             info += ";CIEND=0,2";
 
-            if (variant.AssemblyInfo != null) info += $";ALT_PATHS={variant.AssemblyInfo.AltPathCount}";
+            if (variant.AssemblyInfo != null)
+            {
+                info += $";ALT_PATHS={variant.AssemblyInfo.AltPathCount}";
+            }
 
             if (variant.SvType == SvType.Inversion)
             {
@@ -92,16 +98,21 @@ public static class VcfRecordBuilder
     {
         var sb = new System.Text.StringBuilder();
 
-        if (chromLength.HasValue) sb.AppendLine($"##contig=<ID name=\"{chrom}\">");
+        if (chromLength.HasValue)
+        {
+            sb.AppendLine($"##contig=<ID name=\"{chrom}\">");
+        }
 
         sb.AppendLine(BuildHeader());
 
         if (variants is { Length: > 0 })
+        {
             foreach (var variant in variants.OrderBy(v => v.Position))
             {
                 variant.Chromosome = chrom;
                 sb.AppendLine(Build(variant, chrom));
             }
+        }
 
         return sb.ToString();
     }
@@ -117,12 +128,21 @@ public static class VcfRecordBuilder
         if (variant is { IsStructuralVariant: true, SvType: not null })
         {
             info += $";SVTYPE={variant.SvType.Value}";
-            if (variant.EndPosition > 0) info += $";END={variant.EndPosition}";
+            if (variant.EndPosition > 0)
+            {
+                info += $";END={variant.EndPosition}";
+            }
 
             info += ";CIPOS=0,2;CIEND=0,2";
-            if (variant.AssemblyInfo != null) info += $";ALT_PATHS={variant.AssemblyInfo.AltPathCount}";
+            if (variant.AssemblyInfo != null)
+            {
+                info += $";ALT_PATHS={variant.AssemblyInfo.AltPathCount}";
+            }
 
-            if (variant.SvType == SvType.Inversion) info += ";HOMLEN=0;HOMSEQ=.";
+            if (variant.SvType == SvType.Inversion)
+            {
+                info += ";HOMLEN=0;HOMSEQ=.";
+            }
         }
 
         return
@@ -144,12 +164,21 @@ public static class VcfRecordBuilder
         if (variant is { IsStructuralVariant: true, SvType: not null })
         {
             info += $";SVTYPE={variant.SvType.Value}";
-            if (variant.EndPosition > 0) info += $";END={variant.EndPosition}";
+            if (variant.EndPosition > 0)
+            {
+                info += $";END={variant.EndPosition}";
+            }
 
             info += ";CIPOS=0,2;CIEND=0,2";
-            if (variant.AssemblyInfo != null) info += $";ALT_PATHS={variant.AssemblyInfo.AltPathCount}";
+            if (variant.AssemblyInfo != null)
+            {
+                info += $";ALT_PATHS={variant.AssemblyInfo.AltPathCount}";
+            }
 
-            if (variant.SvType == SvType.Inversion) info += ";HOMLEN=0;HOMSEQ=.";
+            if (variant.SvType == SvType.Inversion)
+            {
+                info += ";HOMLEN=0;HOMSEQ=.";
+            }
         }
 
         return

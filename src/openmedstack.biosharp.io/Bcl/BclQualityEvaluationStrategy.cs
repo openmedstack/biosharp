@@ -56,11 +56,17 @@ public class BclQualityEvaluationStrategy
     public char ReviseAndConditionallyLogQuality(char quality)
     {
         var revisedQuality = GenerateRevisedQuality(quality);
-        if (quality >= IlluminaAllegedMinimumQuality) return revisedQuality;
+        if (quality >= IlluminaAllegedMinimumQuality)
+        {
+            return revisedQuality;
+        }
 
         lock (_qualityCountMap)
         {
-            if (!_qualityCountMap.TryGetValue(quality, out var q)) _qualityCountMap[quality] = 0;
+            if (!_qualityCountMap.TryGetValue(quality, out var q))
+            {
+                _qualityCountMap[quality] = 0;
+            }
 
             _qualityCountMap[quality] = ++q;
         }
@@ -82,8 +88,10 @@ public class BclQualityEvaluationStrategy
                            select $"quality {entry.Key} observed {entry.Value} times").ToList();
 
         if (errorTokens.Count > 0)
+        {
             throw new Exception(
                 $"Found BCL qualities that fell beneath minimum threshold of {_minimumRevisedQuality}: {string.Join("; ", errorTokens)}.");
+        }
     }
 
     /**

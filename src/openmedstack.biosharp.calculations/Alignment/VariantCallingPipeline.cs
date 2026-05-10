@@ -1,6 +1,9 @@
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace OpenMedStack.BioSharp.Calculations.Alignment;
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -111,6 +114,54 @@ public class VariantCallingPipeline
         /// Minimum number of reads covering a region to trigger graph analysis (default: 5).
         /// </summary>
         public int MinGraphCoverage { get; set; } = 5;
+
+        /// <summary>
+        /// Seed size used for the reference index candidate search.
+        /// </summary>
+        public int SeedSize { get; set; } = 11;
+
+        /// <summary>
+        /// Extra padding applied to each candidate alignment window.
+        /// </summary>
+        public int CandidateWindowPadding { get; set; } = 64;
+
+        /// <summary>
+        /// Maximum number of candidate windows to align per read.
+        /// </summary>
+        public int MaxCandidateWindowsPerRead { get; set; } = 8;
+
+        /// <summary>
+        /// Ignore seeds that hit the reference too many times.
+        /// </summary>
+        public int MaxSeedHitsPerKmer { get; set; } = 64;
+
+        /// <summary>
+        /// Diagonal slack around the seed-informed alignment path.
+        /// Set to a negative value to disable banding.
+        /// </summary>
+        public int AlignmentBandWidth { get; set; } = 16;
+
+        /// <summary>
+        /// Drop cells that trail the best alignment score by more than this amount.
+        /// Set to 0 to disable X-drop pruning.
+        /// </summary>
+        public int AlignmentXDrop { get; set; } = 40;
+
+        /// <summary>
+        /// Maximum DP cells allowed for a single candidate alignment. 0 disables the guard.
+        /// </summary>
+        public int MaxAlignmentCellCount { get; set; }
+
+        /// <summary>
+        /// Degree of parallelism for FASTQ/BAM read processing.
+        /// </summary>
+        public int DegreeOfParallelism { get; set; } = 1;
+
+        /// <summary>
+        /// Maximum number of graph windows to analyze when performing full-graph SV detection.
+        /// 0 means no cap.
+        /// </summary>
+        public int MaxGraphWindowsPerSample { get; set; } = 32;
     }
 
     /// <summary>
@@ -136,10 +187,17 @@ public class VariantCallingPipeline
         /// <summary>Number of structural variants detected.</summary>
         public int StructuralVariants { get; set; }
 
+        /// <summary>
+        /// Clips rejected before alignment by heuristics (low complexity or below the
+        /// size/fraction threshold). Tracked per the Task 7 specification.
+        /// </summary>
+        public int SkippedRealignments { get; set; }
+
         public override string ToString()
         {
             return $"PipelineMetrics{{reads={ReadsProcessed}, mapped={ReadsMapped}, " +
-                $"aligned={ReadsRealigned}, called={VariantsCalled}, final={VariantsFinal}, sv={StructuralVariants}}}";
+                $"aligned={ReadsRealigned}, called={VariantsCalled}, final={VariantsFinal}, " +
+                $"sv={StructuralVariants}, skippedRealign={SkippedRealignments}}}";
         }
     }
 
@@ -160,7 +218,7 @@ public class VariantCallingPipeline
         {
             using var mem = new MemoryStream();
             VcfWriter.WriteAsync(mem, Variants, chromosome, chromLength).Wait();
-            return System.Text.Encoding.UTF8.GetString(mem.ToArray());
+            return System.Text.Encoding.UTF8.GetString(mem.GetBuffer(), 0, (int)mem.Length);
         }
     }
 
@@ -169,10 +227,23 @@ public class VariantCallingPipeline
     private readonly PipelineOptions _options;
     private readonly List<LocalVariantResult> _allVariants = new();
     private readonly List<ReadAlignmentRecord> _allAlignments = new();
+    private readonly object _graphLock = new();
     private readonly ReadRealigner _realigner;
+    private readonly ReferenceIndex _referenceIndex;
+    private readonly HashSet<int> _graphCandidateWindows = [];
     private SamDefinition? _samDefinition;
     private string? _bamFilePath;
     private readonly List<AlignmentSection> _regionAlignments = new();
+    private int _skippedRealignments;
+
+    private sealed class ReadProcessingResult
+    {
+        public required Sequence Read { get; init; }
+        public AlignmentResult? Alignment { get; init; }
+        public LocalVariantResult[] Variants { get; init; } = [];
+        public List<int> GraphCandidateStarts { get; init; } = [];
+        public int SkippedRealignments { get; init; }
+    }
 
     /// <summary>
     /// Record for storing read alignment data internally (not SAM format).
@@ -200,6 +271,13 @@ public class VariantCallingPipeline
         _reference = reference ?? throw new ArgumentNullException(nameof(reference));
         _chromosome = chromosome ?? throw new ArgumentNullException(nameof(chromosome));
         _options = options ?? new PipelineOptions();
+        _referenceIndex = new ReferenceIndex(reference, new ReferenceIndex.IndexOptions
+        {
+            SeedSize = _options.SeedSize,
+            WindowPadding = _options.CandidateWindowPadding,
+            MaxCandidateWindowsPerRead = _options.MaxCandidateWindowsPerRead,
+            MaxSeedHitsPerKmer = _options.MaxSeedHitsPerKmer
+        });
         _realigner = new ReadRealigner
         {
             MinClipFraction = _options.MinClipFraction,
@@ -219,19 +297,18 @@ public class VariantCallingPipeline
         var reader = new BamReader(bamFilePath, logger);
         _samDefinition = await reader.Read(cancellationToken).ConfigureAwait(false);
 
-        if (_samDefinition == null || _samDefinition.AlignmentSections.Length == 0) return false;
-
-        foreach (var section in _samDefinition.AlignmentSections)
+        if (_samDefinition == null || _samDefinition.AlignmentSections.Length == 0)
         {
-            // Skip unmapped reads
-            if ((section.Flag & AlignmentSection.AlignmentFlag.SegmentUnmapped) != 0) continue;
-
-            var header = SequenceHeader.Empty;
-            var readData = section.Sequence.TrimEnd().ToCharArray();
-            var readQual = section.Quality.TrimEnd().ToCharArray();
-            var readSeq = new Sequence(section.QName, readData, readQual);
-            await ProcessReadAsync(readSeq, cancellationToken).ConfigureAwait(false);
+            return false;
         }
+
+        var reads = _samDefinition.AlignmentSections
+            .Where(section => (section.Flag & AlignmentSection.AlignmentFlag.SegmentUnmapped) == 0)
+            .Select(section => new Sequence(section.QName, section.Sequence.TrimEnd().ToCharArray(),
+                section.Quality.TrimEnd().ToCharArray()))
+            .ToList();
+
+        await ProcessReadsAsync(reads.ToAsyncEnumerable(), cancellationToken).ConfigureAwait(false);
 
         return true;
     }
@@ -244,60 +321,139 @@ public class VariantCallingPipeline
         var logger = Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
         var reader = new FastQReader(logger);
         var sequences = reader.Read(fastqPath, cancellationToken);
-        var seqList = new List<Sequence>();
 
-        await foreach (var seq in sequences.WithCancellation(cancellationToken).ConfigureAwait(false)) seqList.Add(seq);
+        var anyReads = await ProcessReadsAsync(sequences, cancellationToken).ConfigureAwait(false);
 
-        if (seqList.Count == 0) return false;
+        return anyReads;
+    }
 
-        foreach (var seq in seqList) await ProcessReadAsync(seq, cancellationToken).ConfigureAwait(false);
+    /// <summary>
+    /// Loads reads directly from an async sequence with optional progress reporting.
+    /// Progress is reported after every 10,000 reads.
+    /// </summary>
+    public async Task<bool> LoadFastQAsync(
+        IAsyncEnumerable<Sequence> reads,
+        IProgress<PipelineProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (progress == null)
+        {
+            return await ProcessReadsAsync(reads, cancellationToken).ConfigureAwait(false);
+        }
 
-        return true;
+        var start = DateTime.UtcNow;
+        var processed = 0;
+
+        async IAsyncEnumerable<Sequence> Instrumented(
+            [System.Runtime.CompilerServices.EnumeratorCancellation]
+            CancellationToken ct)
+        {
+            await foreach (var seq in reads.WithCancellation(ct).ConfigureAwait(false))
+            {
+                yield return seq;
+                processed++;
+                if (processed % 10_000 == 0)
+                {
+                    ReportProgressSynchronously(progress, new PipelineProgress
+                    {
+                        ReadsProcessed = processed,
+                        ReadsMapped = _allAlignments.Count,
+                        ReadsFiltered = 0,
+                        VariantsCalled = _allVariants.Count,
+                        CurrentPhase = "Alignment",
+                        Elapsed = DateTime.UtcNow - start
+                    });
+                }
+            }
+        }
+
+        var result = await ProcessReadsAsync(Instrumented(cancellationToken), cancellationToken).ConfigureAwait(false);
+
+        // Final progress report
+        ReportProgressSynchronously(progress, new PipelineProgress
+        {
+            ReadsProcessed = processed,
+            ReadsMapped = _allAlignments.Count,
+            ReadsFiltered = 0,
+            VariantsCalled = _allVariants.Count,
+            CurrentPhase = "Complete",
+            Elapsed = DateTime.UtcNow - start
+        });
+
+        return result;
     }
 
     /// <summary>
     /// Processes a single read: aligns against reference, calls variants,
     /// performs soft-clip realignment, and handles graph-based SV detection.
     /// </summary>
-    public async Task<LocalVariantResult[]> ProcessReadAsync(
+    public Task<LocalVariantResult[]> ProcessReadAsync(
         Sequence read,
         CancellationToken cancellationToken = default)
     {
+        var result = AnalyzeRead(read);
+        MergeReadResult(result);
+        return Task.FromResult(result.Variants);
+    }
+
+    /// <summary>
+    /// Invokes progress synchronously on the current thread, bypassing <see cref="Progress{T}"/>
+    /// thread-pool posting to avoid race conditions in tests and tight feedback loops.
+    /// </summary>
+    private static void ReportProgressSynchronously(IProgress<PipelineProgress> progress, PipelineProgress value)
+    {
+        // Progress<T> posts callbacks to the thread pool asynchronously, which creates a race
+        // condition in tests. We use reflection to directly invoke the stored action synchronously.
+        if (progress is Progress<PipelineProgress> concreteProgress)
+        {
+            var field = typeof(Progress<PipelineProgress>)
+                .GetField("_handler",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            if (field?.GetValue(concreteProgress) is Action<PipelineProgress> handler)
+            {
+                handler(value);
+                return;
+            }
+        }
+
+        // Fallback for custom IProgress<T> implementations (assumed synchronous)
+        progress.Report(value);
+    }
+
+    private ReadProcessingResult AnalyzeRead(Sequence read)
+    {
         var results = new List<LocalVariantResult>();
+        var candidateWindows = new List<int>();
 
         // Step 1: Align read against reference using Smith-Waterman
-        var alignment = SmithWatermanAligner.Align(
-            _reference,
-            read,
-            _options.MatchScore,
-            _options.MismatchPenalty,
-            _options.GapOpenPenalty,
-            _options.GapExtendPenalty,
-            _options.MinAlignmentScore);
+        var alignment = AlignReadToCandidateWindows(read);
 
-        if (alignment == null) return [];
-
-        // Store the alignment record for BAM SAM output
-        _allAlignments.Add(new ReadAlignmentRecord
+        if (alignment == null)
         {
-            ReadName = read.Id,
-            Alignment = alignment,
-            Sequence = read
-        });
+            return new ReadProcessingResult { Read = read, Alignment = null, Variants = [] };
+        }
 
         // Step 2: Call variants from alignment (SNPs, indels)
-        var variants = VariantCaller.CallVariants(_reference, alignment!, _options.MinVariantQuality);
+        var variants = VariantCaller.CallVariants(_reference, alignment, _options.MinVariantQuality);
         results.AddRange(variants);
 
         // Step 3: Soft-clip realignment for SV discovery
-        if (_options.EnableSoftClipRealignment && (alignment!.LeftSoftClip > 0 || alignment!.RightSoftClip > 0))
+        var skippedRealignments = 0;
+        if (_options.EnableSoftClipRealignment && (alignment.LeftSoftClip > 0 || alignment.RightSoftClip > 0))
+        {
+            candidateWindows.Add(alignment.ReferenceStartPosition);
             try
             {
-                var readSeqStr = read.GetData()!.Span.ToString();
-                var readQualityStr = read.GetQuality()!.Span.ToString();
-                var realignResults = _realigner.Realign(alignment!, _reference, readSeqStr, readQualityStr);
+                var realignResults = _realigner.Realign(alignment, _reference, _chromosome, read);
 
                 foreach (var realign in realignResults)
+                {
+                    if (realign.IsSkippedByHeuristic)
+                    {
+                        skippedRealignments++;
+                        continue;
+                    }
+
                     if (realign is { WasRealigned: true, Alignment: not null })
                     {
                         var reAlignVariants = VariantCaller.CallVariants(_reference, realign.Alignment!,
@@ -305,6 +461,7 @@ public class VariantCallingPipeline
                         results.AddRange(reAlignVariants);
 
                         if (realign.IsStructuralVariant)
+                        {
                             foreach (var v in reAlignVariants)
                             {
                                 v.IsStructuralVariant = true;
@@ -322,21 +479,150 @@ public class VariantCallingPipeline
                                     realign.WasRealigned,
                                     realign.Alignment!.Score);
                             }
+                        }
                     }
+                }
             }
             catch
             {
                 // Soft-clip realignment failed; fall through to just return primary alignment variants
             }
+        }
 
-        // Step 4: Store variant calls with chromosome assigned
-        foreach (var v in results)
+        return new ReadProcessingResult
+        {
+            Read = read,
+            Alignment = alignment,
+            Variants = results.ToArray(),
+            GraphCandidateStarts = candidateWindows,
+            SkippedRealignments = skippedRealignments
+        };
+    }
+
+    private void MergeReadResult(ReadProcessingResult result)
+    {
+        if (result.Alignment == null)
+        {
+            return;
+        }
+
+        _allAlignments.Add(new ReadAlignmentRecord
+        {
+            ReadName = result.Read.Id,
+            Alignment = result.Alignment,
+            Sequence = result.Read
+        });
+
+        foreach (var v in result.Variants)
         {
             v.Chromosome = _chromosome;
             _allVariants.Add(v);
         }
 
-        return results.ToArray();
+        _skippedRealignments += result.SkippedRealignments;
+
+        foreach (var start in result.GraphCandidateStarts)
+        {
+            _graphCandidateWindows.Add(start);
+        }
+    }
+
+    private async Task<bool> ProcessReadsAsync(IAsyncEnumerable<Sequence> reads, CancellationToken cancellationToken)
+    {
+        var degreeOfParallelism = Math.Max(1, _options.DegreeOfParallelism);
+        var pending = new List<Task<ReadProcessingResult>>(degreeOfParallelism);
+        var sawAnyRead = false;
+
+        await foreach (var read in reads.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            sawAnyRead = true;
+            if (degreeOfParallelism == 1)
+            {
+                MergeReadResult(AnalyzeRead(read));
+                continue;
+            }
+
+            pending.Add(Task.Run(() => AnalyzeRead(read), cancellationToken));
+            if (pending.Count < degreeOfParallelism)
+            {
+                continue;
+            }
+
+            var completed = await Task.WhenAny(pending).ConfigureAwait(false);
+            pending.Remove(completed);
+            MergeReadResult(await completed.ConfigureAwait(false));
+        }
+
+        while (pending.Count > 0)
+        {
+            var completed = await Task.WhenAny(pending).ConfigureAwait(false);
+            pending.Remove(completed);
+            MergeReadResult(await completed.ConfigureAwait(false));
+        }
+
+        return sawAnyRead;
+    }
+
+    private AlignmentResult? AlignReadToCandidateWindows(Sequence read)
+    {
+        var candidateWindows = _referenceIndex.FindCandidateWindows(read);
+        if (candidateWindows.Length == 0)
+        {
+            return null;
+        }
+
+        AlignmentResult? bestAlignment = null;
+        var runnerUpScore = int.MinValue;
+
+        foreach (var candidateWindow in candidateWindows)
+        {
+            var windowLength = candidateWindow.End - candidateWindow.Start;
+            if (windowLength <= 0)
+            {
+                continue;
+            }
+
+            var referenceWindow = _reference.Slice(candidateWindow.Start, windowLength);
+            var localAlignment = SmithWatermanAligner.Align(
+                referenceWindow,
+                read,
+                _options.MatchScore,
+                _options.MismatchPenalty,
+                _options.GapOpenPenalty,
+                _options.GapExtendPenalty,
+                _options.MinAlignmentScore,
+                _options.MaxAlignmentCellCount,
+                _options.AlignmentBandWidth,
+                _options.AlignmentXDrop,
+                candidateWindow.PreferredStartOffset);
+
+            if (localAlignment == null)
+            {
+                continue;
+            }
+
+            var globalAlignment = new AlignmentResult(
+                localAlignment.AlignedReference,
+                localAlignment.AlignedRead,
+                localAlignment.VisualString,
+                localAlignment.Score,
+                localAlignment.ReferenceStartPosition + candidateWindow.Start,
+                localAlignment.LeftSoftClip,
+                localAlignment.RightSoftClip,
+                localAlignment.WasPruned);
+
+            if (bestAlignment == null || globalAlignment.Score > bestAlignment.Score)
+            {
+                runnerUpScore = bestAlignment?.Score ?? int.MinValue;
+                bestAlignment = globalAlignment;
+            }
+            else if (globalAlignment.Score > runnerUpScore)
+            {
+                runnerUpScore = globalAlignment.Score;
+            }
+        }
+
+        return bestAlignment;
     }
 
     /// <summary>
@@ -344,7 +630,7 @@ public class VariantCallingPipeline
     /// </summary>
     public LocalVariantResult[] GetMergedVariants()
     {
-        return VariantCaller.MergeVariants(_allVariants.ToArray());
+        return VariantCaller.MergeVariants(_allVariants);
     }
 
     /// <summary>
@@ -361,16 +647,25 @@ public class VariantCallingPipeline
 
         foreach (var record in _allAlignments)
         {
-            if (record.Alignment == null || !record.IsMapped) continue;
+            if (record.Alignment == null || !record.IsMapped)
+            {
+                continue;
+            }
 
             var readStart = record.Alignment!.ReferenceStartPosition;
             var readEnd = readStart + record.Alignment!.AlignedReference.Length;
 
-            if (readEnd > windowStart && readStart < windowEnd) windowReads.Add(record.Sequence);
+            if (readEnd > windowStart && readStart < windowEnd)
+            {
+                windowReads.Add(record.Sequence);
+            }
         }
 
         // Need minimum coverage for graph analysis
-        if (windowReads.Count < _options.MinGraphCoverage) return new StructuralVariantAnalysis([]);
+        if (windowReads.Count < _options.MinGraphCoverage)
+        {
+            return new StructuralVariantAnalysis([]);
+        }
 
         // Slice reference window
         var windowLen = Math.Min(_reference.Length, windowEnd - windowStart);
@@ -380,15 +675,18 @@ public class VariantCallingPipeline
 
         var analysis = await StructuralVariantDetector.AnalyzeGraph(
             kmerGraph,
-            new string(windowRef.GetData()!.Span),
+            new string(windowRef.GetData().Span),
             _chromosome,
             windowStart).ConfigureAwait(false);
 
-        // Add any graph-discovered SVs to the variant list
-        foreach (var v in analysis.Variants)
+        // Add any graph-discovered SVs to the variant list (lock for thread-safety when called in parallel)
+        lock (_graphLock)
         {
-            v.Chromosome = _chromosome;
-            _allVariants.Add(v);
+            foreach (var v in analysis.Variants)
+            {
+                v.Chromosome = _chromosome;
+                _allVariants.Add(v);
+            }
         }
 
         return analysis;
@@ -400,28 +698,37 @@ public class VariantCallingPipeline
     public async Task<StructuralVariantAnalysis> RunFullGraphAnalysisAsync(
         CancellationToken cancellationToken = default)
     {
-        var allReads = _allAlignments
-            .Where(r => r.IsMapped)
-            .Select(r => r.Sequence)
-            .ToList();
+        var candidateStarts = _graphCandidateWindows
+            .OrderBy(value => value)
+            .Take(_options.MaxGraphWindowsPerSample > 0 ? _options.MaxGraphWindowsPerSample : int.MaxValue)
+            .ToArray();
 
-        if (allReads.Count < _options.MinGraphCoverage) return new StructuralVariantAnalysis([]);
-
-        var kmerGraph = new DeBruijnGraph(_options.KmerSize, allReads.ToAsyncEnumerable());
-
-        var analysis = await StructuralVariantDetector.AnalyzeGraph(
-            kmerGraph,
-            new string(_reference.GetData()!.Span),
-            _chromosome,
-            0).ConfigureAwait(false);
-
-        foreach (var v in analysis.Variants)
+        if (candidateStarts.Length == 0)
         {
-            v.Chromosome = _chromosome;
-            _allVariants.Add(v);
+            candidateStarts = [0];
         }
 
-        return analysis;
+        var collectedVariants = new ConcurrentBag<LocalVariantResult>();
+
+        await Parallel.ForEachAsync(
+            candidateStarts,
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = Math.Max(1, _options.DegreeOfParallelism),
+                CancellationToken = cancellationToken
+            },
+            async (candidateStart, ct) =>
+            {
+                var windowStart = Math.Max(0, candidateStart - _options.GraphWindowBp / 2);
+                var windowEnd = Math.Min(_reference.Length, windowStart + _options.GraphWindowBp);
+                var analysis = await RunGraphAnalysisAsync(windowStart, windowEnd, ct).ConfigureAwait(false);
+                foreach (var v in analysis.Variants)
+                {
+                    collectedVariants.Add(v);
+                }
+            }).ConfigureAwait(false);
+
+        return new StructuralVariantAnalysis(collectedVariants.ToArray());
     }
 
     /// <summary>
@@ -443,7 +750,8 @@ public class VariantCallingPipeline
             ReadsRealigned = realignedCount,
             VariantsCalled = _allVariants.Count,
             VariantsFinal = merged.Length,
-            StructuralVariants = svCount
+            StructuralVariants = svCount,
+            SkippedRealignments = _skippedRealignments
         };
 
         return new PipelineResult
@@ -468,7 +776,10 @@ public class VariantCallingPipeline
     /// </summary>
     public async Task WriteSamAsync(string filePath)
     {
-        if (_samDefinition == null) return;
+        if (_samDefinition == null)
+        {
+            return;
+        }
 
         using var fs = new FileStream(filePath, FileMode.Create, FileAccess.Write);
         var writer = new SamWriter(Microsoft.Extensions.Logging.Abstractions
@@ -496,8 +807,7 @@ public class VariantCallingPipeline
         List<AlignmentSection> localResults;
         try
         {
-            var logger = new Microsoft.Extensions.Logging.Abstractions.NullLogger<BamReader>();
-            var reader = new BamReader(bamFilePath, logger);
+            var reader = new BamReader(bamFilePath, NullLogger<BamReader>.Instance);
             localResults = new List<AlignmentSection>();
             await foreach (var section in reader.QueryRegionAsync(referenceName, start, end, cancellationToken)
                 .ConfigureAwait(false))
@@ -539,27 +849,41 @@ public class VariantCallingPipeline
         counts["SV"] = 0;
 
         foreach (var v in _allVariants)
+        {
             if (v.IsStructuralVariant)
             {
                 counts["SV"]++;
                 if (v.SvType.HasValue)
                 {
                     var key = ((SvType)v.SvType).ToString();
-                    if (key != null && counts.ContainsKey(key)) counts[key]++;
+                    if (key != null && counts.ContainsKey(key))
+                    {
+                        counts[key]++;
+                    }
                 }
             }
             else
             {
                 // Classify local variants
-                if (string.IsNullOrEmpty(v.Reference) || string.IsNullOrEmpty(v.Alternate)) continue;
+                if (string.IsNullOrEmpty(v.Reference) || string.IsNullOrEmpty(v.Alternate))
+                {
+                    continue;
+                }
 
                 if (v.Reference.Length > v.Alternate.Length)
+                {
                     counts["Deletion"]++;
+                }
                 else if (v.Alternate.Length > v.Reference.Length)
+                {
                     counts["Insertion"]++;
+                }
                 else
+                {
                     counts["SNP"]++;
+                }
             }
+        }
 
         return counts;
     }

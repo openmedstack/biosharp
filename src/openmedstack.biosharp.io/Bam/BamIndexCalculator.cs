@@ -6,15 +6,30 @@ public static class BamIndexCalculator
     public static int Reg2Bin(int beg, int end)
     {
         --end;
-        if (beg >> 14 == end >> 14) return ((1 << 15) - 1) / 7 + (beg >> 14);
+        if (beg >> 14 == end >> 14)
+        {
+            return ((1 << 15) - 1) / 7 + (beg >> 14);
+        }
 
-        if (beg >> 17 == end >> 17) return ((1 << 12) - 1) / 7 + (beg >> 17);
+        if (beg >> 17 == end >> 17)
+        {
+            return ((1 << 12) - 1) / 7 + (beg >> 17);
+        }
 
-        if (beg >> 20 == end >> 20) return ((1 << 9) - 1) / 7 + (beg >> 20);
+        if (beg >> 20 == end >> 20)
+        {
+            return ((1 << 9) - 1) / 7 + (beg >> 20);
+        }
 
-        if (beg >> 23 == end >> 23) return ((1 << 6) - 1) / 7 + (beg >> 23);
+        if (beg >> 23 == end >> 23)
+        {
+            return ((1 << 6) - 1) / 7 + (beg >> 23);
+        }
 
-        if (beg >> 26 == end >> 26) return ((1 << 3) - 1) / 7 + (beg >> 26);
+        if (beg >> 26 == end >> 26)
+        {
+            return ((1 << 3) - 1) / 7 + (beg >> 26);
+        }
 
         return 0;
     }
@@ -28,15 +43,30 @@ public static class BamIndexCalculator
         int i = 0, k;
         --end;
         list[i++] = 0;
-        for (k = 1 + (beg >> 26); k <= 1 + (end >> 26); ++k) list[i++] = (ushort)k;
+        for (k = 1 + (beg >> 26); k <= 1 + (end >> 26); ++k)
+        {
+            list[i++] = (ushort)k;
+        }
 
-        for (k = 9 + (beg >> 23); k <= 9 + (end >> 23); ++k) list[i++] = (ushort)k;
+        for (k = 9 + (beg >> 23); k <= 9 + (end >> 23); ++k)
+        {
+            list[i++] = (ushort)k;
+        }
 
-        for (k = 73 + (beg >> 20); k <= 73 + (end >> 20); ++k) list[i++] = (ushort)k;
+        for (k = 73 + (beg >> 20); k <= 73 + (end >> 20); ++k)
+        {
+            list[i++] = (ushort)k;
+        }
 
-        for (k = 585 + (beg >> 17); k <= 585 + (end >> 17); ++k) list[i++] = (ushort)k;
+        for (k = 585 + (beg >> 17); k <= 585 + (end >> 17); ++k)
+        {
+            list[i++] = (ushort)k;
+        }
 
-        for (k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); ++k) list[i++] = (ushort)k;
+        for (k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); ++k)
+        {
+            list[i++] = (ushort)k;
+        }
 
         return i;
     }

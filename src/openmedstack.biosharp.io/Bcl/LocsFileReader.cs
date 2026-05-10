@@ -24,9 +24,15 @@ public class LocsFileReader : ILocationReader
             });
         var headerBuffer = new byte[12];
         _ = _stream.Read(headerBuffer);
-        if (!BitConverter.ToInt32(headerBuffer.AsSpan(0, 4)).Equals(1)) throw new Exception("Invalid byte 1-4");
+        if (!BitConverter.ToInt32(headerBuffer.AsSpan(0, 4)).Equals(1))
+        {
+            throw new Exception("Invalid byte 1-4");
+        }
 
-        if (!BitConverter.ToSingle(headerBuffer.AsSpan(4, 4)).Equals(1.0f)) throw new Exception("Invalid version");
+        if (!BitConverter.ToSingle(headerBuffer.AsSpan(4, 4)).Equals(1.0f))
+        {
+            throw new Exception("Invalid version");
+        }
 
         NumClusters = BitConverter.ToInt32(headerBuffer.AsSpan(8, 4));
     }

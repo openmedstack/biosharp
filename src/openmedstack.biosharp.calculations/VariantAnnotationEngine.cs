@@ -9,6 +9,7 @@ using OpenMedStack.BioSharp.Model;
 using OpenMedStack.BioSharp.Model.Vcf;
 using OpenMedStack.BioSharp.Io.FastA;
 using OpenMedStack.BioSharp.Io.Vcf;
+using OpenMedStack.BioSharp.Io;
 
 namespace OpenMedStack.BioSharp.Calculations;
 
@@ -22,6 +23,8 @@ namespace OpenMedStack.BioSharp.Calculations;
 ///   <p>Supports ref-allele mismatch detection, classifying mismatches as <see cref="VariantConsequence.Uncertain"/></item>
 ///   <item>Generates HGVS coding and protein annotations (c.XY&gt;Z, p.Xz)</item>
 ///   <item>Calculates FrameshiftOffset when applicable (amino acids between mutation and new stop)</item>
+///   <item>Loads per-transcript coordinate structure from GTF/GFF3 files (ANN-1)</item>
+///   <item>Predicts splice site disruption and cryptic site activation via PWM (ANN-4)</item>
 /// </list>
 /// 
 /// Usage:
@@ -38,20 +41,44 @@ namespace OpenMedStack.BioSharp.Calculations;
 public class VariantAnnotationEngine : IDisposable
 {
     private readonly Dictionary<string, Sequence> _transcripts = new();
+    private readonly Dictionary<string, AnnotationContext> _transcriptContexts = new();
     private readonly FastAReader _fastaReader = new();
     private readonly VcfFileReader _vcfReader;
     private bool _disposed;
     private readonly AnnotationContext? _annotationContext;
+
+    // ANN-4 splice site prediction thresholds
+    private readonly double _spliceSiteThreshold;
+    private readonly double _crypticSpliceThreshold;
+
+    /// <summary>
+    /// The canonical transcript ID identified during <see cref="LoadTranscriptsFromGtfAsync"/>.
+    /// Null if no canonical transcript was found or GTF has not been loaded.
+    /// </summary>
+    public string? CanonicalTranscriptId { get; private set; }
+
+    /// <summary>
+    /// Per-transcript <see cref="AnnotationContext"/> objects populated by
+    /// <see cref="LoadTranscriptsFromGtfAsync"/>. Read-only view.
+    /// </summary>
+    public IReadOnlyDictionary<string, AnnotationContext> TranscriptContexts => _transcriptContexts;
 
     /// <summary>
     /// Constructs a <see cref="VariantAnnotationEngine"/> with an optional annotation context.
     /// Passing a context enables non-coding consequence classification (Upstream, Downstream, SpliceSite, Intronic, etc.).
     /// </summary>
     /// <param name="annotationContext">Context defining CDS boundaries, gene regions, and introns. Null for coding-only annotation.</param>
-    public VariantAnnotationEngine(AnnotationContext? annotationContext = null)
+    /// <param name="spliceSiteThreshold">PWM score delta (bits) required to call a splice site disruption. Default 3.0.</param>
+    /// <param name="crypticSpliceThreshold">Minimum alt PWM score (bits) required to call cryptic splice activation. Default 5.0.</param>
+    public VariantAnnotationEngine(
+        AnnotationContext? annotationContext = null,
+        double spliceSiteThreshold = 3.0,
+        double crypticSpliceThreshold = 5.0)
     {
         _vcfReader = new VcfFileReader(new VcfMetaReader());
         _annotationContext = annotationContext;
+        _spliceSiteThreshold = spliceSiteThreshold;
+        _crypticSpliceThreshold = crypticSpliceThreshold;
     }
 
     /// <summary>
@@ -63,28 +90,147 @@ public class VariantAnnotationEngine : IDisposable
     /// <exception cref="FileNotFoundException">Thrown when the FASTA file does not exist at the given path.</exception>
     public async Task LoadTranscriptsAsync(string fastaPath, CancellationToken ct = default)
     {
-        if (!File.Exists(fastaPath)) throw new FileNotFoundException("FASTA file not found.", fastaPath);
+        if (!File.Exists(fastaPath))
+        {
+            throw new FileNotFoundException("FASTA file not found.", fastaPath);
+        }
 
         _transcripts.Clear();
-        await foreach (var sequence in _fastaReader.Read(fastaPath, ct)) _transcripts[sequence.Id] = sequence;
+        await foreach (var sequence in _fastaReader.Read(fastaPath, ct))
+        {
+            _transcripts[sequence.Id] = sequence;
+        }
+    }
+
+    /// <summary>
+    /// Adds a single pre-built <see cref="Sequence"/> directly to the transcript store.
+    /// Useful for unit tests and programmatic loading without a FASTA file on disk.
+    /// </summary>
+    public void LoadTranscript(Sequence sequence) => _transcripts[sequence.Id] = sequence;
+
+    /// <summary>
+    /// Loads per-transcript <see cref="AnnotationContext"/> objects from a GTF or GFF3 file.
+    ///
+    /// For each transcript_id found in the file the method:
+    /// <list type="bullet">
+    ///   <item>Collects all CDS features to determine CDS start and end boundaries.</item>
+    ///   <item>Collects all exon features and derives intron positions as the gaps between consecutive exons.</item>
+    ///   <item>Captures gene/transcript boundaries from the enclosing feature.</item>
+    ///   <item>Records the canonical transcript (tagged with "Ensembl_canonical" in GTF).</item>
+    /// </list>
+    ///
+    /// Loaded contexts are stored in <see cref="TranscriptContexts"/> and used automatically
+    /// by <see cref="AnnotateVariantAsync"/> and <see cref="AnnotateVariantFromContexts"/>.
+    /// </summary>
+    /// <param name="gtfPath">Path to a GFF3 or GTF annotation file.</param>
+    /// <param name="ct">Cancellation token.</param>
+    public async Task LoadTranscriptsFromGtfAsync(string gtfPath, CancellationToken ct = default)
+    {
+        if (!File.Exists(gtfPath))
+        {
+            throw new FileNotFoundException("GTF/GFF file not found.", gtfPath);
+        }
+
+        _transcriptContexts.Clear();
+        CanonicalTranscriptId = null;
+
+        var gffReader = new GffReader();
+        var txCds    = new Dictionary<string, List<(int Start, int End)>>();
+        var txExons  = new Dictionary<string, List<(int Start, int End)>>();
+        var txBounds = new Dictionary<string, (int Start, int End)>();
+        var txCanonical = new HashSet<string>();
+
+        await foreach (var record in gffReader.ReadAsync(gtfPath, ct).ConfigureAwait(false))
+        {
+            var feature = record.Feature.ToLowerInvariant();
+            var txId = GetAttribute(record, "transcript_id");
+            if (string.IsNullOrEmpty(txId))
+            {
+                continue;
+            }
+
+            switch (feature)
+            {
+                case "transcript":
+                    txBounds[txId] = (record.Start, record.End);
+                    if (IsEnsemblCanonical(record))
+                    {
+                        txCanonical.Add(txId);
+                    }
+
+                    break;
+
+                case "exon":
+                    if (!txExons.TryGetValue(txId, out var exons))
+                    {
+                        txExons[txId] = exons = [];
+                    }
+
+                    exons.Add((record.Start, record.End));
+                    break;
+
+                case "cds":
+                    if (!txCds.TryGetValue(txId, out var cdsList))
+                    {
+                        txCds[txId] = cdsList = [];
+                    }
+
+                    cdsList.Add((record.Start, record.End));
+                    break;
+            }
+        }
+
+        // Build an AnnotationContext per transcript
+        var allTxIds = new HashSet<string>(txCds.Keys);
+        allTxIds.UnionWith(txExons.Keys);
+        allTxIds.UnionWith(txBounds.Keys);
+
+        foreach (var txId in allTxIds)
+        {
+            txCds.TryGetValue(txId, out var cdsList2);
+            txExons.TryGetValue(txId, out var exonList);
+            txBounds.TryGetValue(txId, out var bounds);
+
+            var cdsStart  = cdsList2?.Count > 0 ? cdsList2.Min(c => c.Start) : bounds.Start;
+            var cdsEnd    = cdsList2?.Count > 0 ? cdsList2.Max(c => c.End)   : bounds.End;
+            var geneStart = bounds == default ? cdsStart : bounds.Start;
+            var geneEnd   = bounds == default ? cdsEnd   : bounds.End;
+
+            List<(int, int)>? introns = null;
+            List<(int, int)>? exonBoundaries = null;
+
+            if (exonList is { Count: > 0 })
+            {
+                var sorted = exonList.OrderBy(e => e.Start).ToList();
+                exonBoundaries = sorted;
+                if (sorted.Count > 1)
+                {
+                    introns = new List<(int, int)>(sorted.Count - 1);
+                    for (var i = 0; i < sorted.Count - 1; i++)
+                    {
+                        introns.Add((sorted[i].End + 1, sorted[i + 1].Start - 1));
+                    }
+                }
+            }
+
+            _transcriptContexts[txId] = new AnnotationContext
+            {
+                CdsStart       = cdsStart,
+                CdsEnd         = cdsEnd,
+                TranscriptLength = geneEnd,
+                GeneBoundaries = (geneStart, geneEnd),
+                Introns        = introns,
+                ExonBoundaries = exonBoundaries
+            };
+        }
+
+        CanonicalTranscriptId = txCanonical.FirstOrDefault();
     }
 
     /// <summary>
     /// Annotates all variants in a VCF file, yielding <see cref="VariantAnnotation"/> results
     /// as they are produced via <see cref="IAsyncEnumerable{T}"/>.
-    /// 
-    /// Filtering is applied:
-    /// <list type="bullet">
-    ///   <item>Quality: Only variants with Phred error probabilities &gt;= minQuality are included.</item>
-    ///   <item>Transcript: If transcriptId is provided, only that transcript is annotated. Otherwise, all loaded transcripts.</item>
-    /// </list>
     /// </summary>
-    /// <param name="vcfPath">Path to the VCF file to annotate.</param>
-    /// <param name="transcriptId">Optional specific transcript ID to annotate against. Null annotates all.</param>
-    /// <param name="minQuality">Minimum Phred-scaled quality threshold. Variants with error probabilities below this are skipped.</param>
-    /// <param name="ct">Cancellation token for early termination.</param>
-    /// <returns>An async enumerable of variant annotations.</returns>
-    /// <exception cref="FileNotFoundException">Thrown when the VCF file does not exist.</exception>
     public async IAsyncEnumerable<VariantAnnotation> AnnotateVcfAsync(
         string vcfPath,
         string? transcriptId = null,
@@ -98,13 +244,23 @@ public class VariantAnnotationEngine : IDisposable
             // R1.2: Filter by minQuality using ErrorProbabilities (phred-scaled).
             var failsQuality = false;
             if (variant.ErrorProbabilities.Length > 0)
+            {
                 if (variant.ErrorProbabilities.Any(q => q < minQuality))
+                {
                     failsQuality = true;
+                }
+            }
 
-            if (failsQuality) continue;
+            if (failsQuality)
+            {
+                continue;
+            }
 
             // R1.2: Filter by optional transcriptId.
-            if (transcriptId != null && !_transcripts.ContainsKey(transcriptId)) continue;
+            if (transcriptId != null && !_transcripts.ContainsKey(transcriptId))
+            {
+                continue;
+            }
 
             var targetTranscripts = transcriptId != null
                 ? [_transcripts[transcriptId]]
@@ -112,7 +268,9 @@ public class VariantAnnotationEngine : IDisposable
 
             foreach (var annotation in targetTranscripts.SelectMany(t =>
                 AnnotateSingleVariantAgainstTranscript(variant, t)))
+            {
                 yield return annotation;
+            }
         }
     }
 
@@ -132,6 +290,63 @@ public class VariantAnnotationEngine : IDisposable
     }
 
     /// <summary>
+    /// Annotates a single VCF variant using only the GTF-loaded <see cref="TranscriptContexts"/>,
+    /// without requiring loaded FASTA sequences. Only non-coding consequences (SpliceSite,
+    /// Intronic, Upstream, Downstream, Intergenic, etc.) are returned.
+    /// Splice site variants are upgraded via the PWM predictor when transcript sequence is available.
+    /// </summary>
+    public IEnumerable<VariantAnnotation> AnnotateVariantFromContexts(VcfVariant variant)
+    {
+        foreach (var (txId, ctx) in _transcriptContexts)
+        {
+            var consequence = ctx.ClassifyPosition(variant.Position);
+            if (!consequence.HasValue)
+            {
+                continue; // coding region — skip for context-only path
+            }
+
+            var finalConsequence = consequence.Value;
+
+            if (finalConsequence == VariantConsequence.SpliceSite && _transcripts.TryGetValue(txId, out var seq))
+            {
+                finalConsequence = UpgradeSpliceSiteConsequence(seq, variant.Position,
+                    variant.Reference.Length > 0 ? variant.Reference[0] : ' ',
+                    variant.Alternate.Length > 0 ? variant.Alternate[0] : ' ',
+                    ctx);
+            }
+            else if (finalConsequence == VariantConsequence.Intronic && _transcripts.TryGetValue(txId, out seq))
+            {
+                finalConsequence = CheckCrypticSplice(seq, variant.Position,
+                    variant.Alternate.Length > 0 ? variant.Alternate[0] : ' ');
+            }
+
+            yield return new VariantAnnotation
+            {
+                AffectedGene = txId,
+                Consequence  = finalConsequence,
+                HgvsCoding   = BuildNonCodingHgvs(variant.Position, finalConsequence),
+                HgvsProtein  = "p.?",
+                AffectedAminoAcid  = null,
+                ResultingAminoAcid = null,
+                CodonChange        = null,
+                FrameshiftOffset   = null
+            };
+        }
+    }
+
+    // ── Private helpers ───────────────────────────────────────────────────────
+
+    private AnnotationContext? GetContextForTranscript(string transcriptId)
+    {
+        if (_transcriptContexts.TryGetValue(transcriptId, out var ctx))
+        {
+            return ctx;
+        }
+
+        return _annotationContext;
+    }
+
+    /// <summary>
     /// Annotates a single VCF variant against a specific transcript.
     /// Handles multi-allele variants by producing one annotation per alternate allele.
     /// Skips ALT alleles that are "*", equal to REF, or symbolic (starting with "<").
@@ -143,15 +358,54 @@ public class VariantAnnotationEngine : IDisposable
         var altAlleles = variant.Alternate.Split(',', StringSplitOptions.RemoveEmptyEntries);
         foreach (var altAllele in altAlleles)
         {
-            if (altAllele == "*" || altAllele == variant.Reference || altAllele.StartsWith("<")) continue;
+            if (altAllele == "*" || altAllele == variant.Reference || altAllele.StartsWith("<"))
+            {
+                continue;
+            }
 
             var refAllele = variant.Reference;
             var cPos = variant.Position;
+            var context = GetContextForTranscript(transcript.Id);
+
+            // Check for non-coding context classification first
+            if (context != null)
+            {
+                var nonCoding = context.ClassifyPosition(cPos);
+                if (nonCoding.HasValue)
+                {
+                    var consequence = nonCoding.Value;
+
+                    // Upgrade SpliceSite using PWM (ANN-4)
+                    if (consequence == VariantConsequence.SpliceSite)
+                    {
+                        consequence = UpgradeSpliceSiteConsequence(transcript, cPos,
+                            refAllele.Length > 0 ? refAllele[0] : ' ',
+                            altAllele.Length > 0 ? altAllele[0] : ' ',
+                            context);
+                    }
+                    else if (consequence == VariantConsequence.Intronic)
+                    {
+                        consequence = CheckCrypticSplice(transcript, cPos,
+                            altAllele.Length > 0 ? altAllele[0] : ' ');
+                    }
+
+                    yield return new VariantAnnotation
+                    {
+                        AffectedGene = transcript.Id,
+                        Consequence  = consequence,
+                        HgvsCoding   = BuildNonCodingHgvs(cPos, consequence),
+                        HgvsProtein  = "p.?",
+                        AffectedAminoAcid  = null,
+                        ResultingAminoAcid = null,
+                        CodonChange        = refAllele + ">" + altAllele,
+                        FrameshiftOffset   = null
+                    };
+                    continue;
+                }
+            }
 
             var codonChange = BuildCodonChange(variant, altAllele, transcript);
 
-            // If codonChange is null, check if it's a ref-mismatch case.
-            // A mismatch means VCF ref doesn't agree with transcript, so annotate as Uncertain.
             if (codonChange == null)
             {
                 if (RefMismatch(transcript, variant, altAllele))
@@ -174,86 +428,184 @@ public class VariantAnnotationEngine : IDisposable
             }
 
             var ann = codonChange.Annotate(transcript.Id, transcript, cPos, refAllele[0],
-                altAllele[0], _annotationContext);
-            if (ann != null) yield return ann;
+                altAllele[0], context);
+            if (ann != null)
+            {
+                yield return ann;
+            }
         }
     }
 
+    // ── Splice site PWM integration ───────────────────────────────────────────
+
+    private VariantConsequence UpgradeSpliceSiteConsequence(
+        Sequence transcript,
+        int variantPos,
+        char refBase,
+        char altBase,
+        AnnotationContext context)
+    {
+        var data = transcript.GetData();
+        var donorBoundary = FindNearestDonorBoundary(variantPos, context);
+        if (donorBoundary.HasValue)
+        {
+            return SpliceSitePredictor.UpgradeDonorConsequence(
+                data.Span, variantPos, refBase, altBase,
+                donorBoundary.Value, _spliceSiteThreshold, VariantConsequence.SpliceSite);
+        }
+        return VariantConsequence.SpliceSite;
+    }
+
+    private VariantConsequence CheckCrypticSplice(Sequence transcript, int variantPos, char altBase)
+    {
+        var data = transcript.GetData();
+        return SpliceSitePredictor.CheckCrypticDonor(data.Span, variantPos, altBase, _crypticSpliceThreshold);
+    }
+
+    private static int? FindNearestDonorBoundary(int variantPos, AnnotationContext context)
+    {
+        const int spliceWindow = 6; // broad window to capture +1..+6
+
+        if (context.ExonBoundaries != null)
+        {
+            foreach (var (exonStart, exonEnd) in context.ExonBoundaries)
+            {
+                if (variantPos >= exonEnd - 3 && variantPos <= exonEnd + spliceWindow)
+                {
+                    return exonEnd;
+                }
+            }
+        }
+
+        if (variantPos >= context.CdsStart - 3 && variantPos < context.CdsStart)
+        {
+            return context.CdsStart - 1;
+        }
+
+        if (variantPos > context.CdsEnd && variantPos <= context.CdsEnd + spliceWindow)
+        {
+            return context.CdsEnd;
+        }
+
+        return null;
+    }
+
+    // ── Coding annotation helpers ─────────────────────────────────────────────
+
     /// <summary>
     /// Checks whether the VCF reference base at the variant position matches the
-    /// corresponding base in the transcript. Returns true only when positions
-    /// are within the transcript and the transcript base differs from REF.
+    /// corresponding base in the transcript.
     /// </summary>
     private static bool RefMismatch(Sequence transcript, VcfVariant variant, string altAllele)
     {
         var cPos = variant.Position;
         if (cPos < 1 || cPos > transcript.Length)
-            return false; // Can't check ref if position is out of bounds
+        {
+            return false;
+        }
 
         var data = transcript.GetData();
         var refBase = char.ToUpper(variant.Reference[0]);
-        var transcriptBase = char.ToUpper(data.Span[cPos - 1]);
+        var transcriptBase = char.ToUpper((char)data.Span[cPos - 1]);
         return transcriptBase != refBase;
     }
 
-    /// <summary>
-    /// Maps VCF allele type (substitution, deletion, insertion) to the corresponding
-    /// <see cref="CodonChange"/> factory method. Returns null if the position falls
-    /// beyond the transcript boundaries.
-    /// </summary>
     private static CodonChange? BuildCodonChange(VcfVariant variant, string altAllele, Sequence transcript)
     {
         var refBase = variant.Reference;
         var cPos = variant.Position;
 
-        if (altAllele.Length == refBase.Length) // Substitution
+        if (altAllele.Length == refBase.Length)
         {
             var startOfCodon = (cPos - 1) / 3 * 3 + 1;
             var endOfCodon = startOfCodon + 2;
-            if (endOfCodon > transcript.Length) return null;
+            if (endOfCodon > transcript.Length)
+            {
+                return null;
+            }
 
             var refCodon = GetSequenceSubstring(transcript, startOfCodon, endOfCodon);
             return VariantAnnotator.Substitution(refCodon, cPos, refBase[0], altAllele[0]);
         }
 
-        if (altAllele.Length < refBase.Length) // Deletion
+        if (altAllele.Length < refBase.Length)
         {
             var startOfCodon = (cPos - 1) / 3 * 3 + 1;
             var endOfCodon = startOfCodon + 2;
-            if (endOfCodon > transcript.Length) return null;
+            if (endOfCodon > transcript.Length)
+            {
+                return null;
+            }
 
             var refCodon = GetSequenceSubstring(transcript, startOfCodon, endOfCodon);
             return VariantAnnotator.MultiDeletion(refCodon, cPos, refBase.Length);
         }
-        else // Insertion
+        else
         {
             var startOfCodon = (cPos - 1) / 3 * 3 + 1;
             var endOfCodon = startOfCodon + 2;
-            if (endOfCodon > transcript.Length) return null;
+            if (endOfCodon > transcript.Length)
+            {
+                return null;
+            }
 
             var refCodon = GetSequenceSubstring(transcript, startOfCodon, endOfCodon);
             return VariantAnnotator.Insertion(refCodon, cPos, altAllele[0]);
         }
     }
 
-    /// <summary>
-    /// Extracts a substring from a <see cref="Sequence"/> by 1-based inclusive start/end.
-    /// </summary>
     private static string GetSequenceSubstring(Sequence seq, int start, int end)
     {
         var data = seq.GetData();
         var chars = new char[end - start + 1];
-        for (var i = 0; i < chars.Length; i++) chars[i] = data.Span[start + i - 1];
+        for (var i = 0; i < chars.Length; i++)
+        {
+            chars[i] = (char)data.Span[start + i - 1];
+        }
+
         return new string(chars);
     }
 
+    private static string BuildNonCodingHgvs(int pos, VariantConsequence consequence) =>
+        consequence switch
+        {
+            VariantConsequence.Intronic                 => $"c.{pos}+?",
+            VariantConsequence.SpliceSite               => $"c.{pos}spl",
+            VariantConsequence.SpliceSiteDisruptive     => $"c.{pos}spl_dis",
+            VariantConsequence.CrypticSpliceActivation  => $"c.{pos}crypt",
+            VariantConsequence.Upstream                 => $"c.-{pos}",
+            VariantConsequence.Downstream               => $"c.*{pos}",
+            VariantConsequence.Intergenic               => $"n.{pos}",
+            _                                           => $"c.{pos}?"
+        };
+
+    // ── GTF parsing helpers ───────────────────────────────────────────────────
+
+    private static string GetAttribute(GffRecord record, string key)
+    {
+        record.Attributes.TryGetValue(key, out var val);
+        return val ?? string.Empty;
+    }
+
+    private static bool IsEnsemblCanonical(GffRecord record)
+    {
+        if (record.Attributes.TryGetValue("tag", out var tag))
+        {
+            return tag.Contains("Ensembl_canonical", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
+    }
+
     /// <summary>
-    /// Releases resources held by the engine. Does not close the underlying readers
-    /// as they are typically shared across multiple engine instances.
+    /// Releases resources held by the engine.
     /// </summary>
     public void Dispose()
     {
-        if (_disposed) return;
+        if (_disposed)
+        {
+            return;
+        }
 
         _disposed = true;
     }

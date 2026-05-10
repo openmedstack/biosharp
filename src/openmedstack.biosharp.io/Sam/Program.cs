@@ -1,7 +1,7 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Sam;
 
 using System;
-using System.Linq;
+using System.Collections.Generic;
 using System.Text;
 
 public record Program
@@ -31,10 +31,21 @@ public record Program
 
     public static Program Parse(string line)
     {
-        var parts = line[4..]
-            .Split('\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(x => x.Split(':'))
-            .ToDictionary(x => x[0], x => string.Join(':', x.Skip(1)));
+        var span = line.AsSpan(4);
+        Span<Range> tabRanges = stackalloc Range[20];
+        var count = span.Split(tabRanges, '\t', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var parts = new Dictionary<string, string>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var field = span[tabRanges[i]];
+            var colon = field.IndexOf(':');
+            if (colon < 1)
+            {
+                continue;
+            }
+
+            parts[new string(field[..colon])] = new string(field[(colon + 1)..]);
+        }
         return new Program(
             parts["ID"],
             parts.TryGetValue("PN", out var pn) ? pn : null,
@@ -47,18 +58,36 @@ public record Program
     /// <inheritdoc />
     public override string ToString()
     {
-        if (string.IsNullOrWhiteSpace(Id)) return "";
+        if (string.IsNullOrWhiteSpace(Id))
+        {
+            return "";
+        }
 
         var builder = new StringBuilder($"@PG\tID:{Id}");
-        if (!string.IsNullOrWhiteSpace(ProgramName)) builder.Append($"\tPN:{ProgramName}");
+        if (!string.IsNullOrWhiteSpace(ProgramName))
+        {
+            builder.Append($"\tPN:{ProgramName}");
+        }
 
-        if (!string.IsNullOrWhiteSpace(CommandLine)) builder.Append($"\tCL:{CommandLine}");
+        if (!string.IsNullOrWhiteSpace(CommandLine))
+        {
+            builder.Append($"\tCL:{CommandLine}");
+        }
 
-        if (!string.IsNullOrWhiteSpace(Previous)) builder.Append($"\tPP:{Previous}");
+        if (!string.IsNullOrWhiteSpace(Previous))
+        {
+            builder.Append($"\tPP:{Previous}");
+        }
 
-        if (!string.IsNullOrWhiteSpace(Description)) builder.Append($"\tDS:{Description}");
+        if (!string.IsNullOrWhiteSpace(Description))
+        {
+            builder.Append($"\tDS:{Description}");
+        }
 
-        if (!string.IsNullOrWhiteSpace(Version)) builder.Append($"\tVN:{Version}");
+        if (!string.IsNullOrWhiteSpace(Version))
+        {
+            builder.Append($"\tVN:{Version}");
+        }
 
         return builder.ToString();
     }

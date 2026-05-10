@@ -79,5 +79,17 @@ public enum VariantConsequence
     /// <summary>
     /// Could not be annotated (e.g. out-of-bounds, unknown transcript).
     /// </summary>
-    Unknown
+    Unknown,
+
+    /// <summary>
+    /// Variant alters the splice site PWM score beyond the configured threshold,
+    /// functionally disrupting the canonical donor or acceptor signal.
+    /// </summary>
+    SpliceSiteDisruptive,
+
+    /// <summary>
+    /// Variant restores or creates a new splice site in a non-canonical (typically intronic)
+    /// position, potentially activating a cryptic splice donor or acceptor.
+    /// </summary>
+    CrypticSpliceActivation
 }

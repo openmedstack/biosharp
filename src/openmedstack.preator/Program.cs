@@ -81,11 +81,11 @@ internal class Program
         var stopwatch = new Stopwatch();
         var logger = LoggerFactory.Create(b =>
             {
-                b.AddJsonConsole(f =>
-                {
-                    f.UseUtcTimestamp = true;
-                    f.IncludeScopes = true;
-                });
+//                b.AddJsonConsole(f =>
+//                {
+//                    f.UseUtcTimestamp = true;
+//                    f.IncludeScopes = true;
+//                });
             })
             .CreateLogger("all");
         var inputDir = new DirectoryInfo(options.InputFolder);
@@ -100,9 +100,15 @@ internal class Program
         var outputDir = !string.IsNullOrWhiteSpace(options.OutputFolder)
             ? Path.GetFullPath(options.OutputFolder)
             : Path.Combine(inputDir.FullName, "Unaligned", runInfo.Id);
-        if (!Directory.Exists(outputDir)) Directory.CreateDirectory(outputDir);
+        if (!Directory.Exists(outputDir))
+        {
+            Directory.CreateDirectory(outputDir);
+        }
 
-        foreach (var s in Directory.EnumerateFiles(outputDir)) File.Delete(s);
+        foreach (var s in Directory.EnumerateFiles(outputDir))
+        {
+            File.Delete(s);
+        }
 
         var trimmer = DefaultQualityTrimmer.Instance;
         stopwatch.Start();

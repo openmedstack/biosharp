@@ -55,9 +55,14 @@ public class MultiSampleGraph
     public void AddSample(string name, DeBruijnGraph graph)
     {
         if (graph == null)
+        {
             throw new ArgumentNullException(nameof(graph));
+        }
+
         if (string.IsNullOrEmpty(name))
+        {
             throw new ArgumentException("Sample name must not be empty.", nameof(name));
+        }
 
         _samples[name] = graph;
     }
@@ -84,7 +89,9 @@ public class MultiSampleGraph
     public async Task<IEnumerable<KmerNode>> GetNodesInSample(string name)
     {
         if (!_samples.ContainsKey(name))
+        {
             throw new ArgumentException($"Sample '{name}' not found.", nameof(name));
+        }
 
         return await _samples[name].GetNodes(default);
     }
@@ -96,31 +103,33 @@ public class MultiSampleGraph
     public async Task<BloomFilter> GetUnionFilterAsync()
     {
         if (_samples.Count == 0)
-            return new BloomFilter(1, 0.01); // Empty filter with minimal size
-
-        var totalNodes = 0;
-        foreach (var sample in _samples.Values)
         {
-            var nodes = await sample.GetNodes(default);
-            totalNodes += nodes.Count();
+            return new BloomFilter(1, 0.01); // Empty filter with minimal size
         }
 
+        // Fetch nodes from all samples in parallel
+        var nodeArrays = await Task.WhenAll(
+            _samples.Values.Select(s => s.GetNodes(default))
+        ).ConfigureAwait(false);
+
+        var totalNodes = nodeArrays.Sum(n => n.Count);
         var union = new BloomFilter(
             Math.Max(totalNodes, _samples.First().Value.K),
             0.01);
 
-        foreach (var pair in _samples)
+        // BloomFilter.Add is not thread-safe — insert sequentially after parallel fetch
+        foreach (var nodes in nodeArrays)
         {
-            var nodes = await pair.Value.GetNodes(default);
             foreach (var node in nodes)
             {
-                // Add the node k-mer itself
                 union.Add(node.Id);
-                // Add edge k-mers (node id + last char of neighbor)
                 foreach (var neighbor in node.OutboundEdges)
                 {
                     var edgeKmer = node.Id + neighbor[neighbor.Length - 1];
-                    if (edgeKmer.Length >= _k) union.Add(edgeKmer.Substring(0, Math.Min(edgeKmer.Length, _k)));
+                    if (edgeKmer.Length >= _k)
+                    {
+                        union.Add(edgeKmer.Substring(0, Math.Min(edgeKmer.Length, _k)));
+                    }
                 }
             }
         }
@@ -134,7 +143,9 @@ public class MultiSampleGraph
     public async Task<bool> HasKmerInSampleAsync(string sampleName, string kmer)
     {
         if (!_samples.ContainsKey(sampleName))
+        {
             throw new ArgumentException($"Sample '{sampleName}' not found.", nameof(sampleName));
+        }
 
         var nodes = await _samples[sampleName].GetNodes(default);
         // Node IDs are (k-1)-mers; match by checking the (k-1)-mer prefix of the queried k-mer
@@ -150,12 +161,15 @@ public class MultiSampleGraph
     {
         var names = sampleNames.ToList();
         if (!names.Any())
+        {
             return false;
+        }
 
-        foreach (var name in names)
-            if (!await HasKmerInSampleAsync(name, kmer))
-                return false;
-        return true;
+        var results = await Task.WhenAll(
+            names.Select(name => HasKmerInSampleAsync(name, kmer))
+        ).ConfigureAwait(false);
+
+        return Array.TrueForAll(results, r => r);
     }
 
     /// <summary>
@@ -164,18 +178,31 @@ public class MultiSampleGraph
     public async Task<IEnumerable<string>> GetUniqueKmersInSampleAsync(string sampleName)
     {
         if (!_samples.ContainsKey(sampleName))
+        {
             throw new ArgumentException($"Sample '{sampleName}' not found.", nameof(sampleName));
+        }
 
-        var sampleKmers = new HashSet<string>(await GetAllKmersFromSample(sampleName));
         var otherNames = _samples.Keys.Where(n => n != sampleName).ToList();
 
-        if (!otherNames.Any())
-            return sampleKmers;
+        // Fetch this sample's k-mers and all other samples' k-mers in parallel
+        var sampleKmersTask = GetAllKmersFromSample(sampleName);
+        var otherTasks = otherNames.Select(GetAllKmersFromSample).ToArray();
 
-        var otherKmers = new HashSet<string>();
-        foreach (var name in otherNames) otherKmers.UnionWith(await GetAllKmersFromSample(name));
+        var sampleKmers = new HashSet<string>(await sampleKmersTask.ConfigureAwait(false));
 
-        return sampleKmers.Except(otherKmers);
+        if (otherTasks.Length > 0)
+        {
+            var otherResults = await Task.WhenAll(otherTasks).ConfigureAwait(false);
+            var otherKmers = new HashSet<string>();
+            foreach (var kmers in otherResults)
+            {
+                otherKmers.UnionWith(kmers);
+            }
+
+            sampleKmers.ExceptWith(otherKmers);
+        }
+
+        return sampleKmers;
     }
 
     /// <summary>
@@ -185,14 +212,17 @@ public class MultiSampleGraph
     {
         var names = sampleNames.ToList();
         if (!names.Any())
-            return Array.Empty<string>();
-
-        var sharedKmers = new HashSet<string>(await GetAllKmersFromSample(names[0]));
-
-        for (var i = 1; i < names.Count; i++)
         {
-            var kmersInSample = new HashSet<string>(await GetAllKmersFromSample(names[i]));
-            sharedKmers.IntersectWith(kmersInSample);
+            return Array.Empty<string>();
+        }
+
+        // Fetch all samples' k-mers in parallel, then intersect
+        var results = await Task.WhenAll(names.Select(GetAllKmersFromSample)).ConfigureAwait(false);
+
+        var sharedKmers = new HashSet<string>(results[0]);
+        for (var i = 1; i < results.Length; i++)
+        {
+            sharedKmers.IntersectWith(results[i]);
         }
 
         return sharedKmers;
@@ -204,14 +234,21 @@ public class MultiSampleGraph
     public async Task<int> GetTotalUniqueKmerCount()
     {
         if (_samples.Count == 0)
+        {
             return 0;
+        }
+
+        var nodeArrays = await Task.WhenAll(
+            _samples.Values.Select(s => s.GetNodes(default))
+        ).ConfigureAwait(false);
 
         var allKmers = new HashSet<string>();
-
-        foreach (var sample in _samples.Values)
+        foreach (var nodes in nodeArrays)
         {
-            var nodes = await sample.GetNodes(default);
-            foreach (var node in nodes) allKmers.Add(node.Id);
+            foreach (var node in nodes)
+            {
+                allKmers.Add(node.Id);
+            }
         }
 
         return allKmers.Count;
@@ -224,22 +261,32 @@ public class MultiSampleGraph
     /// </summary>
     public async Task<IEnumerable<string>> BuildUnionGraph()
     {
-        // Collect all assembled sequences from all samples
-        var allSequences = new List<string>();
-        foreach (var pair in _samples)
-        {
-            var assembly = pair.Value.Assemble(default);
-            await foreach (var seq in assembly) allSequences.Add(seq);
-        }
+        // Assemble all sample graphs in parallel
+        var perSampleSequences = await Task.WhenAll(
+            _samples.Values.Select(async graph =>
+            {
+                var sequences = new List<string>();
+                await foreach (var seq in graph.Assemble(default).ConfigureAwait(false))
+                {
+                    sequences.Add(seq);
+                }
 
-        return allSequences;
+                return sequences;
+            })
+        ).ConfigureAwait(false);
+
+        return perSampleSequences.SelectMany(s => s);
     }
 
     private async Task<List<string>> GetAllKmersFromSample(string sampleName)
     {
         var kmers = new List<string>();
         var nodes = await _samples[sampleName].GetNodes(default);
-        foreach (var node in nodes) kmers.Add(node.Id);
+        foreach (var node in nodes)
+        {
+            kmers.Add(node.Id);
+        }
+
         return kmers.Distinct().ToList();
     }
 }

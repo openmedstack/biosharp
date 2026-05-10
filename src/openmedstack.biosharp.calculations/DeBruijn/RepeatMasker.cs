@@ -119,7 +119,9 @@ public static class RepeatMasker
         var lib = JsonSerializer.Deserialize<RepeatLibrary>(json, options)!;
 #pragma warning restore IL2026
         if (lib?.Repeats == null)
+        {
             throw new InvalidDataException($"Failed to parse repeat library from {filePath}");
+        }
 
         var repeats = lib.Repeats!
             .Where(r => r.MotifLength >= motifMin)
@@ -144,9 +146,14 @@ public static class RepeatMasker
         bool allowAmbiguity = true)
     {
         if (string.IsNullOrEmpty(sequence))
+        {
             return Array.Empty<MaskedRegion>();
+        }
+
         if (library == null)
+        {
             throw new ArgumentNullException(nameof(library));
+        }
 
         // Normalize sequence to uppercase
         var seq = sequence.ToUpper();
@@ -160,33 +167,49 @@ public static class RepeatMasker
 
             // Skip motifs too short (shouldn't happen due to minMotifLength filter, but guard)
             if (motif.Length < 3)
+            {
                 continue;
+            }
 
             // Try to find the motif extending from each position in the sequence
             for (var i = 0; i <= seq.Length - motif.Length; i++)
             {
                 if (!MatchMotif(seq, motif, i, allowAmbiguity))
+                {
                     continue;
+                }
 
                 // Found a motif match - extend as far right as possible
                 var motifLen = motif.Length;
                 for (var j = i + motif.Length; j <= seq.Length - motif.Length; j++)
+                {
                     if (MatchMotif(seq, motif, j, allowAmbiguity))
+                    {
                         motifLen++;
+                    }
                     else
+                    {
                         break;
+                    }
+                }
 
                 // Store this match (only if longer than existing at any covered position)
                 for (var m = i; m < i + motifLen; m++)
+                {
                     if (!maskMap.ContainsKey(m) || motifLen > maskMap[m].motifLen)
+                    {
                         maskMap[m] = (repeat, i, motifLen);
+                    }
+                }
             }
         }
 
         // Build contiguous masked regions from the mask map
         var regions = new List<MaskedRegion>();
         if (maskMap.Count == 0)
+        {
             return regions;
+        }
 
         var sortedKeys = maskMap.Keys.OrderBy(k => k).ToList();
         var start = sortedKeys.First();
@@ -195,6 +218,7 @@ public static class RepeatMasker
         // Check for gaps in the mask
         var currentStart = start;
         for (var i = start; i <= end; i++)
+        {
             if (!maskMap.ContainsKey(i) && i > currentStart)
             {
                 // Gap found, close current region and start a new one
@@ -207,9 +231,11 @@ public static class RepeatMasker
                 });
                 currentStart = i + 1;
             }
+        }
 
         // Close final region
         if (currentStart < end)
+        {
             regions.Add(new MaskedRegion
             {
                 Start = currentStart,
@@ -217,6 +243,7 @@ public static class RepeatMasker
                 Repeat = maskMap[currentStart].repeat,
                 MaskedSequence = new string('N', end - currentStart)
             });
+        }
 
         return regions;
     }
@@ -224,7 +251,9 @@ public static class RepeatMasker
     private static bool MatchMotif(string sequence, string motif, int position, bool allowAmbiguity)
     {
         if (position + motif.Length > sequence.Length)
+        {
             return false;
+        }
 
         for (var i = 0; i < motif.Length; i++)
         {
@@ -232,10 +261,14 @@ public static class RepeatMasker
             var motifChar = motif[i];
 
             if (allowAmbiguity && seqChar == 'N')
+            {
                 return false;
+            }
 
             if (seqChar != motifChar)
+            {
                 return false;
+            }
         }
 
         return true;
@@ -286,7 +319,10 @@ public static class RepeatMasker
             .Select(r => Math.Max(0, r.Motif.Length - k + 1))
             .Sum();
         if (totalKmers == 0)
+        {
             totalKmers = 1;
+        }
+
         var size = (long)(-totalKmers * Math.Log(fpr) / 0.48045);
         return Math.Max(size, 1L << 16);
     }

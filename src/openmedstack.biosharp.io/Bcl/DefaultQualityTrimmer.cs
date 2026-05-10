@@ -19,10 +19,16 @@ public class DefaultQualityTrimmer : IQualityTrimmer
         foreach (var readData in data.Span)
         {
             double sum = 0;
-            for (var j = 0; j < readData.Qualities.Length; j++) sum += readData.Qualities.Span[j];
+            for (var j = 0; j < readData.Qualities.Length; j++)
+            {
+                sum += readData.Qualities.Span[j];
+            }
 
             var average = sum / readData.Qualities.Length;
-            if (average <= _minQuality) return false;
+            if (average <= _minQuality)
+            {
+                return false;
+            }
         }
 
         return true;

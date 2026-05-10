@@ -53,7 +53,10 @@ public class AlignmentImprovementTests
         Assert.True(nodesAfter.Count > 0);
 
         // Verify the edge coverage values were adjusted (some edges pruned)
-        foreach (var node in nodesAfter) Assert.True(node.OutboundCoverage.Count <= node.OutDegree);
+        foreach (var node in nodesAfter)
+        {
+            Assert.True(node.OutboundCoverage.Count <= node.OutDegree);
+        }
     }
 
     /// <summary>
@@ -84,7 +87,9 @@ public class AlignmentImprovementTests
         foreach (var node in nodes)
         {
             foreach (var edge in node.OutboundCoverage)
+            {
                 Assert.True(edge.Value >= 5, $"Edge {node.Id}->{edge.Key} has coverage {edge.Value}, expected >= 5");
+            }
         }
     }
 
@@ -152,8 +157,10 @@ public class AlignmentImprovementTests
         var indels = variants.Where(v => v.IsInsertion || v.IsDeletion).ToList();
         foreach (var v in indels)
             // Homopolymer runs should be penalized
+        {
             Assert.True(v.QuantitativeQuality < 40,
                 $"Homopolymer indel at pos {v.Position} should have lower quality, got {v.QuantitativeQuality}");
+        }
     }
 
     /// <summary>
@@ -177,10 +184,12 @@ public class AlignmentImprovementTests
         );
 
         foreach (var v in variants)
+        {
             if (v.IsInsertion)
             {
                 // Should NOT get homopolymer penalty since ref context is not a run
             }
+        }
     }
 
     // =============================================
@@ -429,7 +438,9 @@ public class AlignmentImprovementTests
     {
         var refSeq = "ACGTGCTAGC"; // no base appears more than once consecutively
         foreach (var i in Enumerable.Range(0, refSeq.Length))
+        {
             Assert.Equal(1, VariantCaller.GetHomopolymerRun(refSeq.ToCharArray().AsSpan(), i));
+        }
         // 1 because a single base has run length 1 (itself), NOT 0.
     }
 
@@ -440,12 +451,19 @@ public class AlignmentImprovementTests
     public void GetHomopolymerRun_AtSequenceBoundary()
     {
         var refSeq = "AAAAACGT"; // 5 A's at start
-        for (var i = 0; i < 5; i++) Assert.Equal(5, VariantCaller.GetHomopolymerRun(refSeq.ToCharArray().AsSpan(), i));
+        for (var i = 0; i < 5; i++)
+        {
+            Assert.Equal(5, VariantCaller.GetHomopolymerRun(refSeq.ToCharArray().AsSpan(), i));
+        }
+
         Assert.Equal(1, VariantCaller.GetHomopolymerRun(refSeq.ToCharArray().AsSpan(), 5)); // C
 
         var refSeq2 = "ACGTTTTT"; // 5 T's at end
         Assert.Equal(1, VariantCaller.GetHomopolymerRun(refSeq2.ToCharArray().AsSpan(), 2)); // G
-        for (var i = 3; i < 8; i++) Assert.Equal(5, VariantCaller.GetHomopolymerRun(refSeq2.ToCharArray().AsSpan(), i));
+        for (var i = 3; i < 8; i++)
+        {
+            Assert.Equal(5, VariantCaller.GetHomopolymerRun(refSeq2.ToCharArray().AsSpan(), i));
+        }
     }
 
     /// <summary>
@@ -455,7 +473,11 @@ public class AlignmentImprovementTests
     public void GetHomopolymerRun_LongRun()
     {
         var longRun = new string('A', 12); // AAAAAAAAAAAA
-        for (var i = 0; i < longRun.Length; i++) Assert.Equal(12, VariantCaller.GetHomopolymerRun(longRun.AsSpan(), i));
+        for (var i = 0; i < longRun.Length; i++)
+        {
+            Assert.Equal(12, VariantCaller.GetHomopolymerRun(longRun.AsSpan(), i));
+        }
+
         Assert.Equal(1, VariantCaller.GetHomopolymerRun("C".AsSpan(), 0)); // non-ACGT (single base = 1)
     }
 }

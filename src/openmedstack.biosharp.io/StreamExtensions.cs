@@ -27,7 +27,10 @@ internal static class StreamExtensions
             var read = await file.ReadAsync(buffer[totalRead..], cancellationToken).ConfigureAwait(false);
             if (read == 0)
             {
-                if (allowEmpty) return buffer[..totalRead];
+                if (allowEmpty)
+                {
+                    return buffer[..totalRead];
+                }
 
                 throw new IOException("Nothing read. End of stream?");
             }

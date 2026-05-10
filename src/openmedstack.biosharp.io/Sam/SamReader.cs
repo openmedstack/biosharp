@@ -1,5 +1,6 @@
 ﻿namespace OpenMedStack.BioSharp.Io.Sam;
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -43,13 +44,19 @@ public class SamReader
         {
             cancellationToken.ThrowIfCancellationRequested();
             var line = await reader.ReadLineAsync().ConfigureAwait(false);
-            if (line == null) break;
+            if (line == null)
+            {
+                break;
+            }
 
-            if (string.IsNullOrWhiteSpace(line)) break;
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                break;
+            }
 
             if (line[0] == '@')
             {
-                var span = line.Substring(1, 2);
+                var span = line.AsSpan(1, 2);
                 switch (span)
                 {
                     case "HD":

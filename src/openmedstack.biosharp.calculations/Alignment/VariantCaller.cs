@@ -20,20 +20,28 @@ public static class VariantCaller
         AlignmentResult alignment,
         int minQuality = 30)
     {
-        if (reference == null) throw new ArgumentNullException(nameof(reference));
+        if (reference == null)
+        {
+            throw new ArgumentNullException(nameof(reference));
+        }
 
-        var refSeq = reference.GetData()!.Span;
+        var refSeq = reference.GetData().Span;
         var events = ParseAlignmentEvents(alignment);
 
         // Compute homopolymer run lengths for indel events
         foreach (var evt in events)
+        {
             if (evt.IsIndel)
             {
                 var absPos = alignment.ReferenceStartPosition + evt.Position;
                 evt.HomopolymerRun = GetHomopolymerRun(refSeq, absPos);
             }
+        }
 
-        if (events.Count == 0) return [];
+        if (events.Count == 0)
+        {
+            return [];
+        }
 
         var groups = GroupVariants(events);
 
@@ -42,7 +50,10 @@ public static class VariantCaller
         {
             var variant = BuildVariant(reference.Id, refSeq, alignment.ReferenceStartPosition, group);
             variant.QuantitativeQuality = CalculateQuality(group, alignment.Score);
-            if (variant.QuantitativeQuality >= minQuality) results.Add(variant);
+            if (variant.QuantitativeQuality >= minQuality)
+            {
+                results.Add(variant);
+            }
         }
 
         return results.ToArray();
@@ -54,8 +65,8 @@ public static class VariantCaller
     private static List<AlignmentEvent> ParseAlignmentEvents(AlignmentResult alignment)
     {
         var events = new List<AlignmentEvent>();
-        var refStr = alignment.AlignedReference;
-        var readStr = alignment.AlignedRead;
+        var refStr = alignment.AlignedReference.AsSpan();
+        var readStr = alignment.AlignedRead.AsSpan();
 
         for (var e = 0; e < refStr.Length; e++)
         {
@@ -63,11 +74,17 @@ public static class VariantCaller
             var readChar = readStr[e];
 
             if (refChar != '-' && readChar == '-')
+            {
                 events.Add(new AlignmentEvent(EventType.Deletion, e, readChar));
+            }
             else if (refChar == '-' && readChar != '-')
+            {
                 events.Add(new AlignmentEvent(EventType.Insertion, e, readChar));
-            else if (char.ToUpper(refChar) != char.ToUpper(readChar))
+            }
+            else if (!DnaEncoding.AreEqual(refChar, readChar))
+            {
                 events.Add(new AlignmentEvent(EventType.Snp, e, readChar));
+            }
         }
 
         return events;
@@ -80,7 +97,10 @@ public static class VariantCaller
     private static List<VariantGroup> GroupVariants(List<AlignmentEvent> events)
     {
         var groups = new List<VariantGroup>();
-        if (events.Count == 0) return groups;
+        if (events.Count == 0)
+        {
+            return groups;
+        }
 
         var current = new VariantGroup { StartIndex = events[0].Position };
         current.Add(events[0]);
@@ -111,18 +131,26 @@ public static class VariantCaller
             }
         }
 
-        if (current.Events.Count > 0) groups.Add(current);
+        if (current.Events.Count > 0)
+        {
+            groups.Add(current);
+        }
 
         return groups;
     }
 
     private static bool AreSameCategory(EventType a, EventType b)
     {
-        if (a == EventType.Snp && b == EventType.Snp) return true;
+        if (a == EventType.Snp && b == EventType.Snp)
+        {
+            return true;
+        }
 
         if ((a == EventType.Insertion || a == EventType.Deletion) &&
             (b == EventType.Insertion || b == EventType.Deletion))
+        {
             return true;
+        }
 
         return false;
     }
@@ -158,7 +186,7 @@ public static class VariantCaller
             return variant;
         }
 
-        var anchor = char.ToUpper(refSeq[anchorRefPos]);
+        var anchor = DnaEncoding.Normalize(refSeq[anchorRefPos]);
 
         var delBases = new System.Text.StringBuilder();
         var insBases = new System.Text.StringBuilder();
@@ -173,17 +201,20 @@ public static class VariantCaller
             {
                 if (absPos < refSeq.Length && refSeq[absPos] != '-')
                 {
-                    snpRefBases.Append(char.ToUpper(refSeq[absPos]));
-                    snpAltBases.Append(char.ToUpper(evt.Base));
+                    snpRefBases.Append(DnaEncoding.Normalize(refSeq[absPos]));
+                    snpAltBases.Append(DnaEncoding.Normalize(evt.Base));
                 }
             }
             else if (evt.EventType == EventType.Deletion)
             {
-                if (absPos < refSeq.Length && refSeq[absPos] != '-') delBases.Append(char.ToUpper(refSeq[absPos]));
+                if (absPos < refSeq.Length && refSeq[absPos] != '-')
+                {
+                    delBases.Append(DnaEncoding.Normalize(refSeq[absPos]));
+                }
             }
             else if (evt.EventType == EventType.Insertion)
             {
-                insBases.Append(char.ToUpper(evt.Base));
+                insBases.Append(DnaEncoding.Normalize(evt.Base));
             }
         }
 
@@ -242,17 +273,20 @@ public static class VariantCaller
             {
                 if (absPos < refSeq.Length && refSeq[absPos] != '-')
                 {
-                    snpRefBases.Append(char.ToUpper(refSeq[absPos]));
-                    snpAltBases.Append(char.ToUpper(evt.Base));
+                    snpRefBases.Append(DnaEncoding.Normalize(refSeq[absPos]));
+                    snpAltBases.Append(DnaEncoding.Normalize(evt.Base));
                 }
             }
             else if (evt.EventType == EventType.Deletion)
             {
-                if (absPos < refSeq.Length && refSeq[absPos] != '-') delBases.Append(char.ToUpper(refSeq[absPos]));
+                if (absPos < refSeq.Length && refSeq[absPos] != '-')
+                {
+                    delBases.Append(DnaEncoding.Normalize(refSeq[absPos]));
+                }
             }
             else if (evt.EventType == EventType.Insertion)
             {
-                insBases.Append(char.ToUpper(evt.Base));
+                insBases.Append(DnaEncoding.Normalize(evt.Base));
             }
         }
 
@@ -281,17 +315,26 @@ public static class VariantCaller
     /// </summary>
     private static int CalculateQuality(VariantGroup group, int totalAlignmentScore)
     {
-        if (group.Events.Count == 0) return 0;
+        if (group.Events.Count == 0)
+        {
+            return 0;
+        }
 
         var baseQuality = totalAlignmentScore / Math.Max(1, group.Events.Count);
         baseQuality = Math.Max(10, Math.Min(40, baseQuality));
 
-        if (group.HasIndel) baseQuality = Math.Max(10, baseQuality - 5); // indels are less reliable
+        if (group.HasIndel)
+        {
+            baseQuality = Math.Max(10, baseQuality - 5); // indels are less reliable
+        }
 
         // Homopolymer quality penalty: indels in repetitive runs (AAAA, TTTTT, etc.)
         // are common sequencing errors and need aggressive quality filtering per spec.
         var isHomopolymer = IsHomopolymerEvent(group);
-        if (isHomopolymer) baseQuality = Math.Max(10, baseQuality - 10); // extra penalty for homopolymer indels
+        if (isHomopolymer)
+        {
+            baseQuality = Math.Max(10, baseQuality - 10); // extra penalty for homopolymer indels
+        }
 
         return Math.Min(255, baseQuality);
     }
@@ -304,14 +347,23 @@ public static class VariantCaller
     private static bool IsHomopolymerEvent(VariantGroup group)
     {
         // Only relevant for indels, not SNPs
-        if (!group.HasIndel) return false;
+        if (!group.HasIndel)
+        {
+            return false;
+        }
 
         // Check if any event occurs in a homopolymer region of the reference
         foreach (var evt in group.Events)
+        {
             if (evt.EventType == EventType.Insertion || evt.EventType == EventType.Deletion)
                 // Check the ref context: are we within a run of 4+ identical bases?
+            {
                 if (evt.HomopolymerRun >= 4)
+                {
                     return true;
+                }
+            }
+        }
 
         return false;
     }
@@ -322,18 +374,24 @@ public static class VariantCaller
     /// </summary>
     public static int GetHomopolymerRun(ReadOnlySpan<char> refSeq, int position)
     {
-        if (refSeq.Length == 0) return 0;
+        if (refSeq.Length == 0)
+        {
+            return 0;
+        }
 
-        var refBase = char.ToUpper(refSeq[Math.Clamp(position, 0, refSeq.Length - 1)]);
-        if (refBase != 'A' && refBase != 'C' && refBase != 'G' && refBase != 'T') return 0;
+        var refBase = DnaEncoding.Normalize(refSeq[Math.Clamp(position, 0, refSeq.Length - 1)]);
+        if (refBase != 'A' && refBase != 'C' && refBase != 'G' && refBase != 'T')
+        {
+            return 0;
+        }
 
         // Count backwards
         var start = position;
-        while (start > 0 && char.ToUpper(refSeq[start - 1]) == refBase) start--;
+        while (start > 0 && DnaEncoding.Normalize(refSeq[start - 1]) == refBase) start--;
 
         // Count forwards
         var end = position;
-        while (end < refSeq.Length - 1 && char.ToUpper(refSeq[end + 1]) == refBase) end++;
+        while (end < refSeq.Length - 1 && DnaEncoding.Normalize(refSeq[end + 1]) == refBase) end++;
 
         return end - start + 1;
     }
@@ -342,13 +400,13 @@ public static class VariantCaller
     /// Merge variant calls from multiple reads at the same locus.
     /// Takes the highest quality and aggregates depth.
     /// </summary>
-    public static LocalVariantResult[] MergeVariants(LocalVariantResult[] variants)
+    public static LocalVariantResult[] MergeVariants(IEnumerable<LocalVariantResult> variants)
     {
-        var merged = new Dictionary<string, LocalVariantResult>();
+        var merged = new Dictionary<VariantKey, LocalVariantResult>();
 
         foreach (var variant in variants)
         {
-            var key = $"{variant.Chromosome}:{variant.Position}:{variant.Reference}:{variant.Alternate}";
+            var key = new VariantKey(variant.Chromosome, variant.Position, variant.Reference, variant.Alternate);
             if (!merged.TryGetValue(key, out var existing))
             {
                 merged[key] = variant;
@@ -357,10 +415,14 @@ public static class VariantCaller
             {
                 existing.Depth++;
                 if (variant.QuantitativeQuality > existing.QuantitativeQuality)
+                {
                     existing.QuantitativeQuality = variant.QuantitativeQuality;
+                }
             }
         }
 
         return merged.Values.ToArray();
     }
+
+    private readonly record struct VariantKey(string Chromosome, int Position, string Reference, string Alternate);
 }

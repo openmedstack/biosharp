@@ -19,7 +19,10 @@ public class SequenceByteEncodingTests
             var bits = new BitArray(8);
             for (var i = 0; i < 4; i++)
             {
-                if (offset + i >= bases.Length) break;
+                if (offset + i >= bases.Length)
+                {
+                    break;
+                }
 
                 var data = bases[offset + i];
                 switch (data)
@@ -91,9 +94,11 @@ public class SequenceByteEncodingTests
     {
         var idx = _bases.IndexOf(baseChar);
         if (idx < 0)
+        {
             throw new ArgumentOutOfRangeException(
                 nameof(baseChar),
                 $"{baseChar} is not a valid DNA base (must be A, C, G, or T).");
+        }
 
         return (byte)idx;
     }
@@ -105,9 +110,11 @@ public class SequenceByteEncodingTests
     public static char DecodeBase(byte nibble)
     {
         if (nibble > 3)
+        {
             throw new ArgumentOutOfRangeException(
                 nameof(nibble),
                 "Nucleotide nibble must be in [0, 3].");
+        }
 
         return _bases[nibble];
     }
@@ -119,9 +126,11 @@ public class SequenceByteEncodingTests
     public static byte EncodeQuality(char qualityChar)
     {
         if (qualityChar < (char)33 || qualityChar > (char)126)
+        {
             throw new ArgumentOutOfRangeException(
                 nameof(qualityChar),
                 $"Quality char must be between ASCII 33 ('!') and 126 ('~'). Got '{qualityChar}'.");
+        }
 
         return (byte)(qualityChar - 33);
     }
@@ -132,9 +141,11 @@ public class SequenceByteEncodingTests
     public static char DecodeQuality(byte val)
     {
         if (val > 93)
+        {
             throw new ArgumentOutOfRangeException(
                 nameof(val),
                 "Quality value must be in [0, 93].");
+        }
 
         return (char)(val + 33);
     }
@@ -179,7 +190,10 @@ public class SequenceByteEncodingTests
     [Fact]
     public void EncodeBase_InvalidBase_Throws()
     {
-        foreach (var c in new[] { 'N', 'X', ' ' }) Assert.Throws<ArgumentOutOfRangeException>(() => EncodeBase(c));
+        foreach (var c in new[] { 'N', 'X', ' ' })
+        {
+            Assert.Throws<ArgumentOutOfRangeException>(() => EncodeBase(c));
+        }
     }
 
     [Fact]
@@ -239,11 +253,14 @@ public class SequenceByteEncodingTests
     [Fact]
     public void EncodeQuality_EnumerateAllValidChars_FitsIn6Bits()
     {
-        for (var c = (char)33; c <= (char)126; c++)
+        // The 6-bit packing scheme (quality << 2 | base in 1 byte) only supports
+        // Phred scores 0-63, corresponding to ASCII chars 33-96.
+        // Chars 97-126 yield encoded values 64-93 which exceed 6 bits.
+        for (var c = (char)33; c <= (char)96; c++)
         {
             var encoded = EncodeQuality(c);
             Assert.True((encoded & (byte)0xC0) == 0,
-                $"{c} (ASCII {c}) encoded to {encoded} but bit 7 is set.");
+                $"{c} (ASCII {(int)c}) encoded to {encoded} but exceeds 6 bits.");
         }
     }
 
@@ -258,8 +275,8 @@ public class SequenceByteEncodingTests
     [Fact]
     public void EncodeSequenceByte_AllFourBasesWithSampleQuality()
     {
-        // A! = 0x00, C6 = 0x14, GI = 0x28, T~ = 0x5C
-        var input = new[] { ('A', (char)33), ('C', '6'), ('G', 'I'), ('T', '~') };
+        // A! = 0x00, C6 = 0x14, GI = 0x28, T` = 0x7C (ASCII 96, Phred 63, max for 6-bit packing)
+        var input = new[] { ('A', (char)33), ('C', '6'), ('G', 'I'), ('T', (char)96) };
 
         foreach (var (baseChr, qualChr) in input)
         {
@@ -279,14 +296,17 @@ public class SequenceByteEncodingTests
     public void EncodeSequenceByte_RoundTripFullSequence()
     {
         // ACGT with quality scores '!II~'
+        // Use quality chars in the 6-bit range (ASCII 33-96, Phred 0-63)
         var data = new ReadOnlyMemory<char>("ACGT".ToCharArray());
-        var quals = new ReadOnlyMemory<char>("!II~".ToCharArray());
+        var quals = new ReadOnlyMemory<char>("!II`".ToCharArray());
 
         var sequence = new Sequence("test", data, quals);
 
         var packed = new byte[sequence.Length];
         for (var i = 0; i < sequence.Length; i++)
+        {
             packed[i] = EncodeSequenceByte(sequence[i], sequence.GetQuality().Span[i]);
+        }
 
         for (var i = 0; i < sequence.Length; i++)
         {
@@ -299,10 +319,12 @@ public class SequenceByteEncodingTests
     [Fact]
     public void EncodeSequenceByte_AllQualityScoreRange_RoundTrips()
     {
-        // Stress-test: every quality score (33..126) with all 4 bases.
+        // Stress-test: every quality score in the 6-bit range (33..96, Phred 0-63) with all 4 bases.
+        // The 6-bit packing scheme (quality << 2 | base) only supports Phred 0-63.
         var bases = "ACGT".ToCharArray();
 
-        for (var qual = (char)33; qual <= (char)126; qual++)
+        for (var qual = (char)33; qual <= (char)96; qual++)
+        {
             foreach (var baseChr in bases)
             {
                 var packed = EncodeSequenceByte(baseChr, qual);
@@ -310,6 +332,7 @@ public class SequenceByteEncodingTests
                 Assert.Equal(baseChr, decodedBase);
                 Assert.Equal(qual, decodedQual);
             }
+        }
     }
 
     [Fact]
@@ -345,9 +368,9 @@ public class SequenceByteEncodingTests
         var sequences = new[]
         {
             ("short", "A", "!"),
-            ("medium", "ACGTACGT", "!II~!II~"),
+            ("medium", "ACGTACGT", "!II`!II`"),
             ("all_quality", "AAAAAAAAAA", "!!!!!!!!!!"),
-            ("high_qual", "TTTTTTTTTT", "~~~~~~~~~~~~~~~~"),
+            ("high_qual", "TTTTTTTTTT", "``````````"),
             ("mixed", "ACGTACGT", "+@59H>2<")
         };
 
@@ -360,7 +383,9 @@ public class SequenceByteEncodingTests
 
             var packed = new byte[sequence.Length];
             for (var i = 0; i < sequence.Length; i++)
+            {
                 packed[i] = EncodeSequenceByte(sequence[i], sequence.GetQuality().Span[i]);
+            }
 
             for (var i = 0; i < sequence.Length; i++)
             {

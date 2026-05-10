@@ -10,23 +10,35 @@ public static class SequenceExtensions
     public static int IndexOf(this Sequence sequence, char[] segment, int maxErrors = 0, int startIndex = 0)
     {
         var currentErrors = 0;
-        if (startIndex > sequence.Length) return -1;
+        if (startIndex > sequence.Length)
+        {
+            return -1;
+        }
 
         for (var i = startIndex; i < sequence.Length - segment.Length; i++)
         {
             var contains = true;
             for (var j = 0; j < segment.Length; j++)
             {
-                if (sequence[i + j] == segment[j]) continue;
+                if (sequence[i + j] == segment[j])
+                {
+                    continue;
+                }
 
                 currentErrors++;
-                if (currentErrors <= maxErrors) continue;
+                if (currentErrors <= maxErrors)
+                {
+                    continue;
+                }
 
                 contains = false;
                 break;
             }
 
-            if (contains) return i;
+            if (contains)
+            {
+                return i;
+            }
 
             currentErrors = 0;
         }
@@ -45,7 +57,10 @@ public static class SequenceExtensions
         while (true)
         {
             var index = sequence.IndexOf(segment, maxErrors, start);
-            if (index == -1) yield break;
+            if (index == -1)
+            {
+                yield break;
+            }
 
             start = index + (nonOverlapping ? segment.Length : 1);
             yield return index;
@@ -64,7 +79,10 @@ public static class SequenceExtensions
         while (true)
         {
             var index = sequence.IndexOf(segment, maxErrors, start);
-            if (index == -1) return count;
+            if (index == -1)
+            {
+                return count;
+            }
 
             count++;
             start = index + (nonOverlapping ? segment.Length : 1);
@@ -75,11 +93,14 @@ public static class SequenceExtensions
     {
         var complemented = new char[sequence.Length];
         for (var i = 0; i < sequence.Length; i++)
+        {
             complemented[i] = sequence[i] switch
             {
                 'T' => (char)85,
                 var c => c
             };
+        }
+
         return new Sequence(sequence.Header, complemented, new char[sequence.Length]);
     }
 
@@ -127,7 +148,10 @@ public static class SequenceExtensions
         for (var i = 0; i < sequence.Length; i += 3)
         {
             var codon = new string(new[] { sequence[i], sequence[i + 1], sequence[i + 2] });
-            if (StopCodons.Contains(codon) && toStop) yield break;
+            if (StopCodons.Contains(codon) && toStop)
+            {
+                yield break;
+            }
 
             yield return codon switch
             {
@@ -199,4 +223,18 @@ public static class SequenceExtensions
             };
         }
     }
+
+    /// <summary>
+    /// Splits <paramref name="source"/> using <see cref="MemoryExtensions.Split(ReadOnlySpan{char},Span{Range},char,StringSplitOptions)"/>,
+    /// writing segment <see cref="Range"/> values into <paramref name="destination"/>.
+    /// Combine with <c>source.AsSpan()[range]</c> to access each segment as a <see cref="ReadOnlySpan{T}"/>
+    /// without allocating a <see cref="string"/> array.
+    /// </summary>
+    /// <returns>The number of segments written to <paramref name="destination"/>.</returns>
+    public static int SplitRanges(
+        this string source,
+        Span<Range> destination,
+        char separator,
+        StringSplitOptions options = StringSplitOptions.None)
+        => source.AsSpan().Split(destination, separator, options);
 }

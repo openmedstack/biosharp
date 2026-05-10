@@ -49,7 +49,9 @@ public class Genotype
     public Genotype(int refCoverage, int altCoverage)
     {
         if (refCoverage < 0 || altCoverage < 0)
+        {
             throw new ArgumentException("Coverage values must be non-negative.", nameof(refCoverage));
+        }
 
         Caller = "DeBruijn";
         RefCoverage = refCoverage;
@@ -103,7 +105,10 @@ public class Genotype
     /// </summary>
     private static int CalculateGQ(int altCoverage, int total)
     {
-        if (total == 0) return 0;
+        if (total == 0)
+        {
+            return 0;
+        }
 
         var successes = altCoverage;
         var n = total;
@@ -120,7 +125,10 @@ public class Genotype
 
         var pValue = Math.Min(pLower + pUpper, 1.0);
 
-        if (pValue <= 0.0) return 99;
+        if (pValue <= 0.0)
+        {
+            return 99;
+        }
 
         var gq = -10.0 * Math.Log10(pValue);
         return Math.Clamp((int)Math.Round(gq), 0, 99);
@@ -135,7 +143,11 @@ public class Genotype
     {
         if (k < 0 || n <= 0 || p <= 0 || p >= 1)
         {
-            if (k < 0) return 0.0;
+            if (k < 0)
+            {
+                return 0.0;
+            }
+
             return 1.0;
         }
 
@@ -143,14 +155,21 @@ public class Genotype
         if (n <= 200)
         {
             var sum = 0.0;
-            for (var i = 0; i <= k; i++) sum += BinomialPmf(i, n, p);
+            for (var i = 0; i <= k; i++)
+            {
+                sum += BinomialPmf(i, n, p);
+            }
+
             return sum;
         }
 
         // For large n, use the normal approximation
         var mean = n * p;
         var variance = n * p * (1.0 - p);
-        if (variance < 1e-10) return k >= Math.Round(mean) ? 1.0 : 0.0;
+        if (variance < 1e-10)
+        {
+            return k >= Math.Round(mean) ? 1.0 : 0.0;
+        }
 
         var z = (k + 0.5 - mean) / Math.Sqrt(variance);
         return NormalCDF(z);
@@ -161,7 +180,11 @@ public class Genotype
     /// </summary>
     private static double BinomialPmf(int k, int n, double p)
     {
-        if (k < 0 || k > n) return 0.0;
+        if (k < 0 || k > n)
+        {
+            return 0.0;
+        }
+
         return BinomialCoefficient(n, k) * Math.Pow(p, k) * Math.Pow(1.0 - p, n - k);
     }
 
@@ -170,12 +193,27 @@ public class Genotype
     /// </summary>
     private static double BinomialCoefficient(int n, int k)
     {
-        if (k < 0 || k > n) return 0.0;
-        if (k == 0 || k == n) return 1.0;
-        if (k > n / 2) k = n - k;
+        if (k < 0 || k > n)
+        {
+            return 0.0;
+        }
+
+        if (k == 0 || k == n)
+        {
+            return 1.0;
+        }
+
+        if (k > n / 2)
+        {
+            k = n - k;
+        }
 
         var result = 1.0;
-        for (var i = 0; i < k; i++) result = result * (n - i) / (i + 1);
+        for (var i = 0; i < k; i++)
+        {
+            result = result * (n - i) / (i + 1);
+        }
+
         return result;
     }
 

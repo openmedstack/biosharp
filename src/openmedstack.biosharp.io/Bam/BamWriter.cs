@@ -31,7 +31,10 @@ public class BamWriter
         builder.AppendLine(definition.Hd.ToString());
         builder.AppendLine(definition.Pg.ToString());
         builder.AppendLine(definition.Rg.ToString());
-        foreach (var referenceSequence in definition.Sq) builder.AppendLine(referenceSequence.ToString());
+        foreach (var referenceSequence in definition.Sq)
+        {
+            builder.AppendLine(referenceSequence.ToString());
+        }
 
         var header = Encoding.UTF8.GetBytes(builder.ToString().Trim());
         await using var binaryWriter = new BinaryWriter(_stream, Encoding.UTF8, true);
@@ -46,43 +49,54 @@ public class BamWriter
             binaryWriter.Write(sequence.Length);
         }
 
-        var block = new List<byte>();
+        using var block = new MemoryStream(4096);
         foreach (var alignmentSection in definition.AlignmentSections)
         {
+            block.SetLength(0);
             FillBlock(block, alignmentSection);
-
-            binaryWriter.Write((uint)block.Count);
-            await _stream.WriteAsync(block.ToArray(), cancellationToken).ConfigureAwait(false);
-            block.Clear();
+            var blockLen = (int)block.Length;
+            binaryWriter.Write((uint)blockLen);
+            await _stream.WriteAsync(block.GetBuffer().AsMemory(0, blockLen), cancellationToken).ConfigureAwait(false);
         }
     }
 
-    private void FillBlock(List<byte> block, AlignmentSection alignmentSection)
+    private void FillBlock(MemoryStream block, AlignmentSection alignmentSection)
     {
-        block.AddRange(BitConverter.GetBytes(-1));
-        block.AddRange(BitConverter.GetBytes(alignmentSection.Position - 1));
+        block.Write(BitConverter.GetBytes(-1));
+        block.Write(BitConverter.GetBytes(alignmentSection.Position - 1));
         var readName = Encoding.UTF8.GetBytes(alignmentSection.ReadName);
-        block.Add((byte)(readName.Length + 1));
-        block.Add(alignmentSection.MappingQuality);
-        block.AddRange(BitConverter.GetBytes((ushort)alignmentSection.Index));
-        block.AddRange(BitConverter.GetBytes((ushort)alignmentSection.Cigar.Length));
-        block.AddRange(BitConverter.GetBytes((ushort)alignmentSection.Flag));
-        block.AddRange(BitConverter.GetBytes((uint)alignmentSection.Sequence.Length));
-        block.AddRange(BitConverter.GetBytes(alignmentSection.ReferenceIdOfNextSegment));
-        block.AddRange(BitConverter.GetBytes(alignmentSection.NextPosition));
-        block.AddRange(BitConverter.GetBytes(alignmentSection.TemplateLength));
-        block.AddRange(readName.AsSpan());
-        block.Add((byte)'\0');
-        block.AddRange(alignmentSection.Cigar.SelectMany(x => BitConverter.GetBytes(x.Encode())));
-        block.AddRange(alignmentSection.Sequence.WriteSequence());
-        block.AddRange(Array.ConvertAll(alignmentSection.Quality.ToCharArray(), x => x == ' ' ? (byte)255 : (byte)x));
+        block.WriteByte((byte)(readName.Length + 1));
+        block.WriteByte(alignmentSection.MappingQuality);
+        block.Write(BitConverter.GetBytes((ushort)alignmentSection.Index));
+        block.Write(BitConverter.GetBytes((ushort)alignmentSection.Cigar.Length));
+        block.Write(BitConverter.GetBytes((ushort)alignmentSection.Flag));
+        block.Write(BitConverter.GetBytes((uint)alignmentSection.Sequence.Length));
+        block.Write(BitConverter.GetBytes(alignmentSection.ReferenceIdOfNextSegment));
+        block.Write(BitConverter.GetBytes(alignmentSection.NextPosition));
+        block.Write(BitConverter.GetBytes(alignmentSection.TemplateLength));
+        block.Write(readName);
+        block.WriteByte((byte)'\0');
+        foreach (var cigar in alignmentSection.Cigar)
+        {
+            block.Write(BitConverter.GetBytes(cigar.Encode()));
+        }
+
+        block.Write(alignmentSection.Sequence.WriteSequence());
+        var quality = alignmentSection.Quality.AsSpan();
+        Span<byte> qualBytes = quality.Length <= 512 ? stackalloc byte[quality.Length] : new byte[quality.Length];
+        for (var i = 0; i < quality.Length; i++)
+        {
+            qualBytes[i] = quality[i] == ' ' ? (byte)255 : (byte)quality[i];
+        }
+
+        block.Write(qualBytes);
 
         foreach (var tag in alignmentSection.Tags)
         {
-            var key = Encoding.UTF8.GetBytes(tag.Key[..2]);
-            block.AddRange(key);
-            block.Add((byte)tag.Type);
-            block.AddRange(GetTagValueBytes(tag.Type, tag.Value));
+            block.WriteByte((byte)tag.Key[0]);
+            block.WriteByte((byte)tag.Key[1]);
+            block.WriteByte((byte)tag.Type);
+            block.Write(GetTagValueBytes(tag.Type, tag.Value));
         }
     }
 
@@ -96,7 +110,10 @@ public class BamWriter
             {
                 var s = (string)tagValue;
                 var bytes = new byte[s.Length + 1];
-                for (var i = 0; i < s.Length; i++) bytes[i] = (byte)s[i];
+                for (var i = 0; i < s.Length; i++)
+                {
+                    bytes[i] = (byte)s[i];
+                }
 
                 bytes[^1] = (byte)'\0';
                 return bytes;
@@ -135,7 +152,10 @@ public class BamWriter
             }
             case 'B':
             {
-                if (!tagValue.GetType().IsArray) throw new InvalidDataException("Not an array");
+                if (!tagValue.GetType().IsArray)
+                {
+                    throw new InvalidDataException("Not an array");
+                }
 
                 var subtype = (byte)GetTagType(tagValue.GetType().GetElementType()!);
                 var bytes = GetArrayBytes((char)subtype, tagValue);
@@ -176,25 +196,55 @@ public class BamWriter
 
     private static char GetTagType(Type type)
     {
-        if (type == typeof(char)) return 'A';
+        if (type == typeof(char))
+        {
+            return 'A';
+        }
 
-        if (type == typeof(int)) return 'i';
+        if (type == typeof(int))
+        {
+            return 'i';
+        }
 
-        if (type == typeof(uint)) return 'I';
+        if (type == typeof(uint))
+        {
+            return 'I';
+        }
 
-        if (type == typeof(float)) return 'f';
+        if (type == typeof(float))
+        {
+            return 'f';
+        }
 
-        if (type == typeof(string)) return 'Z';
+        if (type == typeof(string))
+        {
+            return 'Z';
+        }
 
-        if (type == typeof(char[])) return 'H';
+        if (type == typeof(char[]))
+        {
+            return 'H';
+        }
 
-        if (type == typeof(sbyte)) return 'c';
+        if (type == typeof(sbyte))
+        {
+            return 'c';
+        }
 
-        if (type == typeof(byte)) return 'C';
+        if (type == typeof(byte))
+        {
+            return 'C';
+        }
 
-        if (type == typeof(short)) return 's';
+        if (type == typeof(short))
+        {
+            return 's';
+        }
 
-        if (type == typeof(ushort)) return 'S';
+        if (type == typeof(ushort))
+        {
+            return 'S';
+        }
 
         throw new InvalidDataException("Invalid tag value");
     }

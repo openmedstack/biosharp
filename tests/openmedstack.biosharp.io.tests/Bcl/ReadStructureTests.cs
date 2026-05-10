@@ -28,13 +28,25 @@ public class ReadStructureTests
     {
         public bool Equals(Read? x, Read? y)
         {
-            if (ReferenceEquals(x, y)) return true;
+            if (ReferenceEquals(x, y))
+            {
+                return true;
+            }
 
-            if (ReferenceEquals(x, null)) return false;
+            if (ReferenceEquals(x, null))
+            {
+                return false;
+            }
 
-            if (ReferenceEquals(y, null)) return false;
+            if (ReferenceEquals(y, null))
+            {
+                return false;
+            }
 
-            if (x.GetType() != y.GetType()) return false;
+            if (x.GetType() != y.GetType())
+            {
+                return false;
+            }
 
             return x.Type == y.Type && x.Number == y.Number && x.NumCycles == y.NumCycles;
         }

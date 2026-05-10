@@ -48,10 +48,14 @@ public class BloomFilterTests
         var filter = new Bloom.BloomFilter(50, 0.01);
         var kmers = new[] { "ACGT", "TTAA", "GGCC", "ATCG" };
         foreach (var kmer in kmers)
+        {
             filter.Add(kmer);
+        }
 
         foreach (var kmer in kmers)
+        {
             Assert.True(filter.Contains(kmer), $"Failed for k-mer: {kmer}");
+        }
     }
 
     /// <summary>
@@ -168,7 +172,10 @@ public class BloomFilterTests
     {
         var filter = new Bloom.BloomFilter(50, 0.01);
         for (var i = 0; i < 100; i++)
+        {
             filter.Add("ACGT");
+        }
+
         Assert.True(filter.Contains("ACGT"));
     }
 

@@ -23,7 +23,10 @@ internal static class PearsonCorrelationCalculator
 
     public static Task<double> GetCorrelation(double[,] p, double[,] q)
     {
-        if (p.Length != q.Length) throw new InvalidOperationException("Cannot compare sets of different size.");
+        if (p.Length != q.Length)
+        {
+            throw new InvalidOperationException("Cannot compare sets of different size.");
+        }
 
         return Task.Run(() =>
         {
@@ -31,7 +34,9 @@ internal static class PearsonCorrelationCalculator
             var height = p.GetLength(1);
 
             if (width != q.GetLength(0) || height != q.GetLength(1))
+            {
                 throw new ArgumentException("Input vectors must be of the same dimension.");
+            }
 
             double pSum = 0, qSum = 0, pSumSq = 0, qSumSq = 0, productSum = 0;
 
@@ -59,7 +64,10 @@ internal static class PearsonCorrelationCalculator
 
     public static Task<double> GetCorrelation(byte[,] p, byte[,] q)
     {
-        if (p.Length != q.Length) throw new InvalidOperationException("Cannot compare sets of different size.");
+        if (p.Length != q.Length)
+        {
+            throw new InvalidOperationException("Cannot compare sets of different size.");
+        }
 
         return Task.Run(() =>
         {
@@ -67,7 +75,9 @@ internal static class PearsonCorrelationCalculator
             var height = p.GetLength(1);
 
             if (width != q.GetLength(0) || height != q.GetLength(1))
+            {
                 throw new ArgumentException("Input vectors must be of the same dimension.");
+            }
 
             int pSum = 0, qSum = 0, pSumSq = 0, qSumSq = 0, productSum = 0;
 

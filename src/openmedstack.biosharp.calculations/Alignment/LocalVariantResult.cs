@@ -41,7 +41,10 @@ public class LocalVariantResult
     {
         get
         {
-            if (AdditionalAltAlleles.Count == 0) return [Alternate];
+            if (AdditionalAltAlleles.Count == 0)
+            {
+                return [Alternate];
+            }
 
             var list = new List<string> { Alternate };
             list.AddRange(AdditionalAltAlleles);
@@ -63,9 +66,14 @@ public class LocalVariantResult
     public void AddAltAllele(string altAllele)
     {
         if (string.IsNullOrWhiteSpace(altAllele))
+        {
             throw new ArgumentException("Alternate allele must be non-empty.", nameof(altAllele));
+        }
 
-        if (altAllele.Equals(Alternate, StringComparison.OrdinalIgnoreCase)) return; // Skip duplicates
+        if (altAllele.Equals(Alternate, StringComparison.OrdinalIgnoreCase))
+        {
+            return; // Skip duplicates
+        }
 
         AdditionalAltAlleles.Add(altAllele);
     }
@@ -146,6 +154,12 @@ public class LocalVariantResult
     /// Null if no bubble confidence was computed.
     /// </summary>
     public RepetitivenessScore? BubbleConfidence { get; set; }
+
+    /// <summary>
+    /// Optional free-text additional INFO field content for VCF output.
+    /// Used by callers (e.g. CopyNumberCaller) to attach extra key=value pairs.
+    /// </summary>
+    public string? AdditionalInformation { get; set; }
 }
 
 /// <summary>

@@ -4,6 +4,7 @@ The code is released under MIT license.*/
 
 namespace OpenMedStack.BioSharp.Io.Bcl;
 
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
@@ -37,10 +38,16 @@ public class BarcodeFileReader : IAsyncEnumerable<BarcodeData?>
         while (true)
         {
             var line = await streamReader.ReadLineAsync().ConfigureAwait(false);
-            if (line == null) break;
+            if (line == null)
+            {
+                break;
+            }
 
-            var fields = line!.Split('\t');
-            yield return fields[YOrNColumn].Equals("Y") ? new BarcodeData(fields[BarcodeColumn]) : null;
+            var span = line.AsSpan();
+            Span<Range> ranges = stackalloc Range[3];
+            span.Split(ranges, '\t');
+            var isMatch = span[ranges[YOrNColumn]].SequenceEqual("Y");
+            yield return isMatch ? new BarcodeData(new string(span[ranges[BarcodeColumn]])) : null;
         }
     }
 }

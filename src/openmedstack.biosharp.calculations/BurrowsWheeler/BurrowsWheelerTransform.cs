@@ -40,7 +40,10 @@ public class BurrowsWheelerTransform
 
         // Stores the indexes of sorted rotations
         var suffixArr = new int[lenText];
-        for (var i = 0; i < lenText; i++) suffixArr[i] = suff[i].Index;
+        for (var i = 0; i < lenText; i++)
+        {
+            suffixArr[i] = suff[i].Index;
+        }
 
         // Returns the computed suffix array
         return suffixArr;
@@ -58,7 +61,10 @@ public class BurrowsWheelerTransform
         {
             // Computes the last char which is given by inputText[(suffixArr[i] + n - 1) % n]
             var j = suffixArr[i] - 1;
-            if (j < 0) j += n;
+            if (j < 0)
+            {
+                j += n;
+            }
 
             bwtArr[i] = inputText[j];
         }
@@ -81,12 +87,18 @@ public class BurrowsWheelerTransform
 
         // Array of lists to compute l_shift
         var arr = new List<int>[128];
-        for (var i = 0; i < arr.Length; i++) arr[i] = new List<int>();
+        for (var i = 0; i < arr.Length; i++)
+        {
+            arr[i] = new List<int>();
+        }
 
         // Adds each character of bwtArr to a linked list
         // and appends to it the new node whose data part
         // contains index at which character occurs in bwtArr
-        for (var i = 0; i < lenBwt; i++) arr[bwtArr[i]].Add(i);
+        for (var i = 0; i < lenBwt; i++)
+        {
+            arr[bwtArr[i]].Add(i);
+        }
 
         // Adds each character of sortedBwt to a linked list
         // and finds lShift

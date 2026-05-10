@@ -2,11 +2,13 @@ namespace OpenMedStack.BioSharp.Calculations.Alignment;
 
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using DeBruijn;
+using Io;
 
 /// <summary>
 /// Writes complete VCF files from variant results.
@@ -137,6 +139,53 @@ public static class VcfWriter
     }
 
     /// <summary>
+    /// Writes a complete VCF file to the specified path, optionally BGZF-compressed.
+    /// When <paramref name="compress"/> is <c>true</c>, the output is written as BGZF-compressed
+    /// VCF (`.vcf.gz`) compatible with tabix and bcftools.
+    /// </summary>
+    /// <param name="path">Destination file path. Should end in <c>.vcf.gz</c> when compressed.</param>
+    /// <param name="variants">Variant records to write.</param>
+    /// <param name="chromosome">Chromosome / contig name for the header.</param>
+    /// <param name="chromLength">Optional chromosome length for the contig header line.</param>
+    /// <param name="sampleNames">Optional sample names (adds FORMAT column).</param>
+    /// <param name="genotypes">Optional per-variant genotype strings (parallel to <paramref name="variants"/>).</param>
+    /// <param name="compress">
+    /// When <c>true</c>, wraps the output in a <see cref="BgzfStream"/>.
+    /// When <c>false</c> (default), writes plain text VCF.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public static async Task WriteAsync(
+        string path,
+        IEnumerable<LocalVariantResult> variants,
+        string chromosome,
+        long? chromLength = null,
+        IEnumerable<string>? sampleNames = null,
+        string?[]?[]? genotypes = null,
+        bool compress = false,
+        CancellationToken cancellationToken = default)
+    {
+        await using var fileStream = new FileStream(
+            path,
+            FileMode.Create,
+            FileAccess.Write,
+            FileShare.None,
+            bufferSize: 65536,
+            useAsync: true);
+
+        if (compress)
+        {
+            await using var bgzf = new BgzfStream(fileStream, CompressionLevel.Optimal, leaveOpen: false);
+            await WriteAsync(bgzf, variants, chromosome, chromLength, sampleNames, genotypes, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            await WriteAsync(fileStream, variants, chromosome, chromLength, sampleNames, genotypes, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
     /// Writes a complete VCF file from variant results.
     /// VCF 4.2 compliant with support for structural variant INFO fields.
     /// When sampleNames and genotypes are provided, FORMAT fields (GT:GQ:DP) are included.
@@ -160,23 +209,42 @@ public static class VcfWriter
         headerLines.Add("##fileformat=VCFv4.2");
         headerLines.Add("##source=OpenMedStack.BioSharp VariantCallingPipeline");
 
-        foreach (var infoDef in StandardInfoDefinitions) headerLines.Add(FormatInfoHeader(infoDef));
+        foreach (var infoDef in StandardInfoDefinitions)
+        {
+            headerLines.Add(FormatInfoHeader(infoDef));
+        }
 
         if (hasSamples)
+        {
             foreach (var fmtDef in StandardFormatDefinitions)
+            {
                 headerLines.Add(FormatFormatHeader(fmtDef));
+            }
+        }
 
-        foreach (var filterDef in StandardFilterDefinitions) headerLines.Add(FormatFilterHeader(filterDef));
+        foreach (var filterDef in StandardFilterDefinitions)
+        {
+            headerLines.Add(FormatFilterHeader(filterDef));
+        }
 
-        if (chromLength != null) headerLines.Add(BuildContigHeader(chromosome, chromLength.Value));
+        if (chromLength != null)
+        {
+            headerLines.Add(BuildContigHeader(chromosome, chromLength.Value));
+        }
 
         if (hasSamples)
+        {
             headerLines.Add("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\t" + string.Join("\t", sampleList));
+        }
         else
+        {
             headerLines.Add("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO");
+        }
 
         foreach (var line in headerLines)
+        {
             await stream.WriteAsync(Encoding.UTF8.GetBytes(line + "\n"), cancellationToken);
+        }
 
         for (var vi = 0; vi < variantList.Count; vi++)
         {
@@ -277,18 +345,30 @@ public static class VcfWriter
         infoParts.Add("DP=" + variant.Depth);
 
         // Report multi-alt allele count when applicable
-        if (altAlleles.Count > 1) infoParts.Add("AC=" + (altAlleles.Count - 1).ToString()); // alternate allele count
+        if (altAlleles.Count > 1)
+        {
+            infoParts.Add("AC=" + (altAlleles.Count - 1).ToString()); // alternate allele count
+        }
 
         if (variant is { IsStructuralVariant: true, SvType: not null })
         {
             infoParts.Add("SVTYPE=" + variant.SvType.Value.ToString().ToUpperInvariant());
 
-            if (variant.EndPosition > 0) infoParts.Add("END=" + variant.EndPosition);
+            if (variant.EndPosition > 0)
+            {
+                infoParts.Add("END=" + variant.EndPosition);
+            }
 
             infoParts.Add("CIPOS=0,2");
-            if (variant.EndPosition > 0) infoParts.Add("CIEND=0,2");
+            if (variant.EndPosition > 0)
+            {
+                infoParts.Add("CIEND=0,2");
+            }
 
-            if (variant.AssemblyInfo != null) infoParts.Add("ALT_PATHS=" + variant.AssemblyInfo.AltPathCount);
+            if (variant.AssemblyInfo != null)
+            {
+                infoParts.Add("ALT_PATHS=" + variant.AssemblyInfo.AltPathCount);
+            }
 
             if (variant.SvType == SvType.Inversion)
             {
@@ -302,7 +382,10 @@ public static class VcfWriter
         {
             // Use explicit genotype array if provided
             sb.Append("GT:GQ:DP");
-            foreach (var g in genotype) sb.Append('\t').Append(g ?? "./.:./.:.");
+            foreach (var g in genotype)
+            {
+                sb.Append('\t').Append(g ?? "./.:./.:.");
+            }
         }
         else if (samples.Count > 0)
         {

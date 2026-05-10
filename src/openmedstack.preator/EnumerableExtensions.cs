@@ -33,10 +33,15 @@ internal static class EnumerableExtensions
         int degreeOfParallelism,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        if (degreeOfParallelism < 1) throw new ArgumentOutOfRangeException(nameof(degreeOfParallelism));
+        if (degreeOfParallelism < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(degreeOfParallelism));
+        }
 
         if (coldTasks is ICollection<Task<TResult>>)
+        {
             throw new ArgumentException("The enumerable should not be materialized.", nameof(coldTasks));
+        }
 
         var semaphore = new SemaphoreSlim(1);
         var queue = new ConcurrentQueue<Task<TResult>>();
@@ -44,14 +49,20 @@ internal static class EnumerableExtensions
         var enumerator = coldTasks.GetAsyncEnumerator(cancellationToken);
         await using var _ = enumerator.ConfigureAwait(false);
 
-        for (var index = 0; index < degreeOfParallelism && await EnqueueNextTask().ConfigureAwait(false); index++) ;
+        for (var index = 0; index < degreeOfParallelism && await EnqueueNextTask().ConfigureAwait(false); index++)
+        {
+            ;
+        }
 
         while (queue.TryDequeue(out var nextTask)) yield return await nextTask.ConfigureAwait(false);
 
         async Task<bool> EnqueueNextTask()
         {
             await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            if (!await enumerator.MoveNextAsync().ConfigureAwait(false)) return false;
+            if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
+            {
+                return false;
+            }
 
             var nextTask = enumerator.Current.ContinueWith(
                 async t =>
@@ -106,7 +117,10 @@ internal static class EnumerableExtensions
             chunk[0] = e.Current;
 
             var i = 1;
-            for (; i < chunk.Length && await e.MoveNextAsync().ConfigureAwait(false); i++) chunk[i] = e.Current;
+            for (; i < chunk.Length && await e.MoveNextAsync().ConfigureAwait(false); i++)
+            {
+                chunk[i] = e.Current;
+            }
 
             if (i == chunk.Length)
             {

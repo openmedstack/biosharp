@@ -109,11 +109,19 @@ public static class VariantAnnotator
             AnnotationContext? context)
         {
             if (string.IsNullOrWhiteSpace(transcriptId))
+            {
                 throw new ArgumentException("Transcript ID must be provided.", nameof(transcriptId));
+            }
 
-            if (codonChange == null) throw new ArgumentNullException(nameof(codonChange));
+            if (codonChange == null)
+            {
+                throw new ArgumentNullException(nameof(codonChange));
+            }
 
-            if (transcriptSequence == null) throw new ArgumentNullException(nameof(transcriptSequence));
+            if (transcriptSequence == null)
+            {
+                throw new ArgumentNullException(nameof(transcriptSequence));
+            }
 
             // If refBase is provided, verify it matches the transcript at the given position.
             // A mismatch means the VCF record's reference allele doesn't agree with the
@@ -148,7 +156,10 @@ public static class VariantAnnotator
             var oldAa = TryTranslate(oldCodonRna);
             var newAa = TryTranslate(newCodonRna);
 
-            if (oldAa == null) return null;
+            if (oldAa == null)
+            {
+                return null;
+            }
 
             var (consequence, frameshiftOffset) = ClassifyConsequenceWithOffset(oldAa, newAa,
                 codonChange.NucleotideDelta,
@@ -183,18 +194,27 @@ public static class VariantAnnotator
 
         foreach (var altAllele in altAlleles)
         {
-            if (altAllele == "*" || altAllele == variant.Reference || altAllele.StartsWith('<')) continue;
+            if (altAllele == "*" || altAllele == variant.Reference || altAllele.StartsWith('<'))
+            {
+                continue;
+            }
 
             var refAllele = variant.Reference;
             var cPos = variant.Position;
 
-            if (refAllele == altAllele) continue;
+            if (refAllele == altAllele)
+            {
+                continue;
+            }
 
             var codonChange = codonChangeFactory(variant, transcriptSequence, cPos, altAllele);
 
             var ann = codonChange?.Annotate(transcriptId, transcriptSequence, cPos, refAllele[0],
                 altAllele[0]);
-            if (ann != null) yield return ann;
+            if (ann != null)
+            {
+                yield return ann;
+            }
         }
     }
 
@@ -207,20 +227,32 @@ public static class VariantAnnotator
         AnnotationContext? context = null)
     {
         // An empty transcript provides no reference -- classify as unknown.
-        if (transcript.Length == 0) return VariantConsequence.Unknown;
+        if (transcript.Length == 0)
+        {
+            return VariantConsequence.Unknown;
+        }
 
-        if (pos < 1) return VariantConsequence.Unknown;
+        if (pos < 1)
+        {
+            return VariantConsequence.Unknown;
+        }
 
         // If AnnotationContext is provided, classify non-coding positions first
         var nonCoding = context?.ClassifyPosition(pos);
-        if (nonCoding.HasValue) return nonCoding.Value;
+        if (nonCoding.HasValue)
+        {
+            return nonCoding.Value;
+        }
 
         var checkPos = nucleotideDelta >= 0
             ? pos + nucleotideDelta - 1
             : pos - 1;
 
         // Out-of-bounds: return Unknown instead of crashing
-        if (checkPos > transcript.Length) return VariantConsequence.Unknown;
+        if (checkPos > transcript.Length)
+        {
+            return VariantConsequence.Unknown;
+        }
 
         // StopRetained: nonsense mutation in the very last codon (within 3bp of transcript end)
         // is technically functional since the protein isn't truncated prematurely.
@@ -231,18 +263,32 @@ public static class VariantAnnotator
             return checkPos >= lastCodonStart ? VariantConsequence.StopRetained : VariantConsequence.Nonsense;
         }
 
-        if (nucleotideDelta != 0 && nucleotideDelta % 3 != 0) return VariantConsequence.Frameshift;
+        if (nucleotideDelta != 0 && nucleotideDelta % 3 != 0)
+        {
+            return VariantConsequence.Frameshift;
+        }
 
         if (nucleotideDelta != 0)
+        {
             return nucleotideDelta < 0
                 ? VariantConsequence.InframeDeletion
                 : VariantConsequence.InframeInsertion;
+        }
 
-        if (oldAa.Letter == '*') return VariantConsequence.Unknown;
+        if (oldAa.Letter == '*')
+        {
+            return VariantConsequence.Unknown;
+        }
 
-        if (newAa == null) return VariantConsequence.Unknown;
+        if (newAa == null)
+        {
+            return VariantConsequence.Unknown;
+        }
 
-        if (oldAa.Letter == newAa.Letter) return VariantConsequence.Synonymous;
+        if (oldAa.Letter == newAa.Letter)
+        {
+            return VariantConsequence.Synonymous;
+        }
 
         return VariantConsequence.Missense;
     }
@@ -321,7 +367,10 @@ public static class VariantAnnotator
 
     private static string BuildHgvsCoding(int cPos, CodonChange codonChange, char? refBase, char? altBase)
     {
-        if (codonChange == null) return "c." + cPos + "?";
+        if (codonChange == null)
+        {
+            return "c." + cPos + "?";
+        }
 
         var refSeq = refBase != null
             ? refBase.Value.ToString().ToUpper()
@@ -332,7 +381,10 @@ public static class VariantAnnotator
 
         if (codonChange.NucleotideDelta == 0)
         {
-            if (refSeq.Length == 1) return "c." + cPos + refSeq + ">" + altSeq;
+            if (refSeq.Length == 1)
+            {
+                return "c." + cPos + refSeq + ">" + altSeq;
+            }
 
             return "c." + cPos + "_" + (cPos + refSeq.Length - 1) + refSeq + ">" + altSeq;
         }
@@ -340,7 +392,10 @@ public static class VariantAnnotator
         if (codonChange.NucleotideDelta < 0)
         {
             var delLen = -codonChange.NucleotideDelta;
-            if (delLen == 1) return "c." + cPos + "del";
+            if (delLen == 1)
+            {
+                return "c." + cPos + "del";
+            }
 
             return "c." + cPos + "_" + (cPos + delLen - 1) + "del" + refSeq[..delLen];
         }
@@ -354,7 +409,10 @@ public static class VariantAnnotator
     private static int CountAminosUntilStop(char startAa, string transcriptDna, int dnaStartPos)
     {
         var remaining = Math.Min(600, transcriptDna.Length - dnaStartPos + 1);
-        if (remaining < 3) return -1;
+        if (remaining < 3)
+        {
+            return -1;
+        }
 
         var rnaStr = CodonToRna(transcriptDna.Substring(dnaStartPos - 1, remaining));
         var count = 0;
@@ -362,10 +420,16 @@ public static class VariantAnnotator
         {
             var codon = rnaStr.Substring(i, 3);
             var aa = TryTranslate(codon);
-            if (aa is { Letter: '*' }) return count;
+            if (aa is { Letter: '*' })
+            {
+                return count;
+            }
 
             count++;
-            if (count > 200) break;
+            if (count > 200)
+            {
+                break;
+            }
         }
 
         return -1;
@@ -381,14 +445,19 @@ public static class VariantAnnotator
         char altBase)
     {
         if (string.IsNullOrEmpty(refCodon) || refCodon.Length != 3)
+        {
             throw new ArgumentException("refCodon must be exactly 3 characters.", nameof(refCodon));
+        }
 
         var baseInCodon = (cPos - 1) % 3; // 0, 1, or 2
         var rCodon = refCodon.ToUpper();
         var refUpper = char.ToUpper(refBase);
         var altUpper = char.ToUpper(altBase);
 
-        if (rCodon[baseInCodon] != refUpper) return null;
+        if (rCodon[baseInCodon] != refUpper)
+        {
+            return null;
+        }
 
         var newCodon = rCodon[..baseInCodon]
           + altUpper
@@ -402,11 +471,16 @@ public static class VariantAnnotator
     public static CodonChange? Deletion(string refCodon, int cPos, char delBase)
     {
         if (string.IsNullOrEmpty(refCodon) || refCodon.Length != 3)
+        {
             throw new ArgumentException("refCodon must be exactly 3 characters.", nameof(refCodon));
+        }
 
         var baseInCodon = (cPos - 1) % 3;
         var rCodon = refCodon.ToUpper();
-        if (rCodon[baseInCodon] != char.ToUpper(delBase)) return null;
+        if (rCodon[baseInCodon] != char.ToUpper(delBase))
+        {
+            return null;
+        }
 
         var newCodon = rCodon[..baseInCodon]
           + rCodon[(baseInCodon + 1)..];
@@ -419,7 +493,9 @@ public static class VariantAnnotator
     public static CodonChange? Insertion(string refCodon, int cPos, char insBase)
     {
         if (string.IsNullOrEmpty(refCodon) || refCodon.Length != 3)
+        {
             throw new ArgumentException("refCodon must be exactly 3 characters.", nameof(refCodon));
+        }
 
         var baseInCodon = (cPos - 1) % 3;
         var rCodon = refCodon.ToUpper();
@@ -435,13 +511,20 @@ public static class VariantAnnotator
     public static CodonChange? MultiDeletion(string refCodon, int cPos, int basesToDelete)
     {
         if (string.IsNullOrEmpty(refCodon) || refCodon.Length != 3)
+        {
             throw new ArgumentException("refCodon must be exactly 3 characters.", nameof(refCodon));
+        }
 
         if (basesToDelete < 1 || basesToDelete > 3)
+        {
             throw new ArgumentException("basesToDelete must be 1-3.", nameof(basesToDelete));
+        }
 
         var baseInCodon = (cPos - 1) % 3;
-        if (baseInCodon + basesToDelete > 3) return null;
+        if (baseInCodon + basesToDelete > 3)
+        {
+            return null;
+        }
 
         var rCodon = refCodon.ToUpper();
         var newCodon = rCodon[..baseInCodon]
@@ -454,7 +537,10 @@ public static class VariantAnnotator
     /// </summary>
     public static string CodonToRna(string dnaCodon)
     {
-        if (dnaCodon == null) throw new ArgumentNullException(nameof(dnaCodon));
+        if (dnaCodon == null)
+        {
+            throw new ArgumentNullException(nameof(dnaCodon));
+        }
 
         return new string(dnaCodon.ToUpper().Select(c => c == 'T' ? 'U' : c).ToArray());
     }
@@ -464,7 +550,10 @@ public static class VariantAnnotator
     /// </summary>
     public static AminoAcid? TryTranslate(string rnaCodon)
     {
-        if (rnaCodon == null || rnaCodon.Length != 3) return null;
+        if (rnaCodon == null || rnaCodon.Length != 3)
+        {
+            return null;
+        }
 
         var codon = rnaCodon.ToUpper();
         return CodonTable.TryGetValue(codon, out var aa) ? aa : (AminoAcid?)null;
@@ -498,16 +587,27 @@ public static class VariantAnnotator
         string altSeq)
     {
         if (string.IsNullOrEmpty(refSeq))
+        {
             throw new ArgumentException("Reference sequence must be provided.", nameof(refSeq));
+        }
 
-        if (string.IsNullOrEmpty(refSubset) && string.IsNullOrEmpty(altSeq)) return null;
+        if (string.IsNullOrEmpty(refSubset) && string.IsNullOrEmpty(altSeq))
+        {
+            return null;
+        }
 
-        if (cPos < 1) return null;
+        if (cPos < 1)
+        {
+            return null;
+        }
 
         var refStart = cPos - 1; // 0-based
         var refEnd = refStart + refSubset.Length;
 
-        if (refEnd > refSeq.Length) return null; // extends beyond sequence
+        if (refEnd > refSeq.Length)
+        {
+            return null; // extends beyond sequence
+        }
 
         var originalCodons = refSeq.Substring(refStart, refSubset.Length);
         var mutatedSubset = refSeq.Substring(refStart, refSubset.Length).Replace(refSubset, altSeq);
@@ -532,14 +632,24 @@ public static class VariantAnnotator
         IReadOnlyList<char> altBases)
     {
         if (string.IsNullOrEmpty(refCodons))
+        {
             throw new ArgumentException("Reference codons must be provided.", nameof(refCodons));
+        }
 
-        if (positions == null) throw new ArgumentNullException(nameof(positions));
+        if (positions == null)
+        {
+            throw new ArgumentNullException(nameof(positions));
+        }
 
-        if (altBases == null) throw new ArgumentNullException(nameof(altBases));
+        if (altBases == null)
+        {
+            throw new ArgumentNullException(nameof(altBases));
+        }
 
         if (positions.Count != altBases.Count)
+        {
             throw new ArgumentException("positions and altBases must have the same count.", nameof(positions));
+        }
 
         var refUpper = refCodons.ToUpper();
         var charArray = refUpper.ToCharArray();
@@ -547,7 +657,10 @@ public static class VariantAnnotator
         for (var i = 0; i < positions.Count; i++)
         {
             var pos = positions[i];
-            if (pos < 1 || pos > refUpper.Length) return null; // position out of range
+            if (pos < 1 || pos > refUpper.Length)
+            {
+                return null; // position out of range
+            }
 
             charArray[pos - 1] = char.ToUpper(altBases[i]);
         }
@@ -574,16 +687,27 @@ public static class VariantAnnotator
         string insertionBases)
     {
         if (string.IsNullOrEmpty(refCodon))
+        {
             throw new ArgumentException("Reference codon must be provided.", nameof(refCodon));
+        }
 
-        if (cPos < 1) throw new ArgumentException("Position must be >= 1.", nameof(cPos));
+        if (cPos < 1)
+        {
+            throw new ArgumentException("Position must be >= 1.", nameof(cPos));
+        }
 
-        if (basesToDelete < 1) throw new ArgumentException("basesToDelete must be >= 1.", nameof(basesToDelete));
+        if (basesToDelete < 1)
+        {
+            throw new ArgumentException("basesToDelete must be >= 1.", nameof(basesToDelete));
+        }
 
         var refUpper = refCodon.ToUpper();
         var refStart = cPos - 1; // 0-based
 
-        if (refStart + basesToDelete > refUpper.Length) return null; // deletion extends beyond codon
+        if (refStart + basesToDelete > refUpper.Length)
+        {
+            return null; // deletion extends beyond codon
+        }
 
         var originalSubset = refUpper.Substring(refStart, basesToDelete);
         var mutated = refUpper[..refStart] + insertionBases.ToUpper() +
@@ -612,18 +736,24 @@ public static class VariantAnnotator
         CodonChange codonChange)
     {
         if (transcript == null || position < 1)
+        {
             return false;
+        }
 
         var data = transcript.GetData();
         if (position > data.Length)
+        {
             return false; // position out of transcript range – skip mismatch check
+        }
 
         var transcriptRef = char.ToUpper(data.Span[position - 1]);
 
         // Skip the check if the transcript position contains a placeholder
         // character (e.g., '.' from synthetic test data) rather than a real base.
         if (transcriptRef != 'A' && transcriptRef != 'C' && transcriptRef != 'G' && transcriptRef != 'T')
+        {
             return false;
+        }
 
         return transcriptRef != char.ToUpper(expectedRef);
     }

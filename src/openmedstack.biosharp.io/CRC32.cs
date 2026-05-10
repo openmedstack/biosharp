@@ -69,10 +69,16 @@ internal class Crc32
             {
                 dwCrc = i;
                 for (j = 8; j > 0; j--)
+                {
                     if ((dwCrc & 1) == 1)
+                    {
                         dwCrc = (dwCrc >> 1) ^ dwPolynomial;
+                    }
                     else
+                    {
                         dwCrc >>= 1;
+                    }
+                }
 
                 Crc32Table[i] = dwCrc;
             }
@@ -114,7 +120,10 @@ internal class Crc32
     /// <returns>the CRC32 calculation</returns>
     public uint GetCrc32AndCopy(Stream input, Stream? output)
     {
-        if (input is null) throw new NullReferenceException("The input stream must not be null.");
+        if (input is null)
+        {
+            throw new NullReferenceException("The input stream must not be null.");
+        }
 
         unchecked
         {
@@ -148,7 +157,10 @@ internal class Crc32
     /// <returns>the CRC32 calculation</returns>
     public async Task<uint> GetCrc32AndCopyAsync(Stream input, Stream? output)
     {
-        if (input is null) throw new NullReferenceException("The input stream must not be null.");
+        if (input is null)
+        {
+            throw new NullReferenceException("The input stream must not be null.");
+        }
 
         unchecked
         {
@@ -159,14 +171,20 @@ internal class Crc32
 
             TotalBytesRead = 0;
             var count = await input.ReadAsync(buffer.AsMemory(0, readSize));
-            if (output != null) await output.WriteAsync(buffer.AsMemory(0, count));
+            if (output != null)
+            {
+                await output.WriteAsync(buffer.AsMemory(0, count));
+            }
 
             TotalBytesRead += count;
             while (count > 0)
             {
                 SlurpBlock(buffer, 0, count);
                 count = await input.ReadAsync(buffer.AsMemory(0, readSize));
-                if (output != null) await output.WriteAsync(buffer.AsMemory(0, count));
+                if (output != null)
+                {
+                    await output.WriteAsync(buffer.AsMemory(0, count));
+                }
 
                 TotalBytesRead += count;
             }
@@ -184,7 +202,10 @@ internal class Crc32
     /// <param name="count">how many bytes within the block to slurp</param>
     public void SlurpBlock(byte[] block, int offset, int count)
     {
-        if (block is null) throw new NullReferenceException("The data buffer must not be null.");
+        if (block is null)
+        {
+            throw new NullReferenceException("The data buffer must not be null.");
+        }
 
         for (var i = 0; i < count; i++)
         {

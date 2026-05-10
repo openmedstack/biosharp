@@ -1,5 +1,6 @@
 namespace OpenMedStack.BioSharp.Calculations.Tests;
 
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using Io.FastQ;
@@ -9,12 +10,35 @@ using Xunit;
 
 public class SequenceExtensionsTests
 {
+    // These tests require the real ERR164409.fastq.gz sample file.
+    // In CI the file is a Git LFS pointer; skip gracefully when that is the case.
+    private static bool IsRealFastqFile(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return false;
+        }
+
+        try
+        {
+            using var fs = File.OpenRead(path);
+            var magic = new byte[2];
+            return fs.Read(magic, 0, 2) == 2 && magic[0] == 0x1f && magic[1] == 0x8b;
+        }
+        catch { return false; }
+    }
+
     [Theory]
     [InlineData("TAAT", 11)]
     [InlineData("TATTA", 1)]
     public async Task CanFindSubSequence(string code, int position)
     {
         const string path = "ERR164409.fastq.gz";
+        if (!IsRealFastqFile(path))
+        {
+            Assert.Skip("Sample FASTQ not available (Git LFS pointer or missing)");
+        }
+
         var parser = new FastQReader(NullLogger.Instance);
 
         var sequence = await parser.Read(path).FirstAsync();
@@ -25,6 +49,11 @@ public class SequenceExtensionsTests
     public async Task WhenIndexOfMaxErrorsIsEqualToSequenceLengthThenIndexIsZero()
     {
         const string path = "ERR164409.fastq.gz";
+        if (!IsRealFastqFile(path))
+        {
+            Assert.Skip("Sample FASTQ not available (Git LFS pointer or missing)");
+        }
+
         var parser = new FastQReader(NullLogger.Instance);
 
         var sequence = await parser.Read(path).FirstAsync();
@@ -35,6 +64,11 @@ public class SequenceExtensionsTests
     public async Task WhenSequenceMatchesWithinAllowedErrorsThenFinds()
     {
         const string path = "ERR164409.fastq.gz";
+        if (!IsRealFastqFile(path))
+        {
+            Assert.Skip("Sample FASTQ not available (Git LFS pointer or missing)");
+        }
+
         var parser = new FastQReader(NullLogger.Instance);
 
         var sequence = await parser.Read(path).FirstAsync();
@@ -45,6 +79,11 @@ public class SequenceExtensionsTests
     public async Task CanFindAllSubSequences()
     {
         const string path = "ERR164409.fastq.gz";
+        if (!IsRealFastqFile(path))
+        {
+            Assert.Skip("Sample FASTQ not available (Git LFS pointer or missing)");
+        }
+
         var parser = new FastQReader(NullLogger.Instance);
 
         var sequence = await parser.Read(path).FirstAsync();
@@ -56,6 +95,11 @@ public class SequenceExtensionsTests
     public async Task CanCountAllSubSequences()
     {
         const string path = "ERR164409.fastq.gz";
+        if (!IsRealFastqFile(path))
+        {
+            Assert.Skip("Sample FASTQ not available (Git LFS pointer or missing)");
+        }
+
         var parser = new FastQReader(NullLogger.Instance);
 
         var sequence = await parser.Read(path).FirstAsync();
@@ -67,6 +111,11 @@ public class SequenceExtensionsTests
     public async Task CanReadAminoSequenceToStop()
     {
         const string path = "ERR164409.fastq.gz";
+        if (!IsRealFastqFile(path))
+        {
+            Assert.Skip("Sample FASTQ not available (Git LFS pointer or missing)");
+        }
+
         var parser = new FastQReader(NullLogger.Instance);
 
         var sequence = await parser.Read(path).FirstAsync();
@@ -79,6 +128,11 @@ public class SequenceExtensionsTests
     public async Task CanReadAminoSequenceToEnd()
     {
         const string path = "ERR164409.fastq.gz";
+        if (!IsRealFastqFile(path))
+        {
+            Assert.Skip("Sample FASTQ not available (Git LFS pointer or missing)");
+        }
+
         var parser = new FastQReader(NullLogger.Instance);
 
         var sequence = await parser.Read(path).FirstAsync();
@@ -94,6 +148,11 @@ public class SequenceExtensionsTests
     public async Task CanCountAllStopCodons(string codon, int count)
     {
         const string path = "ERR164409.fastq.gz";
+        if (!IsRealFastqFile(path))
+        {
+            Assert.Skip("Sample FASTQ not available (Git LFS pointer or missing)");
+        }
+
         var parser = new FastQReader(NullLogger.Instance);
 
         var sequence = await parser.Read(path).FirstAsync();

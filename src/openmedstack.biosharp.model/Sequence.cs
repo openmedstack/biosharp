@@ -17,7 +17,10 @@ public class Sequence : IEnumerable<BasePair>
 
     internal Sequence(string id, ReadOnlyMemory<char> data, ReadOnlyMemory<char> qualities)
     {
-        if (data.Length != qualities.Length) throw new ArgumentException("Invalid data", nameof(qualities));
+        if (data.Length != qualities.Length)
+        {
+            throw new ArgumentException("Invalid data", nameof(qualities));
+        }
 
         Header = SequenceHeader.Empty;
         Id = id;
@@ -28,7 +31,9 @@ public class Sequence : IEnumerable<BasePair>
     public Sequence Slice(int start, int length)
     {
         if (start < 0 || length < 0 || start + length > _data.Length)
+        {
             throw new ArgumentOutOfRangeException(nameof(start), "Invalid range for slicing sequence.");
+        }
 
         var dataSlice = _data.Slice(start, length);
         var qualitiesSlice = _qualities.Slice(start, length);
@@ -51,7 +56,10 @@ public class Sequence : IEnumerable<BasePair>
 
     public IEnumerator<BasePair> GetEnumerator()
     {
-        for (var i = 0; i < _data.Length; i++) yield return new BasePair(_data.Span[i], _qualities.Span[i]);
+        for (var i = 0; i < _data.Length; i++)
+        {
+            yield return new BasePair(_data.Span[i], _qualities.Span[i]);
+        }
     }
 
     IEnumerator IEnumerable.GetEnumerator()
