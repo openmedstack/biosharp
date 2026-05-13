@@ -26,8 +26,8 @@ public class PipelineBenchmarks
         var referenceString = new string('A', 1024) + target + new string('C', 1024);
         _reference = new Sequence(
             "chrBench",
-            referenceString.ToCharArray(),
-            new string('I', referenceString.Length).ToCharArray());
+            referenceString.AsMemory(),
+            new string('I', referenceString.Length).AsMemory());
 
         _plainFastqPath = Path.Combine(Path.GetTempPath(), $"biosharp-bench-{Guid.NewGuid():N}.fastq");
         _gzipFastqPath = _plainFastqPath + ".gz";
@@ -42,19 +42,18 @@ public class PipelineBenchmarks
         }
 
         File.WriteAllText(_plainFastqPath, builder.ToString());
-        using (var input = File.OpenRead(_plainFastqPath))
-        using (var output = File.Create(_gzipFastqPath))
-        using (var gzip = new GZipStream(output, CompressionLevel.SmallestSize))
-        {
-            input.CopyTo(gzip);
-        }
+        using var input = File.OpenRead(_plainFastqPath);
+        using var output = File.Create(_gzipFastqPath);
+        using var gzip = new GZipStream(output, CompressionLevel.SmallestSize);
+        input.CopyTo(gzip);
 
         var clippedRead = new string('T', 24) + target;
         _softClippedRead = new Sequence(
             "softclip",
-            clippedRead.ToCharArray(),
-            new string('I', clippedRead.Length).ToCharArray());
-        _softClippedAlignment = new AlignmentResult(target, target, new string('|', target.Length), 42, 1024, 24, 0, false);
+            clippedRead.AsMemory(),
+            new string('I', clippedRead.Length).AsMemory());
+        _softClippedAlignment =
+            new AlignmentResult(target, target, new string('|', target.Length), 42, 1024, 24, 0, false);
         _realigner = new ReadRealigner();
     }
 
@@ -69,14 +68,14 @@ public class PipelineBenchmarks
     public async Task<bool> StreamPlainFastQSerial()
     {
         var pipeline = CreatePipeline(1);
-        return await pipeline.LoadFastQAsync(_plainFastqPath).ConfigureAwait(false);
+        return await pipeline.LoadFastQ(_plainFastqPath).ConfigureAwait(false);
     }
 
     [Benchmark]
     public async Task<bool> StreamGzipFastQParallel()
     {
         var pipeline = CreatePipeline(Environment.ProcessorCount > 1 ? 2 : 1);
-        return await pipeline.LoadFastQAsync(_gzipFastqPath).ConfigureAwait(false);
+        return await pipeline.LoadFastQ(_gzipFastqPath).ConfigureAwait(false);
     }
 
     [Benchmark]

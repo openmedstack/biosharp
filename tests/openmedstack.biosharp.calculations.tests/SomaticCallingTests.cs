@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AsyncEnumerable = OpenMedStack.BioSharp.Calculations.Alignment.AsyncEnumerableExtensions;
-using DeBruijn = OpenMedStack.BioSharp.Calculations.DeBruijn;
 using Sequence = OpenMedStack.BioSharp.Model.Sequence;
 using Xunit;
 
@@ -20,7 +19,7 @@ public class SomaticCallingTests
     {
         return AsyncEnumerable.ToAsyncEnumerable(
             seqs.Select(s => new Sequence(
-                "r_" + s.GetHashCode(),
+                $"r_{s.GetHashCode()}",
                 s.AsMemory(),
                 new string('I', s.Length).AsMemory())));
     }
@@ -32,7 +31,7 @@ public class SomaticCallingTests
 
     private static DeBruijn.BloomFilter BuildFilter(IEnumerable<string> kmers)
     {
-        var filter = new DeBruijn.BloomFilter(200, 0.01);
+        var filter = new DeBruijn.BloomFilter(200);
         foreach (var kmer in kmers)
         {
             filter.Add(kmer);
@@ -66,16 +65,16 @@ public class SomaticCallingTests
         var tumorAlt = "AGCTAATAGCTXXXGACTAGCTAGCTAGC";
 
         // Use the same read pattern as SC-5 which is verified to work
-        var tumorReads = new[] { refSeq, tumorAlt, refSeq.Substring(1), tumorAlt.Substring(1) };
+        var tumorReads = new[] { refSeq, tumorAlt, refSeq[1..], tumorAlt[1..] };
 
         // Normal: ref-like only, so alt k-mers from tumor are absent
         var normalKmers = ExtractKmers(refSeq, 7);
 
-        var tumorGraph = BuildGraph(tumorReads, 7);
+        var tumorGraph = BuildGraph(tumorReads);
         var normalFilter = BuildFilter(normalKmers);
 
-        var variants = await DeBruijn.SomaticVariantDetector.DetectSomaticVariantsAsync(
-            tumorGraph, normalFilter, refSeq, "chr1", 0, minTumorCoverage: 1);
+        var variants = await DeBruijn.SomaticVariantDetector.DetectSomaticVariants(
+            tumorGraph, normalFilter, refSeq, 0, minTumorCoverage: 1);
 
         // The key assertion: somatic variant detected with tumor-specific evidence
         Assert.True(variants.Count >= 0); // Graph successfully processed
@@ -97,15 +96,15 @@ public class SomaticCallingTests
         var refSeq = "AGCTAATAGCTGACTAGCTAGCTAGC";
         var altSeq = "AGCTAATAGCTXXXGACTAGCTAGCTAGC";
 
-        var tumorReads = new[] { refSeq, altSeq, refSeq.Substring(1), altSeq.Substring(1) };
+        var tumorReads = new[] { refSeq, altSeq, refSeq[1..], altSeq[1..] };
 
         // Normal ALSO has alt k-mers — this is germline, not somatic
         var allKmers = ExtractKmers(refSeq, 7).Concat(ExtractKmers(altSeq, 7)).ToList();
         var normalFilter = BuildFilter(allKmers);
 
-        var tumorGraph = BuildGraph(tumorReads, 7);
-        var variants = await DeBruijn.SomaticVariantDetector.DetectSomaticVariantsAsync(
-            tumorGraph, normalFilter, refSeq, "chr1", 0);
+        var tumorGraph = BuildGraph(tumorReads);
+        var variants = await DeBruijn.SomaticVariantDetector.DetectSomaticVariants(
+            tumorGraph, normalFilter, refSeq, 0);
 
         Assert.Empty(variants);
     }
@@ -118,14 +117,14 @@ public class SomaticCallingTests
     public async Task DetectSomatic_NoBubbles_ReturnsEmpty()
     {
         var uniform = "AGCTAATAGCTGACTA";
-        var tumorReads = new[] { uniform, uniform.Substring(1), uniform.Substring(2) };
+        var tumorReads = new[] { uniform, uniform[1..], uniform[2..] };
 
         var tumorGraph = BuildGraph(tumorReads, 5);
         var normalKmers = ExtractKmers(uniform, 5);
         var normalFilter = BuildFilter(normalKmers);
 
-        var variants = await DeBruijn.SomaticVariantDetector.DetectSomaticVariantsAsync(
-            tumorGraph, normalFilter, uniform, "chr1", 0);
+        var variants = await DeBruijn.SomaticVariantDetector.DetectSomaticVariants(
+            tumorGraph, normalFilter, uniform, 0);
 
         Assert.Empty(variants);
     }
@@ -143,16 +142,16 @@ public class SomaticCallingTests
         var tumorReads = new[]
         {
             refSeq, refSeq, refSeq, refSeq, refSeq, refSeq, refSeq, refSeq,
-            refSeq.Substring(1),
+            refSeq[1..],
             altSeq // 1 alt, 9 ref -> ~10% alt fraction
         };
 
         var normalKmers = ExtractKmers(refSeq, 7);
-        var tumorGraph = BuildGraph(tumorReads, 7);
+        var tumorGraph = BuildGraph(tumorReads);
         var normalFilter = BuildFilter(normalKmers);
 
-        var variants = await DeBruijn.SomaticVariantDetector.DetectSomaticVariantsAsync(
-            tumorGraph, normalFilter, refSeq, "chr1", 0,
+        var variants = await DeBruijn.SomaticVariantDetector.DetectSomaticVariants(
+            tumorGraph, normalFilter, refSeq, 0,
             0.30);
 
         Assert.Empty(variants);
@@ -167,11 +166,11 @@ public class SomaticCallingTests
         var refSeq = "AGCTAATAGCTGACTAGCTAGCTAGC";
         var altSeq = "AGCTAATAGCTXXXGACTAGCTAGCTAGC";
 
-        var tumorReads = new[] { refSeq, altSeq, refSeq.Substring(1), altSeq.Substring(1) };
-        var normalReads = new[] { refSeq, refSeq.Substring(1), refSeq.Substring(2) };
+        var tumorReads = new[] { refSeq, altSeq, refSeq[1..], altSeq[1..] };
+        var normalReads = new[] { refSeq, refSeq[1..], refSeq[2..] };
 
-        var tumorGraph = BuildGraph(tumorReads, 7);
-        var normalGraph = BuildGraph(normalReads, 7);
+        var tumorGraph = BuildGraph(tumorReads);
+        var normalGraph = BuildGraph(normalReads);
 
         var variants = await DeBruijn.SomaticVariantDetector.AnalyzeTumorNormalPair(
             "tumor", tumorGraph,
@@ -200,19 +199,19 @@ public class SomaticCallingTests
         Assert.NotNull(method);
 
         // High: total >= 8, maf in [0.25, 0.75]
-        var highConf = (DeBruijn.BubbleConfidence)method.Invoke(null, new object[] { 0.5, 4, 4 })!;
+        var highConf = (DeBruijn.BubbleConfidence)method.Invoke(null, [0.5, 4, 4])!;
         Assert.Equal(DeBruijn.BubbleConfidence.High, highConf);
 
         // Low: total < 5
-        var lowConf = (DeBruijn.BubbleConfidence)method.Invoke(null, new object[] { 0.5, 2, 1 })!;
+        var lowConf = (DeBruijn.BubbleConfidence)method.Invoke(null, [0.5, 2, 1])!;
         Assert.Equal(DeBruijn.BubbleConfidence.Low, lowConf);
 
         // Low: maf < 0.2
-        var lowConf2 = (DeBruijn.BubbleConfidence)method.Invoke(null, new object[] { 0.1, 6, 6 })!;
+        var lowConf2 = (DeBruijn.BubbleConfidence)method.Invoke(null, [0.1, 6, 6])!;
         Assert.Equal(DeBruijn.BubbleConfidence.Low, lowConf2);
 
         // Medium: in between
-        var medConf = (DeBruijn.BubbleConfidence)method.Invoke(null, new object[] { 0.5, 3, 3 })!;
+        var medConf = (DeBruijn.BubbleConfidence)method.Invoke(null, [0.5, 3, 3])!;
         Assert.Equal(DeBruijn.BubbleConfidence.Medium, medConf);
     }
 
@@ -225,17 +224,17 @@ public class SomaticCallingTests
         var refSeq = "AGCTAATAGCTGACTAGCTAGCTAGC";
 
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            DeBruijn.SomaticVariantDetector.DetectSomaticVariantsAsync(
-                null!, BuildFilter(new[] { "ACGT" }), refSeq, "chr1", 0));
+            DeBruijn.SomaticVariantDetector.DetectSomaticVariants(
+                null!, BuildFilter(["ACGT"]), refSeq, 0));
 
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            DeBruijn.SomaticVariantDetector.DetectSomaticVariantsAsync(
-                BuildGraph(new[] { "ACGT" }, 5), null!, refSeq, "chr1", 0));
+            DeBruijn.SomaticVariantDetector.DetectSomaticVariants(
+                BuildGraph(["ACGT"], 5), null!, refSeq, 0));
 
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            DeBruijn.SomaticVariantDetector.DetectSomaticVariantsAsync(
-                BuildGraph(new[] { "ACGT" }, 5), BuildFilter(new[] { "ACGT" }),
-                null!, "chr1", 0));
+            DeBruijn.SomaticVariantDetector.DetectSomaticVariants(
+                BuildGraph(["ACGT"], 5), BuildFilter(["ACGT"]),
+                null!, 0));
     }
 
     /// <summary>

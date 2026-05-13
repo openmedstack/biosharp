@@ -36,10 +36,8 @@ public static class MapqCalculator
     /// Alignment score of the second-best competing alignment window.
     /// Pass −1 (or any negative value) when no second-best window was found.
     /// </param>
-    /// <param name="readLength">Length of the read in bases (used for normalisation).</param>
-    /// <param name="matchScore">Per-base match score used during alignment (default: 2).</param>
     /// <returns>MAPQ value in [0, 60].</returns>
-    public static byte Calculate(int bestScore, int secondBestScore, int readLength, int matchScore = 2)
+    public static byte Calculate(int bestScore, int secondBestScore)
     {
         if (bestScore <= 0)
         {

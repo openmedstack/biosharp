@@ -37,7 +37,7 @@ public class BarcodeFileReader : IAsyncEnumerable<BarcodeData?>
         using var streamReader = new StreamReader(_barcodeFile.FullName);
         while (true)
         {
-            var line = await streamReader.ReadLineAsync().ConfigureAwait(false);
+            var line = await streamReader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
             if (line == null)
             {
                 break;
@@ -46,7 +46,7 @@ public class BarcodeFileReader : IAsyncEnumerable<BarcodeData?>
             var span = line.AsSpan();
             Span<Range> ranges = stackalloc Range[3];
             span.Split(ranges, '\t');
-            var isMatch = span[ranges[YOrNColumn]].SequenceEqual("Y");
+            var isMatch = span[ranges[YOrNColumn]] is "Y";
             yield return isMatch ? new BarcodeData(new string(span[ranges[BarcodeColumn]])) : null;
         }
     }

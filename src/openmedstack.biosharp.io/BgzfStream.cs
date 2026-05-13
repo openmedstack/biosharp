@@ -70,7 +70,7 @@ public class BgzfStream : Stream
     {
         if (_fill > 0)
         {
-            await WriteBlockAsync(cancellationToken).ConfigureAwait(false);
+            await WriteBlock(cancellationToken).ConfigureAwait(false);
         }
 
         await _innerStream.FlushAsync(cancellationToken).ConfigureAwait(false);
@@ -134,7 +134,7 @@ public class BgzfStream : Stream
                     return bufferPosition;
                 }
 
-                await FillReadBufferAsync(cancellationToken);
+                await FillReadBuffer(cancellationToken);
                 continue;
             }
 
@@ -199,7 +199,7 @@ public class BgzfStream : Stream
         }
     }
 
-    private async Task FillReadBufferAsync(CancellationToken cancellationToken)
+    private async Task FillReadBuffer(CancellationToken cancellationToken)
     {
         _currentPosition = new BlockOffsetRecord((ulong)_innerStream.Position, 0);
         var header = new byte[16];
@@ -288,7 +288,7 @@ public class BgzfStream : Stream
             _fill += toCopy;
             if (toCopy < buffer.Length)
             {
-                await WriteBlockAsync(cancellationToken);
+                await WriteBlock(cancellationToken);
                 buffer = buffer[toCopy..];
             }
             else
@@ -316,7 +316,7 @@ public class BgzfStream : Stream
         _innerStream.Write(EofSequence.AsSpan());
     }
 
-    public async ValueTask WriteEndOfFileAsync(CancellationToken cancellationToken)
+    public async ValueTask WriteEndOfFile(CancellationToken cancellationToken)
     {
         if (!_endOfFileWritten && _mode == CompressionMode.Compress)
         {
@@ -355,7 +355,7 @@ public class BgzfStream : Stream
         _currentPosition = new BlockOffsetRecord(_currentPosition.BlockAddress + 1, 0);
     }
 
-    private async Task WriteBlockAsync(CancellationToken cancellationToken = default)
+    private async Task WriteBlock(CancellationToken cancellationToken)
     {
         uint crc32;
         using var ms = new MemoryStream();
@@ -443,7 +443,7 @@ public class BgzfStream : Stream
     public override async ValueTask DisposeAsync()
     {
         await FlushAsync().ConfigureAwait(false);
-        await WriteEndOfFileAsync(CancellationToken.None);
+        await WriteEndOfFile(CancellationToken.None);
         if (!_leaveOpen)
         {
             await _innerStream.DisposeAsync().ConfigureAwait(false);

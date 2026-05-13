@@ -1,3 +1,5 @@
+using System;
+
 namespace OpenMedStack.BioSharp.Benchmarks;
 
 using BenchmarkDotNet.Attributes;
@@ -12,37 +14,50 @@ public class AlignmentBenchmarks
     private Sequence _read = null!;
     private VariantCallingPipeline _largePipeline = null!;
 
+    [Params(false, true)] public bool EnableGraphSv;
+
+    [Params(false, true)] public bool EnableSoftClipRealignment;
+
+    [Params(5, 15, 25, 50)] public int KmerSize;
+
+    [Params(5, 15, 25, 50)] public int MinGraphCoverage;
+
+    [Params(1, 5, 10)] public int MaxCores;
+
     [GlobalSetup]
     public void Setup()
     {
         const string target = "ACGTGATTACAGGTTCCGATTA";
-        _read = new Sequence("read", target.ToCharArray(), new string('I', target.Length).ToCharArray());
+        _read = new Sequence("read", target.AsMemory(), new string('I', target.Length).AsMemory());
 
         var smallPrefix = new string('T', 256);
         var smallSuffix = new string('G', 256);
         var smallReferenceString = smallPrefix + target + smallSuffix;
         _smallReference = new Sequence(
             "smallRef",
-            smallReferenceString.ToCharArray(),
-            new string('I', smallReferenceString.Length).ToCharArray());
+            smallReferenceString.AsMemory(),
+            new string('I', smallReferenceString.Length).AsMemory());
 
         var largePrefix = new string('A', 100_000);
         var largeSuffix = new string('C', 100_000);
         var largeReferenceString = largePrefix + target + largeSuffix;
         _largeReference = new Sequence(
             "largeRef",
-            largeReferenceString.ToCharArray(),
-            new string('I', largeReferenceString.Length).ToCharArray());
+            largeReferenceString.AsMemory(),
+            new string('I', largeReferenceString.Length).AsMemory());
 
         _largePipeline = new VariantCallingPipeline(_largeReference, "largeRef", new VariantCallingPipeline.PipelineOptions
         {
             SeedSize = 6,
+            KmerSize = KmerSize,
+            MinGraphCoverage = MinGraphCoverage,
             CandidateWindowPadding = 32,
             MaxCandidateWindowsPerRead = 4,
             MaxSeedHitsPerKmer = 16,
             MinAlignmentScore = 10,
-            EnableSoftClipRealignment = false,
-            EnableGraphSvDetection = false
+            EnableSoftClipRealignment = EnableSoftClipRealignment,
+            EnableGraphSvDetection = EnableGraphSv,
+            DegreeOfParallelism = MaxCores,
         });
     }
 
@@ -55,6 +70,6 @@ public class AlignmentBenchmarks
     [Benchmark]
     public LocalVariantResult[] ProcessReadAgainstIndexedLargeReference()
     {
-        return _largePipeline.ProcessReadAsync(_read).GetAwaiter().GetResult();
+        return _largePipeline.ProcessRead(_read);
     }
 }

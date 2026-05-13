@@ -21,9 +21,9 @@ internal static class DnaEncoding
     public static int CountNonGap(ReadOnlySpan<char> data)
     {
         var count = 0;
-        for (var index = 0; index < data.Length; index++)
+        foreach (var t in data)
         {
-            if (data[index] != '-')
+            if (t != '-')
             {
                 count++;
             }
@@ -42,9 +42,8 @@ internal static class DnaEncoding
 
         var buffer = new char[length];
         var pos = 0;
-        for (var index = 0; index < data.Length; index++)
+        foreach (var value in data)
         {
-            var value = data[index];
             if (value == '-')
             {
                 continue;
@@ -89,9 +88,9 @@ internal static class DnaEncoding
 
         Span<int> counts = stackalloc int[4];
         var canonicalBases = 0;
-        for (var index = 0; index < sequence.Length; index++)
+        foreach (var t in sequence)
         {
-            switch (Normalize(sequence[index]))
+            switch (Normalize(t))
             {
                 case 'A':
                     counts[0]++;
@@ -118,11 +117,11 @@ internal static class DnaEncoding
         }
 
         var max = 0;
-        for (var index = 0; index < counts.Length; index++)
+        foreach (var t in counts)
         {
-            if (counts[index] > max)
+            if (t > max)
             {
-                max = counts[index];
+                max = t;
             }
         }
 

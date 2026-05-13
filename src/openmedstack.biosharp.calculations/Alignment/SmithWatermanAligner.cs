@@ -2,16 +2,15 @@ namespace OpenMedStack.BioSharp.Calculations.Alignment;
 
 using System;
 using System.Buffers;
-using System.Linq;
 using Model;
 
 /// <summary>
 /// Smith-Waterman-style aligner adapted for variant calling.
-/// 
+///
 /// Performs semi-global (glocal) alignment: the read is aligned globally
 /// (every read base must be placed), while the reference is aligned locally
 /// (leading and trailing reference bases may be skipped with no penalty).
-/// 
+///
 /// Uses affine gap penalties: opening a gap costs gapOpenPenalty,
 /// each subsequent gap-base in the same gap costs gapExtendPenalty.
 /// </summary>
@@ -200,7 +199,7 @@ public static class SmithWatermanAligner
                         bestScoreSeen = bestVal;
                     }
 
-                    byte dir = 0;
+                    byte dir;
                     if (bestVal == diagonal && bestVal >= currentY && bestVal >= currentX)
                     {
                         dir = 1;
@@ -362,7 +361,7 @@ public static class SmithWatermanAligner
             var words = (cellCount + CellsPerWord - 1) / CellsPerWord;
             var buf = ArrayPool<uint>.Shared.Rent(words);
             Array.Clear(buf, 0, words);
-            return new PackedDirectionMatrix(buf, columns, Array.Empty<int>(), false, 0, 0);
+            return new PackedDirectionMatrix(buf, columns, [], false, 0, 0);
         }
 
         /// <summary>
@@ -418,13 +417,13 @@ public static class SmithWatermanAligner
                 }
 
                 wordIndex = row * _rowWords + localCol / CellsPerWord;
-                shift = (localCol % CellsPerWord) * BitsPerCell;
+                shift = localCol % CellsPerWord * BitsPerCell;
             }
             else
             {
                 var index = row * _fullCols + column;
                 wordIndex = index / CellsPerWord;
-                shift = (index % CellsPerWord) * BitsPerCell;
+                shift = index % CellsPerWord * BitsPerCell;
             }
             var mask = 0b11u << shift;
             _buffer[wordIndex] = (_buffer[wordIndex] & ~mask) | ((uint)value << shift);
@@ -444,13 +443,13 @@ public static class SmithWatermanAligner
                 }
 
                 wordIndex = row * _rowWords + localCol / CellsPerWord;
-                shift = (localCol % CellsPerWord) * BitsPerCell;
+                shift = localCol % CellsPerWord * BitsPerCell;
             }
             else
             {
                 var index = row * _fullCols + column;
                 wordIndex = index / CellsPerWord;
-                shift = (index % CellsPerWord) * BitsPerCell;
+                shift = index % CellsPerWord * BitsPerCell;
             }
             return (byte)((_buffer[wordIndex] >> shift) & 0b11u);
         }

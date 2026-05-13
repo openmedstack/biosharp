@@ -10,7 +10,7 @@ public class CigarBuilderTests
     {
         var alignedRef = "ACGTACGT";
         var alignedRead = "ACGTACGT";
-        var cigar = CigarBuilder.BuildCigar(alignedRef, alignedRead, 0, 0);
+        var cigar = CigarBuilder.BuildCigar(alignedRef, alignedRead);
         Assert.Equal("8M", cigar);
     }
 
@@ -21,7 +21,7 @@ public class CigarBuilderTests
         // Read: A C G A T (5 bases, A inserted at pos 3)
         var alignedRef = "ACG-T";
         var alignedRead = "ACGAT";
-        var cigar = CigarBuilder.BuildCigar(alignedRef, alignedRead, 0, 0);
+        var cigar = CigarBuilder.BuildCigar(alignedRef, alignedRead);
         // Character-by-character: M M M I M -> merged to "3M1I1M"
         Assert.Equal("3M1I1M", cigar);
     }
@@ -33,7 +33,7 @@ public class CigarBuilderTests
         // Read: A C G - - (3 bases, 2 deleted bases in ref)
         var alignedRef = "ACGTA";
         var alignedRead = "ACG--";
-        var cigar = CigarBuilder.BuildCigar(alignedRef, alignedRead, 0, 0);
+        var cigar = CigarBuilder.BuildCigar(alignedRef, alignedRead);
         // Character-by-character: M M M D D -> "3M2D" (no trailing M since alignment ends with deletions)
         Assert.Equal("3M2D", cigar);
     }

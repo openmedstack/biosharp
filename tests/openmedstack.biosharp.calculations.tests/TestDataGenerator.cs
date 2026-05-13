@@ -6,21 +6,6 @@ using System.Threading.Tasks;
 using Model;
 
 /// <summary>
-/// Represents a single synthetic SNV injected into a reference sequence.
-/// </summary>
-public sealed class SyntheticVariant
-{
-    /// <summary>0-based position in the reference.</summary>
-    public int Position { get; init; }
-
-    /// <summary>Reference allele at this position.</summary>
-    public char ReferenceAllele { get; init; }
-
-    /// <summary>Alternate allele that replaces the reference.</summary>
-    public char AlternateAllele { get; init; }
-}
-
-/// <summary>
 /// Generates synthetic reference sequences, simulated reads, and variant test sets
 /// for use in unit and integration tests.
 /// </summary>
@@ -80,7 +65,7 @@ public sealed class TestDataGenerator
     /// Simulates reads sampled from a reference at the given depth.
     /// The number of reads produced is approximately <c>depth × length / readLength</c>.
     /// </summary>
-    public async IAsyncEnumerable<Sequence> SimulateReadsAsync(
+    public async IAsyncEnumerable<Sequence> SimulateReads(
         string reference,
         int depth,
         int readLength)
@@ -128,7 +113,7 @@ public sealed class TestDataGenerator
     /// Generates a complete variant test set: reference, variants, and reads from the mutated reference.
     /// </summary>
     public async Task<(string reference, List<SyntheticVariant> variants, List<Sequence> reads)>
-        GenerateVariantSetAsync(int referenceLength, int variantCount, int readDepth, int readLength)
+        GenerateVariantSet(int referenceLength, int variantCount, int readDepth, int readLength)
     {
         var reference = GenerateReference(referenceLength);
 
@@ -150,7 +135,7 @@ public sealed class TestDataGenerator
         var mutated = InjectVariants(reference, variants.ToArray());
 
         var reads = new List<Sequence>();
-        await foreach (var r in SimulateReadsAsync(mutated, readDepth, readLength))
+        await foreach (var r in SimulateReads(mutated, readDepth, readLength))
         {
             reads.Add(r);
         }

@@ -1,4 +1,6 @@
-﻿namespace OpenMedStack.BioSharp.Model;
+﻿using OpenMedStack.BioSharp.Model.Bcl;
+
+namespace OpenMedStack.BioSharp.Model;
 
 using System;
 using System.Collections;
@@ -27,6 +29,25 @@ public class Sequence : IEnumerable<BasePair>
         _data = data;
         _qualities = qualities;
     }
+
+    public static Sequence FromReadData(string barcode, string? instrument, string? runNumber, ReadData data)
+    {
+        return new Sequence(
+            new SequenceHeader(
+                barcode,
+                instrument ?? "",
+                0,
+                "",
+                1,
+                data.Tile,
+                new PositionalData(0, 0),
+                false, true, ReadDirection.Forward, data.Type),
+            data.Bases,
+            data.Qualities);
+    }
+
+    public static Sequence Empty { get; } =
+        new Sequence(SequenceHeader.Empty, ReadOnlyMemory<char>.Empty, ReadOnlyMemory<char>.Empty);
 
     public Sequence Slice(int start, int length)
     {
@@ -80,10 +101,7 @@ public class Sequence : IEnumerable<BasePair>
     /// <inheritdoc />
     public override string ToString()
     {
-        return string.Concat($"{Id}:{Length}",
-            Environment.NewLine,
-            new string(_data.Span),
-            Environment.NewLine,
-            new string(_qualities.Span));
+        return
+            $"{Id}:{Length}{Environment.NewLine}{new string(_data.Span)}{Environment.NewLine}{new string(_qualities.Span)}";
     }
 }

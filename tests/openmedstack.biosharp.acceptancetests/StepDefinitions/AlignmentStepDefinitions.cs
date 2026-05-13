@@ -147,9 +147,8 @@ public class AlignmentStepDefinitions
     {
         var reference = (Sequence)_ctx["bqsrReference"];
         var alignments = (List<AlignmentSection>)_ctx["bqsrAlignments"];
-        var recalibrator = new BaseQualityRecalibrator();
-        var table = recalibrator.CollectCovariates(alignments, reference);
-        var recalibrated = recalibrator.ApplyRecalibration(alignments, table);
+        var table = BaseQualityRecalibrator.CollectCovariates(alignments, reference);
+        var recalibrated = BaseQualityRecalibrator.ApplyRecalibration(alignments, table);
         _ctx["recalibrationTable"] = table;
         _ctx["recalibratedAlignments"] = recalibrated;
     }
@@ -173,7 +172,7 @@ public class AlignmentStepDefinitions
         Assert.NotNull(table);
         // Any quality lookup should return a valid phred score
         var q = table.GetEmpiricalQuality(40, 0, "AC");
-        Assert.True(q >= 0 && q <= 40);
+        Assert.True(q is >= 0 and <= 40);
     }
 
     // ── ALN-4: Adapter Trimming ───────────────────────────────────────────────
@@ -183,7 +182,7 @@ public class AlignmentStepDefinitions
     {
         const string adapter = AdapterTrimmer.Presets.NexTera;
         // Use 30 bases before the adapter so the trimmed read is above minLength=20
-        var seq = "ACGTACGTACGTACGTACGTACGTACGTAC" + adapter;
+        var seq = $"ACGTACGTACGTACGTACGTACGTACGTAC{adapter}";
         var qual = new string('I', seq.Length);
         _ctx["readWithAdapter"] = new Sequence("r1", seq.AsMemory(), qual.AsMemory());
         _ctx["adapterPreset"] = adapter;
@@ -221,7 +220,7 @@ public class AlignmentStepDefinitions
     {
         const string adapter = AdapterTrimmer.Presets.NexTera;
         // Only 5 bases before adapter — will be shorter than minLength=20
-        var seq = "ACGTA" + adapter;
+        var seq = $"ACGTA{adapter}";
         var qual = new string('I', seq.Length);
         _ctx["shortRead"] = new Sequence("shortR", seq.AsMemory(), qual.AsMemory());
     }

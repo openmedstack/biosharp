@@ -181,18 +181,16 @@ public static class CigarBuilder
 
         // Merge consecutive same-type operations
         var merged = new List<(int, char)>();
-        foreach (var opItem in ops)
+        foreach (var (i, op) in ops)
         {
-            var count = opItem.Item1;
-            var op = opItem.Item2;
-            if (merged.Count > 0 && merged[merged.Count - 1].Item2 == op)
+            if (merged.Count > 0 && merged[^1].Item2 == op)
             {
-                var last = merged[merged.Count - 1];
-                merged[merged.Count - 1] = (last.Item1 + count, op);
+                var last = merged[^1];
+                merged[^1] = (last.Item1 + i, op);
             }
             else
             {
-                merged.Add((count, op));
+                merged.Add((i, op));
             }
         }
 
@@ -220,29 +218,14 @@ public static class CigarBuilder
 
     private static void AppendOp(List<CigarOpCount> ops, char op)
     {
-        if (ops.Count > 0 && ops[ops.Count - 1].Op == op)
+        if (ops.Count > 0 && ops[^1].Op == op)
         {
-            var last = ops[ops.Count - 1];
-            ops[ops.Count - 1] = new CigarOpCount(last.Count + 1, op);
+            var last = ops[^1];
+            ops[^1] = new CigarOpCount(last.Count + 1, op);
         }
         else
         {
             ops.Add(new CigarOpCount(1, op));
         }
-    }
-}
-
-/// <summary>
-/// Helper class to accumulate CIGAR operation counts before merging.
-/// </summary>
-internal class CigarOpCount
-{
-    public int Count { get; }
-    public char Op { get; }
-
-    public CigarOpCount(int count, char op)
-    {
-        Count = count;
-        Op = op;
     }
 }

@@ -3,102 +3,7 @@ namespace OpenMedStack.BioSharp.Calculations.DeBruijn;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
-
-/// <summary>
-/// Represents a variant detected in a cohort sample with its frequency across the cohort.
-/// </summary>
-public class CohortVariant
-{
-    /// <summary>Position in reference (1-based).</summary>
-    public int Position { get; set; }
-
-    /// <summary>Reference allele.</summary>
-    public string Reference { get; set; } = null!;
-
-    /// <summary>Alternative (variant) allele.</summary>
-    public string Alternate { get; set; } = null!;
-
-    /// <summary>Number of samples in the cohort where this variant was detected.</summary>
-    public int SampleCount { get; set; }
-
-    /// <summary>Total number of samples in the cohort.</summary>
-    public int TotalSamples { get; set; }
-
-    /// <summary>
-    /// Fraction of samples carrying this variant (0.0 - 1.0).
-    /// </summary>
-    public double AlleleFrequency
-    {
-        get
-        {
-            return TotalSamples > 0
-                ? (double)SampleCount / TotalSamples
-                : 0.0;
-        }
-    }
-
-    /// <summary>
-    /// Variant type classification based on cohort frequency.
-    /// </summary>
-    public CohortVariantType Type
-    {
-        get
-        {
-            if (SampleCount == 1)
-            {
-                return CohortVariantType.SingleSample; // Only in one sample
-            }
-
-            if (AlleleFrequency >= 0.9)
-            {
-                return CohortVariantType.Oncogenic; // Present in most samples
-            }
-
-            if (AlleleFrequency >= 0.5)
-            {
-                return CohortVariantType.Present; // Present in majority
-            }
-
-            return CohortVariantType.Subclonal; // Present in minority
-        }
-    }
-
-    /// <summary>Average quality score across samples.</summary>
-    public double AverageQuality { get; set; }
-
-    /// <summary>Average allele fraction across samples.</summary>
-    public double AverageAlleleFraction { get; set; }
-
-    /// <summary>Names of samples where this variant was detected.</summary>
-    public IList<string> DetectedIn { get; set; } = new List<string>();
-
-    public override string ToString()
-    {
-        return $"Cohort[{Position}: {Reference}->{Alternate}] " +
-            $"in {SampleCount}/{TotalSamples} samples ({Type}) Q={AverageQuality:F0}";
-    }
-}
-
-/// <summary>
-/// Classifies cohort variant frequency.
-/// </summary>
-public enum CohortVariantType
-{
-    /// <summary>Present in a single sample only.</summary>
-    SingleSample,
-
-    /// <summary>Present in some but most samples (subclonal).</summary>
-    Subclonal,
-
-    /// <summary>Present in roughly half or more of samples.</summary>
-    Present,
-
-    /// <summary>Pan-cohort variant, present in nearly all samples.</summary>
-    Oncogenic
-}
 
 /// <summary>
 /// Aggregates somatic/germline variants across a cohort of tumor samples
@@ -136,7 +41,7 @@ public static class CohortVariantCaller
     /// <param name="refStart">Reference start position.</param>
     /// <param name="minAlleleFraction">Minimum alt allele fraction per sample (default 0.20).</param>
     /// <returns>Aggregated cohort variants.</returns>
-    public static async Task<IList<CohortVariant>> CallCohortVariantsAsync(
+    public static async Task<IList<CohortVariant>> CallCohortVariants(
         IEnumerable<(string name, DeBruijnGraph tumorGraph)> tumorNormalPairs,
         BloomFilter normalFilter,
         string reference,
@@ -165,7 +70,6 @@ public static class CohortVariantCaller
         }
 
         var minAlleleFrac = minAlleleFraction ?? 0.20;
-        var minQuality = DefaultMinVariantQuality;
 
         // Step 1: Call somatic variants in each sample
         var sampleVariants = new Dictionary<string, IList<SomaticVariant>>();
@@ -173,8 +77,8 @@ public static class CohortVariantCaller
 
         foreach (var (name, tumorGraph) in tumorNormalPairs)
         {
-            var variants = await SomaticVariantDetector.DetectSomaticVariantsAsync(
-                tumorGraph, normalFilter, reference, chromosome, refStart, minAlleleFrac, minQuality);
+            var variants = await SomaticVariantDetector.DetectSomaticVariants(
+                tumorGraph, normalFilter, reference, refStart, minAlleleFrac, DefaultMinVariantQuality);
             sampleVariants[name] = variants;
         }
 
@@ -204,7 +108,7 @@ public static class CohortVariantCaller
             var avgQuality = detections.Average(d => d.variant.Quality);
 
             // Filter by quality threshold
-            if (avgQuality < minQuality && detections.Count == 1)
+            if (avgQuality < DefaultMinVariantQuality && detections.Count == 1)
             {
                 continue; // single sample with low quality -> skip
             }
@@ -285,9 +189,6 @@ public static class CohortVariantCaller
         }
 
         var totalVariants = variants.Count;
-        var variantsInAllSamples = variants.Count(v => v.SampleCount >= totalSamples);
-        var variantsInManySamples = variants.Count(v => v.SampleCount >= totalSamples * 0.5);
-        var variantsInFewSamples = variants.Count(v => v.SampleCount < totalSamples * 0.5 && v.SampleCount > 0);
         var singleSample = variants.Count(v => v.SampleCount == 1);
 
         var avgQuality = variants.Any() ? variants.Average(v => v.AverageQuality) : 0.0;
@@ -303,27 +204,5 @@ public static class CohortVariantCaller
             AverageQuality = avgQuality,
             AverageAlleleFrequency = avgMaf
         };
-    }
-}
-
-/// <summary>
-/// Summary statistics for a cohort variant call result.
-/// </summary>
-public class CohortSummary
-{
-    public int TotalVariants { get; set; }
-    public int OncogenicCount { get; set; }
-    public int PresentCount { get; set; }
-    public int SubclonalCount { get; set; }
-    public int SingleSampleCount { get; set; }
-    public double AverageQuality { get; set; }
-    public double AverageAlleleFrequency { get; set; }
-
-    public override string ToString()
-    {
-        return $"CohortSummary: {TotalVariants} variants, " +
-            $"AvgQuality={AverageQuality:F1}, AvgFreq={AverageAlleleFrequency:F2}. " +
-            $"Single={SingleSampleCount}, Oncogenic={OncogenicCount}, " +
-            $"Present={PresentCount}, Subclonal={SubclonalCount}";
     }
 }

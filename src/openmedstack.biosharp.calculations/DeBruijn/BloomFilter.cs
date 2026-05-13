@@ -3,7 +3,6 @@ namespace OpenMedStack.BioSharp.Calculations.DeBruijn;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 
 /// <summary>
 /// Bloom filter for probabilistic membership testing of k-mers.
@@ -18,13 +17,9 @@ using System.Runtime.CompilerServices;
 /// </summary>
 public sealed class BloomFilter
 {
-    private int _numHashFunctions; // non-readonly so Union/Intersection can override
     private ulong _bitCount;
     private ulong[] _bits;
-    private readonly ulong _expectedInsertions;
-    private readonly double _targetFpr;
     private long _m; // store for reference in Union
-    private ulong _actualInsertions = 0;
 
     /// <summary>
     /// Creates a Bloom filter with the given expected capacity and false-positive target.
@@ -38,13 +33,13 @@ public sealed class BloomFilter
             throw new ArgumentOutOfRangeException(nameof(expectedInsertions), "Expected insertions must be positive.");
         }
 
-        if (targetFpr <= 0.0 || targetFpr >= 1.0)
+        if (targetFpr is <= 0.0 or >= 1.0)
         {
             throw new ArgumentOutOfRangeException(nameof(targetFpr), "Expected FPR must be in (0, 1).");
         }
 
-        _targetFpr = targetFpr;
-        _expectedInsertions = (ulong)expectedInsertions;
+        TargetFpr = targetFpr;
+        ExpectedCount = (ulong)expectedInsertions;
 
         // m = -n * ln(p) / (ln(2)^2)
         var ln2 = Math.Log(2.0);
@@ -54,7 +49,7 @@ public sealed class BloomFilter
 
         _bitCount = (ulong)((int)_m / 64 + ((int)_m % 64 > 0 ? 1 : 0));
         _bits = new ulong[_bitCount];
-        _numHashFunctions = Math.Max(1, (int)Math.Round(_m / Math.Max((long)expectedInsertions, 1) * ln2));
+        NumHashFunctions = Math.Max(1, (int)Math.Round(_m / Math.Max((long)expectedInsertions, 1) * ln2));
     }
 
     /// <summary>
@@ -65,17 +60,14 @@ public sealed class BloomFilter
         _m = m;
         _bitCount = (ulong)bitCount;
         _bits = bits;
-        _numHashFunctions = numHashFunctions;
-        _targetFpr = 0.01;
-        _expectedInsertions = 1;
-        _actualInsertions = 0;
+        NumHashFunctions = numHashFunctions;
+        TargetFpr = 0.01;
+        ExpectedCount = 1;
+        ActualInsertions = 0;
     }
 
     /// <summary>The target false-positive rate configured in the constructor.</summary>
-    public double TargetFpr
-    {
-        get { return _targetFpr; }
-    }
+    public double TargetFpr { get; }
 
     /// <summary>The number of bits in the filter (m * 64).</summary>
     public ulong TotalBits
@@ -86,26 +78,17 @@ public sealed class BloomFilter
     /// <summary>Returns the target false-positive rate configured in the constructor.</summary>
     public double FalsePositiveRate
     {
-        get { return _targetFpr; }
+        get { return TargetFpr; }
     }
 
     /// <summary>The number of hash functions used.</summary>
-    public int NumHashFunctions
-    {
-        get { return _numHashFunctions; }
-    }
+    public int NumHashFunctions { get; private set; }
 
     /// <summary>Approximate number of distinct items inserted so far.</summary>
-    public ulong ActualInsertions
-    {
-        get { return _actualInsertions; }
-    }
+    public ulong ActualInsertions { get; private set; } = 0;
 
     /// <summary>Approximate number of items expected.</summary>
-    public ulong ExpectedCount
-    {
-        get { return _expectedInsertions; }
-    }
+    public ulong ExpectedCount { get; }
 
     /// <summary>
     /// Returns an estimate of the current false-positive rate based on fill ratio.
@@ -122,7 +105,7 @@ public sealed class BloomFilter
                 return 0.0;
             }
 
-            var ratio = Math.Pow(1.0 - Math.Exp(-(double)_numHashFunctions * n / m), _numHashFunctions);
+            var ratio = Math.Pow(1.0 - Math.Exp(-(double)NumHashFunctions * n / m), NumHashFunctions);
             return ratio;
         }
     }
@@ -138,7 +121,7 @@ public sealed class BloomFilter
         }
 
         var (h1, h2) = Hash(kmer);
-        for (var i = 0; i < _numHashFunctions; i++)
+        for (var i = 0; i < NumHashFunctions; i++)
         {
             var h = h1 + (ulong)i * h2;
             var pos = h % TotalBits; // Map 64-bit hash to [0, TotalBits)
@@ -149,7 +132,7 @@ public sealed class BloomFilter
             if ((_bits[word] & mask) == 0)
             {
                 _bits[word] |= mask;
-                _actualInsertions++;
+                ActualInsertions++;
             }
         }
     }
@@ -184,7 +167,7 @@ public sealed class BloomFilter
 
         var (h1, h2) = Hash(kmer);
 
-        for (var i = 0; i < _numHashFunctions; i++)
+        for (var i = 0; i < NumHashFunctions; i++)
         {
             var h = h1 + (ulong)i * h2;
             var pos = h % TotalBits; // Map 64-bit hash to [0, TotalBits)
@@ -207,7 +190,7 @@ public sealed class BloomFilter
     public void Clear()
     {
         Array.Clear(_bits, 0, _bits.Length);
-        _actualInsertions = 0;
+        ActualInsertions = 0;
     }
 
     /// <summary>
@@ -233,7 +216,7 @@ public sealed class BloomFilter
         }
 
         // Update actual insertions estimate
-        _actualInsertions = EstimateInsertionsFromFill();
+        ActualInsertions = EstimateInsertionsFromFill();
     }
 
     /// <summary>
@@ -245,10 +228,10 @@ public sealed class BloomFilter
         var m = TotalBits;
         if (setBits >= m)
         {
-            return _expectedInsertions;
+            return ExpectedCount;
         }
 
-        return (ulong)Math.Round((double)m / _numHashFunctions * Math.Log((double)m / (m - setBits)));
+        return (ulong)Math.Round((double)m / NumHashFunctions * Math.Log((double)m / (m - setBits)));
     }
 
     /// <summary>
@@ -326,19 +309,21 @@ public sealed class BloomFilter
 
         if (filters.Count == 0)
         {
-            return new BloomFilter(1, 0.01); // Empty filter
+            return new BloomFilter(1); // Empty filter
         }
 
         // Use the parameter values from the first filter so hash params stay consistent
-        var first = filters.First();
-        var targetN = (int)Math.Max(filters.Select(f => (long)f._actualInsertions).Sum(), 1);
+        var first = filters[0];
+        var targetN = (int)Math.Max(filters.Select(f => (long)f.ActualInsertions).Sum(), 1);
         var targetBitCount = filters.Max(f => f._bitCount);
 
-        var result = new BloomFilter(targetN, first.TargetFpr);
-        result._bitCount = targetBitCount;
-        result._m = (long)targetBitCount * 64;
-        result._bits = new ulong[targetBitCount];
-        result._numHashFunctions = first._numHashFunctions; // Override to match source filters
+        var result = new BloomFilter(targetN, first.TargetFpr)
+        {
+            _bitCount = targetBitCount,
+            _m = (long)targetBitCount * 64,
+            _bits = new ulong[targetBitCount],
+            NumHashFunctions = first.NumHashFunctions // Override to match source filters
+        };
 
         foreach (var filter in filters)
         {
@@ -375,7 +360,7 @@ public sealed class BloomFilter
 
         if (filters.Count == 0)
         {
-            return new BloomFilter(1, 0.01); // Empty filter
+            return new BloomFilter(1); // Empty filter
         }
 
         if (filters.Count == 1)
@@ -393,7 +378,7 @@ public sealed class BloomFilter
         var resultBits = new ulong[bitCount];
         for (var i = 0; i < bitCount; i++)
         {
-            resultBits[i] = (ulong)filters[0]._bits[i];
+            resultBits[i] = filters[0]._bits[i];
         }
 
         for (var f = 1; f < filters.Count; f++)
@@ -404,7 +389,7 @@ public sealed class BloomFilter
             }
         }
 
-        var result = new BloomFilter(mBits, bitCount, resultBits, first._numHashFunctions);
+        var result = new BloomFilter(mBits, bitCount, resultBits, first.NumHashFunctions);
 
         return result;
     }

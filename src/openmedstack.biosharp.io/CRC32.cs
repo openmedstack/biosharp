@@ -58,16 +58,15 @@ internal class Crc32
             // bzip2, gzip, and others.
             // Often the polynomial is shown reversed as 0x04C11DB7.
             // For more details, see http://en.wikipedia.org/wiki/Cyclic_redundancy_check
-            var dwPolynomial = 0xEDB88320;
-            uint i,
-                 j;
+            const uint dwPolynomial = 0xEDB88320;
+            uint i;
 
             Crc32Table = new uint[256];
 
-            uint dwCrc;
             for (i = 0; i < 256; i++)
             {
-                dwCrc = i;
+                var dwCrc = i;
+                uint j;
                 for (j = 8; j > 0; j--)
                 {
                     if ((dwCrc & 1) == 1)
@@ -130,16 +129,15 @@ internal class Crc32
             //UInt32 crc32Result;
             //crc32Result = 0xFFFFFFFF;
             var buffer = new byte[BufferSize];
-            var readSize = BufferSize;
 
             TotalBytesRead = 0;
-            var count = input.Read(buffer, 0, readSize);
+            var count = input.Read(buffer, 0, BufferSize);
             output?.Write(buffer, 0, count);
             TotalBytesRead += count;
             while (count > 0)
             {
                 SlurpBlock(buffer, 0, count);
-                count = input.Read(buffer, 0, readSize);
+                count = input.Read(buffer, 0, BufferSize);
                 output?.Write(buffer, 0, count);
                 TotalBytesRead += count;
             }
@@ -167,10 +165,9 @@ internal class Crc32
             //UInt32 crc32Result;
             //crc32Result = 0xFFFFFFFF;
             var buffer = new byte[BufferSize];
-            var readSize = BufferSize;
 
             TotalBytesRead = 0;
-            var count = await input.ReadAsync(buffer.AsMemory(0, readSize));
+            var count = await input.ReadAsync(buffer.AsMemory(0, BufferSize));
             if (output != null)
             {
                 await output.WriteAsync(buffer.AsMemory(0, count));
@@ -180,7 +177,7 @@ internal class Crc32
             while (count > 0)
             {
                 SlurpBlock(buffer, 0, count);
-                count = await input.ReadAsync(buffer.AsMemory(0, readSize));
+                count = await input.ReadAsync(buffer.AsMemory(0, BufferSize));
                 if (output != null)
                 {
                     await output.WriteAsync(buffer.AsMemory(0, count));

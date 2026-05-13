@@ -3,7 +3,6 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.StepDefinitions;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -98,7 +97,7 @@ public class DeveloperExperienceStepDefinitions
             sb.AppendLine("+");
             sb.AppendLine("IIIIIIIIIIII");
         }
-        var path = Path.GetTempFileName() + ".fastq";
+        var path = $"{Path.GetTempFileName()}.fastq";
         await File.WriteAllTextAsync(path, sb.ToString());
         _ctx["syntheticFastqPath"] = path;
     }
@@ -119,8 +118,8 @@ public class DeveloperExperienceStepDefinitions
         var pipeline = new VariantCallingPipeline(refSeq, "chr1");
 
         // Use in-memory async enumerable of reads (avoids file reading complexity)
-        var reads = GenerateSyntheticReadsAsync(100);
-        await pipeline.LoadFastQAsync(reads, progress, CancellationToken.None);
+        var reads = GenerateSyntheticReads(100);
+        await pipeline.LoadFastQ(reads, progress, CancellationToken.None);
 
         _ctx["progressReports"] = progressReports;
     }
@@ -150,7 +149,7 @@ public class DeveloperExperienceStepDefinitions
         Exception? ex = null;
         try
         {
-            await pipeline.LoadFastQAsync(GenerateSyntheticReadsAsync(10000), null, cts.Token);
+            await pipeline.LoadFastQ(GenerateSyntheticReads(10000), null, cts.Token);
         }
         catch (OperationCanceledException e)
         {
@@ -212,13 +211,13 @@ public class DeveloperExperienceStepDefinitions
         _ctx["syntheticReference"] = gen.GenerateReference(200);
     }
 
-    [When("I simulate reads at depth (\\d+) with read length (\\d+)")]
+    [When(@"I simulate reads at depth (\d+) with read length (\d+)")]
     public async Task WhenSimulateReads(int depth, int readLength)
     {
         var gen = (TestDataGeneratorHelper)_ctx["testDataGen"];
         var reference = (string)_ctx["syntheticReference"];
         var reads = new List<Sequence>();
-        await foreach (var r in gen.SimulateReadsAsync(reference, depth, readLength))
+        await foreach (var r in gen.SimulateReads(reference, depth, readLength))
         {
             reads.Add(r);
         }
@@ -255,7 +254,7 @@ public class DeveloperExperienceStepDefinitions
         var reference = (string)_ctx["syntheticReference"];
         var refBase = reference[position];
         // Pick a different base
-        char altBase = refBase == 'A' ? 'C' : 'A';
+        var altBase = refBase == 'A' ? 'C' : 'A';
         var variants = new[] { new SyntheticVariantData { Position = position, ReferenceAllele = refBase, AlternateAllele = altBase } };
         _ctx["mutatedReference"] = gen.InjectVariants(reference, variants);
         _ctx["injectedPosition"] = position;
@@ -270,11 +269,11 @@ public class DeveloperExperienceStepDefinitions
         Assert.NotEqual(original[position], mutated[position]);
     }
 
-    [When("I generate a variant set with (\\d+) variants in a (\\d+)-base reference")]
+    [When(@"I generate a variant set with (\d+) variants in a (\d+)-base reference")]
     public async Task WhenGenerateVariantSet(int variantCount, int refLength)
     {
         var gen = (TestDataGeneratorHelper)_ctx["testDataGen"];
-        var (_, variants, _) = await gen.GenerateVariantSetAsync(refLength, variantCount, 5, 50);
+        var (_, variants, _) = await gen.GenerateVariantSet(refLength, variantCount, 5, 50);
         _ctx["generatedVariants"] = variants;
     }
 
@@ -293,7 +292,7 @@ public class DeveloperExperienceStepDefinitions
     }
 
     // Helper to generate synthetic reads inline
-    private static async IAsyncEnumerable<Sequence> GenerateSyntheticReadsAsync(
+    private static async IAsyncEnumerable<Sequence> GenerateSyntheticReads(
         int count,
         [EnumeratorCancellation] CancellationToken ct = default)
     {
@@ -331,7 +330,7 @@ public class DeveloperExperienceStepDefinitions
             return new string(buffer);
         }
 
-        public async IAsyncEnumerable<Sequence> SimulateReadsAsync(
+        public async IAsyncEnumerable<Sequence> SimulateReads(
             string reference,
             int depth,
             int readLength,
@@ -371,7 +370,7 @@ public class DeveloperExperienceStepDefinitions
         }
 
         public async Task<(string reference, List<SyntheticVariantData> variants, List<Sequence> reads)>
-            GenerateVariantSetAsync(int referenceLength, int variantCount, int readDepth, int readLength)
+            GenerateVariantSet(int referenceLength, int variantCount, int readDepth, int readLength)
         {
             var reference = GenerateReference(referenceLength);
             var positions = new HashSet<int>();
@@ -389,7 +388,7 @@ public class DeveloperExperienceStepDefinitions
 
             var mutated = InjectVariants(reference, variants.ToArray());
             var reads = new List<Sequence>();
-            await foreach (var r in SimulateReadsAsync(mutated, readDepth, readLength))
+            await foreach (var r in SimulateReads(mutated, readDepth, readLength))
             {
                 reads.Add(r);
             }

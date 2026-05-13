@@ -72,19 +72,19 @@ public record ReadGroup
         }
         return new ReadGroup(
             parts["ID"],
-            parts.TryGetValue("BC", out var bc) ? bc : null,
-            parts.TryGetValue("CN", out var cn) ? cn : null,
-            parts.TryGetValue("DS", out var ds) ? ds : null,
-            parts.TryGetValue("DT", out var dt) ? dt : null,
-            parts.TryGetValue("FO", out var fo) ? fo : null,
-            parts.TryGetValue("KS", out var ks) ? ks : null,
-            parts.TryGetValue("LB", out var lb) ? lb : null,
-            parts.TryGetValue("PG", out var pg) ? pg : null,
-            parts.TryGetValue("PI", out var pi) ? pi : null,
-            parts.TryGetValue("PL", out var pl) ? pl : null,
-            parts.TryGetValue("PM", out var pm) ? pm : null,
-            parts.TryGetValue("PU", out var pu) ? pu : null,
-            parts.TryGetValue("SM", out var sm) ? sm : null);
+            parts.GetValueOrDefault("BC"),
+            parts.GetValueOrDefault("CN"),
+            parts.GetValueOrDefault("DS"),
+            parts.GetValueOrDefault("DT"),
+            parts.GetValueOrDefault("FO"),
+            parts.GetValueOrDefault("KS"),
+            parts.GetValueOrDefault("LB"),
+            parts.GetValueOrDefault("PG"),
+            parts.GetValueOrDefault("PI"),
+            parts.GetValueOrDefault("PL"),
+            parts.GetValueOrDefault("PM"),
+            parts.GetValueOrDefault("PU"),
+            parts.GetValueOrDefault("SM"));
     }
 
     /// <inheritdoc />

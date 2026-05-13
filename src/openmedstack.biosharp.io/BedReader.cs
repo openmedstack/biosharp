@@ -20,7 +20,7 @@ public class BedReader
     /// Reads BED or BEDGraph intervals from a file path.
     /// The format is auto-detected from the column count of the first non-header data line.
     /// </summary>
-    public async IAsyncEnumerable<BedInterval> ReadAsync(
+    public async IAsyncEnumerable<BedInterval> Read(
         string path,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -34,7 +34,7 @@ public class BedReader
                 Share = FileShare.Read
             });
 
-        await foreach (var interval in ReadAsync(file, cancellationToken).ConfigureAwait(false))
+        await foreach (var interval in Read(file, cancellationToken).ConfigureAwait(false))
         {
             yield return interval;
         }
@@ -43,7 +43,7 @@ public class BedReader
     /// <summary>
     /// Reads BED or BEDGraph intervals from a stream.
     /// </summary>
-    public async IAsyncEnumerable<BedInterval> ReadAsync(
+    public static async IAsyncEnumerable<BedInterval> Read(
         Stream stream,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -124,7 +124,7 @@ public class BedReader
         }
 
         // Standard BED: column 4 onward are optional named fields
-        string? name = count > 3 ? new string(span[ranges[3]]) : null;
+        var name = count > 3 ? new string(span[ranges[3]]) : null;
         float? score = null;
         if (count > 4 && float.TryParse(span[ranges[4]], out var s))
         {
@@ -152,7 +152,7 @@ public class BedReader
             thickEnd = te;
         }
 
-        string? itemRgb = count > 8 ? new string(span[ranges[8]]) : null;
+        var itemRgb = count > 8 ? new string(span[ranges[8]]) : null;
 
         int? blockCount = null;
         string? blockSizes = null, blockStarts = null;

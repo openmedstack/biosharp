@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging.Abstractions;
+
 namespace OpenMedStack.BioSharp.Io.Tests;
 
 using System.Linq;
@@ -11,7 +13,7 @@ public class FastAReaderTests
     [InlineData("chr1.fa.gz")]
     public async Task CanReadSingleSequence(string path)
     {
-        var parser = new FastAReader();
+        var parser = new FastAReader(NullLogger<FastAReader>.Instance);
         var sequence = await parser.ReadGz(path, cancellationToken: TestContext.Current.CancellationToken)
             .SingleAsync(TestContext.Current.CancellationToken);
         Assert.NotEmpty(sequence);

@@ -50,19 +50,19 @@ public static class VcfRecordBuilder
 
     private static string InfoDef(string id, string number, string type, string description)
     {
-        var q = "\"";
+        const string q = "\"";
         return $"##INFO=<ID name={id},Number={number},Type={type},Description={q}{description}{q}>";
     }
 
     private static string FilterDef(string id, string description)
     {
-        var q = "\"";
+        const string q = "\"";
         return $"##FILTER=<ID name={id},Description={q}{description}{q}>";
     }
 
     private static string FormatDef(string id, string number, string type, string description)
     {
-        var q = "\"";
+        const string q = "\"";
         return $"##FORMAT=<ID name={id},Number={number},Type={type},Description={q}{description}{q}>";
     }
 

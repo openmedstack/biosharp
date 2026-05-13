@@ -5,8 +5,8 @@ using System.Collections.Generic;
 
 /// <summary>
 /// Contextual information about a transcript used during variant consequence classification.
-/// Holds CDS boundaries and optional intron/gene region data so non-coding consequence types 
-/// (SpliceSite, Upstream, Downstream, Intronic, VariantInUtr) can be returned for positions 
+/// Holds CDS boundaries and optional intron/gene region data so non-coding consequence types
+/// (SpliceSite, Upstream, Downstream, Intronic, VariantInUtr) can be returned for positions
 /// outside the protein-coding region.
 /// </summary>
 public record AnnotationContext
@@ -149,7 +149,7 @@ public record AnnotationContext
             // because in that case the position can be between CdsStart and CdsEnd yet be intronic.
             if (ExonBoundaries is { Count: > 1 })
             {
-                foreach (var (intronStart, intronEnd) in Introns ?? Array.Empty<(int, int)>())
+                foreach (var (intronStart, intronEnd) in Introns ?? [])
                 {
                     if (position >= intronStart && position <= intronEnd)
                     {
@@ -182,38 +182,34 @@ public record AnnotationContext
             }
 
             // Introns have priority over upstream/downstream (single-exon or no ExonBoundaries)
-            foreach (var (intronStart, intronEnd) in Introns ?? Array.Empty<(int, int)>())
+            foreach (var (intronStart, intronEnd) in Introns ?? [])
             {
-                if (position >= intronStart && position <= intronEnd)
+                if (position < intronStart || position > intronEnd)
                 {
-                    if (position - intronStart < spliceWindow || intronEnd - position < spliceWindow)
-                    {
-                        return VariantConsequence.SpliceSite;
-                    }
-
-                    return VariantConsequence.Intronic;
+                    continue;
                 }
+
+                if (position - intronStart < spliceWindow || intronEnd - position < spliceWindow)
+                {
+                    return VariantConsequence.SpliceSite;
+                }
+
+                return VariantConsequence.Intronic;
             }
 
             // Check if position is upstream or downstream of CDS
             if (position >= geneStart && position < CdsStart)
             {
-                if (CdsStart - position <= regionWindow)
-                {
-                    return VariantConsequence.Upstream;
-                }
-
-                return VariantConsequence.Intergenic;
+                return CdsStart - position <= regionWindow
+                    ? VariantConsequence.Upstream
+                    : VariantConsequence.Intergenic;
             }
 
             if (position > CdsEnd && position <= geneEnd)
             {
-                if (position - CdsEnd <= regionWindow)
-                {
-                    return VariantConsequence.Downstream;
-                }
-
-                return VariantConsequence.Intergenic;
+                return position - CdsEnd <= regionWindow
+                    ? VariantConsequence.Downstream
+                    : VariantConsequence.Intergenic;
             }
 
             // Fallback: in gene but not upstream/downstream
@@ -249,22 +245,12 @@ public record AnnotationContext
         // (without gene boundaries, anything more than 3kb from CDS is intergenic)
         if (position < CdsStart)
         {
-            if (CdsStart - position > regionWindow)
-            {
-                return VariantConsequence.Intergenic;
-            }
-
-            return VariantConsequence.VariantInUtr;
+            return CdsStart - position > regionWindow ? VariantConsequence.Intergenic : VariantConsequence.VariantInUtr;
         }
 
         if (position > CdsEnd)
         {
-            if (position - CdsEnd > regionWindow)
-            {
-                return VariantConsequence.Intergenic;
-            }
-
-            return VariantConsequence.VariantInUtr;
+            return position - CdsEnd > regionWindow ? VariantConsequence.Intergenic : VariantConsequence.VariantInUtr;
         }
 
         // Fallback (within transcript, outside CDS but within 3kb)

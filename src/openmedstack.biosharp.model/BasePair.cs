@@ -1,25 +1,16 @@
 ﻿namespace OpenMedStack.BioSharp.Model;
 
-public struct BasePair
+public readonly struct BasePair
 {
-    private readonly char _letter;
-    private readonly char _errorProbability;
-
     public BasePair(char letter, char errorProbability = (char)0)
     {
-        _letter = letter;
-        _errorProbability = errorProbability;
+        Letter = letter;
+        ErrorProbability = errorProbability;
     }
 
-    public char Letter
-    {
-        get { return _letter; }
-    }
+    public char Letter { get; }
 
-    public char ErrorProbability
-    {
-        get { return (char)_errorProbability; }
-    }
+    public char ErrorProbability { get; }
 
     /// <inheritdoc />
     public override string ToString()

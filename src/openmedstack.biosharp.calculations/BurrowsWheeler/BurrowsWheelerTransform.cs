@@ -32,7 +32,7 @@ public class BurrowsWheelerTransform
         for (var i = 0; i < lenText; i++)
         {
             suff[i].Index = i;
-            suff[i].Suffix = inputText.Substring(i);
+            suff[i].Suffix = inputText[i..];
         }
 
         // Sorts rotations using comparison function defined above

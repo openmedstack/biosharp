@@ -4,7 +4,6 @@ using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
 using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
@@ -44,7 +43,7 @@ public sealed class CramReader : IAsyncDisposable
     /// Reads the CRAM file definition and SAM header.
     /// Returns the SAM header text.
     /// </summary>
-    public async Task<string> ReadFileHeaderAsync(CancellationToken cancellationToken = default)
+    public async Task<string> ReadFileHeader(CancellationToken cancellationToken = default)
     {
         // Read magic (4 bytes) and version using a pooled buffer
         var headerBuf = ArrayPool<byte>.Shared.Rent(24);
@@ -57,8 +56,8 @@ public sealed class CramReader : IAsyncDisposable
             }
 
             // Major + minor version
-            var major = await ReadByteAsync(cancellationToken).ConfigureAwait(false);
-            var minor = await ReadByteAsync(cancellationToken).ConfigureAwait(false);
+            var major = await ReadByte(cancellationToken).ConfigureAwait(false);
+            var minor = await ReadByte(cancellationToken).ConfigureAwait(false);
 
             if (major < 3)
             {
@@ -74,14 +73,14 @@ public sealed class CramReader : IAsyncDisposable
         }
 
         // Read the SAM header container
-        return await ReadSamHeaderContainerAsync(cancellationToken).ConfigureAwait(false);
+        return await ReadSamHeaderContainer(cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>
     /// Streams alignment records from the CRAM file.
-    /// <see cref="ReadFileHeaderAsync"/> must be called first.
+    /// <see cref="ReadFileHeader"/> must be called first.
     /// </summary>
-    public async IAsyncEnumerable<AlignmentSection> ReadAlignmentsAsync(
+    public async IAsyncEnumerable<AlignmentSection> ReadAlignments(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var lenBuf = ArrayPool<byte>.Shared.Rent(4);
@@ -91,7 +90,7 @@ public sealed class CramReader : IAsyncDisposable
             {
                 cancellationToken.ThrowIfCancellationRequested();
 
-                var read = await TryReadExactlyAsync(lenBuf, 4, cancellationToken).ConfigureAwait(false);
+                var read = await TryReadExactly(lenBuf, 4, cancellationToken).ConfigureAwait(false);
                 if (read < 4)
                 {
                     yield break;
@@ -126,7 +125,7 @@ public sealed class CramReader : IAsyncDisposable
         }
     }
 
-    private async Task<string> ReadSamHeaderContainerAsync(CancellationToken ct)
+    private async Task<string> ReadSamHeaderContainer(CancellationToken ct)
     {
         var lenBuf = ArrayPool<byte>.Shared.Rent(4);
         int containerLength;
@@ -303,12 +302,7 @@ public sealed class CramReader : IAsyncDisposable
 
     private static int ReadItf8FromStream(Dictionary<int, MemoryStream> streams, int extId)
     {
-        if (!streams.TryGetValue(extId, out var s))
-        {
-            return 0;
-        }
-
-        return CramEncoding.ReadItf8(s);
+        return !streams.TryGetValue(extId, out var s) ? 0 : CramEncoding.ReadItf8(s);
     }
 
     private static string ReadNullTerminatedString(Dictionary<int, MemoryStream> streams, int extId)
@@ -365,7 +359,7 @@ public sealed class CramReader : IAsyncDisposable
         return buf;
     }
 
-    private async Task<int> TryReadExactlyAsync(byte[] buffer, int count, CancellationToken ct)
+    private async Task<int> TryReadExactly(byte[] buffer, int count, CancellationToken ct)
     {
         var totalRead = 0;
         while (totalRead < count)
@@ -383,7 +377,7 @@ public sealed class CramReader : IAsyncDisposable
         return totalRead;
     }
 
-    private async Task<byte> ReadByteAsync(CancellationToken ct)
+    private async Task<byte> ReadByte(CancellationToken ct)
     {
         await _input.ReadExactlyAsync(_singleByteBuf.AsMemory(0, 1), ct).ConfigureAwait(false);
         return _singleByteBuf[0];

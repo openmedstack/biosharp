@@ -77,10 +77,10 @@ public class SamWriter
         {
             if (tags.Length > 0)
             {
-                tags.Append("\t");
+                tags.Append('\t');
             }
 
-            tags.Append(tag.ToString());
+            tags.Append(tag);
         }
 
         // SAM format: QNAME FLAG RNAME POS CIGAR RNEXT PNEXT TLEN SEQ QUAL [TAG...]

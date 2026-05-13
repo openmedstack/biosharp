@@ -1,3 +1,5 @@
+using System.Linq;
+
 namespace OpenMedStack.BioSharp.Io.Vcf;
 
 using System;
@@ -21,7 +23,6 @@ public static class TabixIndexWriter
     private const int ColEnd = 0;             // 0 = use POS+len
     private const int MetaChar = '#';         // meta character
     private const int SkipLines = 0;          // lines to skip
-    private const int BinsPerLevel = 37449;   // max bin for 512Mbp region
 
     /// <summary>
     /// Builds a tabix index for a BGZF-compressed VCF file and writes it to
@@ -32,15 +33,15 @@ public static class TabixIndexWriter
     /// Destination path for the index file. Defaults to <paramref name="vcfGzPath"/> + ".tbi".
     /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public static async Task WriteAsync(
+    public static async Task Write(
         string vcfGzPath,
         string? indexPath = null,
         CancellationToken cancellationToken = default)
     {
-        indexPath ??= vcfGzPath + ".tbi";
+        indexPath ??= $"{vcfGzPath}.tbi";
 
         // Pass 1: scan the VCF file and build the index in memory
-        var index = await BuildIndexAsync(vcfGzPath, cancellationToken).ConfigureAwait(false);
+        var index = await BuildIndex(vcfGzPath, cancellationToken).ConfigureAwait(false);
 
         // Pass 2: write the index to the .tbi file (itself BGZF-compressed)
         await using var outFile = new FileStream(
@@ -52,10 +53,10 @@ public static class TabixIndexWriter
             useAsync: true);
 
         await using var bgzf = new BgzfStream(outFile, CompressionLevel.Optimal, leaveOpen: false);
-        await WriteTbiAsync(bgzf, index, cancellationToken).ConfigureAwait(false);
+        await WriteTbi(bgzf, index, cancellationToken).ConfigureAwait(false);
     }
 
-    private static async Task<TabixIndex> BuildIndexAsync(string vcfGzPath, CancellationToken ct)
+    private static async Task<TabixIndex> BuildIndex(string vcfGzPath, CancellationToken ct)
     {
         await using var inFile = File.Open(vcfGzPath, new FileStreamOptions
         {
@@ -66,7 +67,6 @@ public static class TabixIndexWriter
         });
 
         await using var bgzf = new BgzfStream(inFile, CompressionMode.Decompress, leaveOpen: false);
-        using var reader = new StreamReader(bgzf, Encoding.UTF8, detectEncodingFromByteOrderMarks: false, leaveOpen: true);
 
         var refIndex = new Dictionary<string, PerRefIndex>(StringComparer.Ordinal);
         var refOrder = new List<string>();
@@ -77,7 +77,7 @@ public static class TabixIndexWriter
             ct.ThrowIfCancellationRequested();
 
             var vOffset = bgzf.BlockOffset;
-            var line = await reader.ReadLineAsync(ct).ConfigureAwait(false);
+            var line = await ReadLine(bgzf, ct).ConfigureAwait(false);
             if (line == null)
             {
                 break;
@@ -138,7 +138,7 @@ public static class TabixIndexWriter
             var bin = RegionToBin(beg0, end0);
             if (!perRef.Bins.TryGetValue(bin, out var chunks))
             {
-                chunks = new List<(ulong Begin, ulong End)>();
+                chunks = [];
                 perRef.Bins[bin] = chunks;
             }
 
@@ -159,21 +159,53 @@ public static class TabixIndexWriter
         return new TabixIndex(refOrder, refIndex, noCoord);
     }
 
-    private static async Task WriteTbiAsync(Stream stream, TabixIndex idx, CancellationToken ct)
+    private static async Task<string?> ReadLine(Stream stream, CancellationToken cancellationToken)
+    {
+        using var lineBuffer = new MemoryStream();
+        var singleByte = new byte[1];
+
+        while (true)
+        {
+            var read = await stream.ReadAsync(singleByte, cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+            {
+                if (lineBuffer.Length == 0)
+                {
+                    return null;
+                }
+
+                break;
+            }
+
+            if (singleByte[0] == '\n')
+            {
+                break;
+            }
+
+            if (singleByte[0] != '\r')
+            {
+                lineBuffer.WriteByte(singleByte[0]);
+            }
+        }
+
+        return Encoding.UTF8.GetString(lineBuffer.GetBuffer(), 0, (int)lineBuffer.Length);
+    }
+
+    private static async Task WriteTbi(Stream stream, TabixIndex idx, CancellationToken ct)
     {
         // Magic: "TBI\1"
         await stream.WriteAsync(new byte[] { 0x54, 0x42, 0x49, 0x01 }, ct).ConfigureAwait(false);
 
         // n_ref
-        await WriteInt32Async(stream, idx.RefOrder.Count, ct).ConfigureAwait(false);
+        await WriteInt32(stream, idx.RefOrder.Count, ct).ConfigureAwait(false);
 
         // format (VCF=2), col_seq, col_beg, col_end, meta, skip
-        await WriteInt32Async(stream, TabixVcfPreset, ct).ConfigureAwait(false);
-        await WriteInt32Async(stream, ColSeq, ct).ConfigureAwait(false);
-        await WriteInt32Async(stream, ColBeg, ct).ConfigureAwait(false);
-        await WriteInt32Async(stream, ColEnd, ct).ConfigureAwait(false);
-        await WriteInt32Async(stream, MetaChar, ct).ConfigureAwait(false);
-        await WriteInt32Async(stream, SkipLines, ct).ConfigureAwait(false);
+        await WriteInt32(stream, TabixVcfPreset, ct).ConfigureAwait(false);
+        await WriteInt32(stream, ColSeq, ct).ConfigureAwait(false);
+        await WriteInt32(stream, ColBeg, ct).ConfigureAwait(false);
+        await WriteInt32(stream, ColEnd, ct).ConfigureAwait(false);
+        await WriteInt32(stream, MetaChar, ct).ConfigureAwait(false);
+        await WriteInt32(stream, SkipLines, ct).ConfigureAwait(false);
 
         // l_nm + names (null-terminated, concatenated)
         var namesBuilder = new List<byte>();
@@ -183,7 +215,7 @@ public static class TabixIndexWriter
             namesBuilder.Add(0);
         }
 
-        await WriteInt32Async(stream, namesBuilder.Count, ct).ConfigureAwait(false);
+        await WriteInt32(stream, namesBuilder.Count, ct).ConfigureAwait(false);
         await stream.WriteAsync(namesBuilder.ToArray(), ct).ConfigureAwait(false);
 
         // Per-reference data
@@ -192,31 +224,30 @@ public static class TabixIndexWriter
             var perRef = idx.RefData.TryGetValue(refName, out var pr) ? pr : new PerRefIndex();
 
             // n_bin
-            await WriteInt32Async(stream, perRef.Bins.Count, ct).ConfigureAwait(false);
+            await WriteInt32(stream, perRef.Bins.Count, ct).ConfigureAwait(false);
 
             foreach (var (bin, chunks) in perRef.Bins)
             {
-                await WriteUInt32Async(stream, (uint)bin, ct).ConfigureAwait(false);
-                await WriteInt32Async(stream, chunks.Count, ct).ConfigureAwait(false);
+                await WriteUInt32(stream, (uint)bin, ct).ConfigureAwait(false);
+                await WriteInt32(stream, chunks.Count, ct).ConfigureAwait(false);
 
                 foreach (var (begin, end) in chunks)
                 {
-                    await WriteUInt64Async(stream, begin, ct).ConfigureAwait(false);
-                    await WriteUInt64Async(stream, end, ct).ConfigureAwait(false);
+                    await WriteUInt64(stream, begin, ct).ConfigureAwait(false);
+                    await WriteUInt64(stream, end, ct).ConfigureAwait(false);
                 }
             }
 
             // n_intv + linear index
-            await WriteInt32Async(stream, perRef.LinearIndex.Count, ct).ConfigureAwait(false);
-            foreach (var offset in perRef.LinearIndex)
+            await WriteInt32(stream, perRef.LinearIndex.Count, ct).ConfigureAwait(false);
+            foreach (var effectiveOffset in perRef.LinearIndex.Select(offset => offset == ulong.MaxValue ? 0UL : offset))
             {
-                var effectiveOffset = offset == ulong.MaxValue ? 0UL : offset;
-                await WriteUInt64Async(stream, effectiveOffset, ct).ConfigureAwait(false);
+                await WriteUInt64(stream, effectiveOffset, ct).ConfigureAwait(false);
             }
         }
 
         // n_no_coor (optional, 8 bytes)
-        await WriteUInt64Async(stream, (ulong)idx.NoCoord, ct).ConfigureAwait(false);
+        await WriteUInt64(stream, (ulong)idx.NoCoord, ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -260,72 +291,50 @@ public static class TabixIndexWriter
     {
         end--;
         yield return 0;
-        for (int k = 1 + (beg >> 26); k <= 1 + (end >> 26); k++)
+        for (var k = 1 + (beg >> 26); k <= 1 + (end >> 26); k++)
         {
             yield return k;
         }
 
-        for (int k = 9 + (beg >> 23); k <= 9 + (end >> 23); k++)
+        for (var k = 9 + (beg >> 23); k <= 9 + (end >> 23); k++)
         {
             yield return k;
         }
 
-        for (int k = 73 + (beg >> 20); k <= 73 + (end >> 20); k++)
+        for (var k = 73 + (beg >> 20); k <= 73 + (end >> 20); k++)
         {
             yield return k;
         }
 
-        for (int k = 585 + (beg >> 17); k <= 585 + (end >> 17); k++)
+        for (var k = 585 + (beg >> 17); k <= 585 + (end >> 17); k++)
         {
             yield return k;
         }
 
-        for (int k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k++)
+        for (var k = 4681 + (beg >> 14); k <= 4681 + (end >> 14); k++)
         {
             yield return k;
         }
     }
 
-    private static async Task WriteInt32Async(Stream s, int v, CancellationToken ct)
+    private static async Task WriteInt32(Stream s, int v, CancellationToken ct)
     {
         var buf = new byte[4];
         BinaryPrimitives.WriteInt32LittleEndian(buf, v);
         await s.WriteAsync(buf, ct).ConfigureAwait(false);
     }
 
-    private static async Task WriteUInt32Async(Stream s, uint v, CancellationToken ct)
+    private static async Task WriteUInt32(Stream s, uint v, CancellationToken ct)
     {
         var buf = new byte[4];
         BinaryPrimitives.WriteUInt32LittleEndian(buf, v);
         await s.WriteAsync(buf, ct).ConfigureAwait(false);
     }
 
-    private static async Task WriteUInt64Async(Stream s, ulong v, CancellationToken ct)
+    private static async Task WriteUInt64(Stream s, ulong v, CancellationToken ct)
     {
         var buf = new byte[8];
         BinaryPrimitives.WriteUInt64LittleEndian(buf, v);
         await s.WriteAsync(buf, ct).ConfigureAwait(false);
     }
-}
-
-/// <summary>In-memory representation of a tabix index.</summary>
-internal sealed class TabixIndex
-{
-    public TabixIndex(List<string> refOrder, Dictionary<string, PerRefIndex> refData, long noCoord)
-    {
-        RefOrder = refOrder;
-        RefData = refData;
-        NoCoord = noCoord;
-    }
-
-    public List<string> RefOrder { get; }
-    public Dictionary<string, PerRefIndex> RefData { get; }
-    public long NoCoord { get; }
-}
-
-/// <summary>Per-reference sequence index data.</summary>
-internal sealed class PerRefIndex
-{
-    public Dictionary<int, List<(ulong Begin, ulong End)>> Bins { get; } = [];
-    public List<ulong> LinearIndex { get; } = [];
 }

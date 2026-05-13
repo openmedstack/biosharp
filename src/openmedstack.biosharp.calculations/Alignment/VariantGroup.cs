@@ -13,7 +13,7 @@ public class VariantGroup
     public int StartIndex { get; set; }
 
     /// <summary>All alignment events in this group.</summary>
-    public List<AlignmentEvent> Events { get; } = new();
+    public List<AlignmentEvent> Events { get; } = [];
 
     /// <summary>First event type in the group (used for grouping decision).</summary>
     public EventType FirstEventType

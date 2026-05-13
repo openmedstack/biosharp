@@ -17,7 +17,7 @@ using Io;
 /// </summary>
 public static class VcfWriter
 {
-    private static readonly char Q = '"';
+    private const char Q = '"';
 
     /// <summary>
     /// Common INFO field definitions for VCF metadata headers.
@@ -154,12 +154,12 @@ public static class VcfWriter
     /// When <c>false</c> (default), writes plain text VCF.
     /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public static async Task WriteAsync(
+    public static async Task Write(
         string path,
-        IEnumerable<LocalVariantResult> variants,
+        IReadOnlyList<LocalVariantResult> variants,
         string chromosome,
         long? chromLength = null,
-        IEnumerable<string>? sampleNames = null,
+        string[]? sampleNames = null,
         string?[]?[]? genotypes = null,
         bool compress = false,
         CancellationToken cancellationToken = default)
@@ -175,12 +175,12 @@ public static class VcfWriter
         if (compress)
         {
             await using var bgzf = new BgzfStream(fileStream, CompressionLevel.Optimal, leaveOpen: false);
-            await WriteAsync(bgzf, variants, chromosome, chromLength, sampleNames, genotypes, cancellationToken)
+            await Write(bgzf, variants, chromosome, chromLength, sampleNames, genotypes, cancellationToken)
                 .ConfigureAwait(false);
         }
         else
         {
-            await WriteAsync(fileStream, variants, chromosome, chromLength, sampleNames, genotypes, cancellationToken)
+            await Write(fileStream, variants, chromosome, chromLength, sampleNames, genotypes, cancellationToken)
                 .ConfigureAwait(false);
         }
     }
@@ -190,92 +190,72 @@ public static class VcfWriter
     /// VCF 4.2 compliant with support for structural variant INFO fields.
     /// When sampleNames and genotypes are provided, FORMAT fields (GT:GQ:DP) are included.
     /// </summary>
-    public static async Task WriteAsync(
+    public static async Task Write(
         Stream stream,
-        IEnumerable<LocalVariantResult> variants,
+        IReadOnlyList<LocalVariantResult> variants,
         string chromosome,
         long? chromLength = null,
-        IEnumerable<string>? sampleNames = null,
+        string[]? sampleNames = null,
         string?[]?[]? genotypes = null,
         CancellationToken cancellationToken = default)
     {
-        var variantList = variants.ToList();
-        var sampleList = sampleNames?.ToList() ?? [];
-        var hasSamples = sampleList.Count > 0;
-        var genotypeArray = genotypes;
+        var sampleList = sampleNames ?? [];
+        var hasSamples = sampleList.Length > 0;
 
-        var headerLines = new List<string>();
-
-        headerLines.Add("##fileformat=VCFv4.2");
-        headerLines.Add("##source=OpenMedStack.BioSharp VariantCallingPipeline");
-
-        foreach (var infoDef in StandardInfoDefinitions)
+        var headerLines = new List<string>
         {
-            headerLines.Add(FormatInfoHeader(infoDef));
-        }
+            "##fileformat=VCFv4.2",
+            "##source=OpenMedStack.BioSharp VariantCallingPipeline"
+        };
+        headerLines.AddRange(StandardInfoDefinitions.Select(FormatInfoHeader));
 
         if (hasSamples)
         {
-            foreach (var fmtDef in StandardFormatDefinitions)
-            {
-                headerLines.Add(FormatFormatHeader(fmtDef));
-            }
+            headerLines.AddRange(StandardFormatDefinitions.Select(FormatFormatHeader));
         }
 
-        foreach (var filterDef in StandardFilterDefinitions)
-        {
-            headerLines.Add(FormatFilterHeader(filterDef));
-        }
+        headerLines.AddRange(StandardFilterDefinitions.Select(FormatFilterHeader));
 
         if (chromLength != null)
         {
             headerLines.Add(BuildContigHeader(chromosome, chromLength.Value));
         }
 
-        if (hasSamples)
-        {
-            headerLines.Add("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\t" + string.Join("\t", sampleList));
-        }
-        else
-        {
-            headerLines.Add("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO");
-        }
+        headerLines.Add(hasSamples
+            ? $"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{string.Join("\t", sampleList)}"
+            : "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO");
 
         foreach (var line in headerLines)
         {
-            await stream.WriteAsync(Encoding.UTF8.GetBytes(line + "\n"), cancellationToken);
+            await stream.WriteAsync(Encoding.UTF8.GetBytes($"{line}\n"), cancellationToken);
         }
 
-        for (var vi = 0; vi < variantList.Count; vi++)
+        for (var vi = 0; vi < variants.Count; vi++)
         {
-            var variant = variantList[vi];
-            var geno = genotypeArray?.Length > vi ? genotypeArray[vi] : null;
-            await WriteVariantAsync(stream, variant, chromosome, sampleList, geno, cancellationToken);
+            var variant = variants[vi];
+            var geno = genotypes?.Length > vi ? genotypes[vi] : null;
+            await WriteVariant(stream, variant, chromosome, sampleNames??[], geno, cancellationToken);
         }
 
         await stream.FlushAsync(cancellationToken);
     }
 
-    private static string BuildContigHeader(string chrom, long length)
+    private static string BuildContigHeader(string chrom, long chromLength)
     {
         var sb = new StringBuilder();
-        sb.Append("##contig=<ID name=");
-        sb.Append(Q);
+        sb.Append("##contig=<ID=");
         sb.Append(chrom);
-        sb.Append(Q);
-        sb.Append(">");
+        sb.Append(",length=");
+        sb.Append(chromLength);
+        sb.Append('>');
         return sb.ToString();
     }
 
     private static string FormatInfoHeader(VcfInfoDefinition infoDef)
     {
         var sb = new StringBuilder();
-        sb.Append("##");
+        sb.Append("##INFO=<ID=");
         sb.Append(infoDef.Id);
-        sb.Append("=<ID name=");
-        sb.Append(Q);
-        sb.Append(infoDef.Id);
-        sb.Append(Q);
         sb.Append(",Number=");
         sb.Append(infoDef.Number);
         sb.Append(",Type=");
@@ -283,18 +263,32 @@ public static class VcfWriter
         sb.Append(",Description=");
         sb.Append(Q);
         sb.Append(infoDef.Description);
-        sb.Append(Q + Q + Q);
-        sb.Append(">");
+        sb.Append(Q);
+        if (!string.IsNullOrWhiteSpace(infoDef.Source))
+        {
+            sb.Append(",Source=");
+            sb.Append(Q);
+            sb.Append(infoDef.Source);
+            sb.Append(Q);
+        }
+
+        if (!string.IsNullOrWhiteSpace(infoDef.Version))
+        {
+            sb.Append(",Version=");
+            sb.Append(Q);
+            sb.Append(infoDef.Version);
+            sb.Append(Q);
+        }
+
+        sb.Append('>');
         return sb.ToString();
     }
 
     private static string FormatFormatHeader(VcfFormatDefinition fmtDef)
     {
         var sb = new StringBuilder();
-        sb.Append("##FORMAT=<ID name=");
-        sb.Append(Q);
+        sb.Append("##FORMAT=<ID=");
         sb.Append(fmtDef.Id);
-        sb.Append(Q);
         sb.Append(",Number=");
         sb.Append(fmtDef.Number);
         sb.Append(",Type=");
@@ -302,61 +296,52 @@ public static class VcfWriter
         sb.Append(",Description=");
         sb.Append(Q);
         sb.Append(fmtDef.Description);
-        sb.Append(Q + Q + Q);
-        sb.Append(">");
+        sb.Append(Q);
+        sb.Append('>');
         return sb.ToString();
     }
 
     private static string FormatFilterHeader(VcfFilterDefinition filterDef)
     {
         var sb = new StringBuilder();
-        sb.Append("##FILTER=<ID name=");
-        sb.Append(Q);
+        sb.Append("##FILTER=<ID=");
         sb.Append(filterDef.Id);
-        sb.Append(Q);
         sb.Append(",Description=");
         sb.Append(Q);
         sb.Append(filterDef.Description);
-        sb.Append(Q + Q + Q);
-        sb.Append(">");
+        sb.Append(Q);
+        sb.Append('>');
         return sb.ToString();
     }
 
-    private static async Task WriteVariantAsync(
+    private static async Task WriteVariant(
         Stream stream,
         LocalVariantResult variant,
         string chromosome,
-        List<string> samples,
+        string[] samples,
         string?[]? genotype,
         CancellationToken cancellationToken)
     {
         var filter = variant.IsPass ? "PASS" : "LOW_QUAL";
-        var sb = new StringBuilder();
-
-        sb.Append(chromosome).Append('\t').Append(variant.Position).Append('\t');
-        sb.Append('.').Append('\t').Append(variant.Reference).Append('\t');
 
         // Multi-alt allele support: comma-separated ALT per VCF spec
         var altAlleles = variant.AllAlternateAlleles;
-        sb.Append(string.Join(",", altAlleles)).Append('\t').Append(variant.QuantitativeQuality);
-        sb.Append('\t').Append(filter).Append('\t');
 
-        var infoParts = new List<string>();
-        infoParts.Add("DP=" + variant.Depth);
+        var infoParts = new List<string> { $"DP={variant.Depth}" };
 
         // Report multi-alt allele count when applicable
         if (altAlleles.Count > 1)
         {
-            infoParts.Add("AC=" + (altAlleles.Count - 1).ToString()); // alternate allele count
+            infoParts.Add($"AC={altAlleles.Count - 1}"); // alternate allele count
         }
 
         if (variant is { IsStructuralVariant: true, SvType: not null })
         {
-            infoParts.Add("SVTYPE=" + variant.SvType.Value.ToString().ToUpperInvariant());
+            infoParts.Add($"SVTYPE={variant.SvType.Value.ToString().ToUpperInvariant()}");
 
             if (variant.EndPosition > 0)
             {
-                infoParts.Add("END=" + variant.EndPosition);
+                infoParts.Add($"END={variant.EndPosition}");
             }
 
             infoParts.Add("CIPOS=0,2");
@@ -367,7 +352,7 @@ public static class VcfWriter
 
             if (variant.AssemblyInfo != null)
             {
-                infoParts.Add("ALT_PATHS=" + variant.AssemblyInfo.AltPathCount);
+                infoParts.Add($"ALT_PATHS={variant.AssemblyInfo.AltPathCount}");
             }
 
             if (variant.SvType == SvType.Inversion)
@@ -377,68 +362,79 @@ public static class VcfWriter
             }
         }
 
+        var columns = new List<string>(samples.Length > 0 ? 10 + samples.Length : 8)
+        {
+            chromosome,
+            variant.Position.ToString(),
+            ".",
+            variant.Reference,
+            string.Join(",", altAlleles),
+            variant.QuantitativeQuality.ToString(),
+            filter,
+            string.Join(";", infoParts)
+        };
+
         // Genotype FORMAT fields
-        if (samples.Count > 0 && genotype != null)
+        if (samples.Length > 0)
         {
-            // Use explicit genotype array if provided
-            sb.Append("GT:GQ:DP");
-            foreach (var g in genotype)
+            columns.Add("GT:GQ:DP");
+            if (genotype != null)
             {
-                sb.Append('\t').Append(g ?? "./.:./.:.");
+                foreach (var g in genotype)
+                {
+                    columns.Add(g ?? "./.:./.:.");
+                }
+            }
+            else
+            {
+                var genoStr = "./.:./.:.";
+                if (variant.Genotype != null)
+                {
+                    var g = variant.Genotype;
+                    genoStr = $"{g.ToVcfGenotype()}:{g.GQ}:{g.AltCoverage + g.RefCoverage}";
+                }
+
+                columns.Add(genoStr);
             }
         }
-        else if (samples.Count > 0)
-        {
-            // Fall back to variant.Genotype if available
-            var genoStr = "./.:./.:. ";
-            if (variant.Genotype != null)
-            {
-                var g = variant.Genotype;
-                genoStr = g.ToVcfGenotype() + ":" + g.GQ + ":" + (g.AltCoverage + g.RefCoverage);
-            }
 
-            sb.Append("GT:GQ:DP");
-            sb.Append('\t').Append(genoStr);
-        }
-
-        sb.Append('\t').Append(string.Join(";", infoParts));
-
-        await stream.WriteAsync(Encoding.UTF8.GetBytes(sb.ToString() + "\n"), cancellationToken);
+        await stream.WriteAsync(Encoding.UTF8.GetBytes($"{string.Join('\t', columns)}\n"), cancellationToken);
     }
 
-    /// <summary>
-    /// Extends a LocalVariantResult with structural variant metadata for VCF writing.
-    /// </summary>
-    public static LocalVariantResult WithStructuralVariant(
-        this LocalVariantResult result,
-        SvType svType,
-        int? endPosition = null,
-        AssemblyInfo? assemblyInfo = null,
-        int coverage = 1,
-        int altPathCount = 1)
-    {
-        result.IsStructuralVariant = true;
-        result.SvType = svType;
-        result.EndPosition = endPosition ??
-            (svType == SvType.Inversion || svType == SvType.Translocation ? result.Position : 0);
-        result.AssemblyInfo = assemblyInfo ?? new AssemblyInfo(coverage, result.Alternate.Length, altPathCount);
-
-        return result;
-    }
-
-    /// <summary>
-    /// Extends a LocalVariantResult with genotype calling from coverages.
-    /// </summary>
     /// <param name="result">The variant result to annotate.</param>
-    /// <param name="refCoverage">Coverage for reference allele.</param>
-    /// <param name="altCoverage">Coverage for alternate allele.</param>
-    /// <returns>The enriched variant result with Genotype populated.</returns>
-    public static LocalVariantResult WithGenotype(
-        this LocalVariantResult result,
-        int refCoverage,
-        int altCoverage)
+    extension(LocalVariantResult result)
     {
-        result.Genotype = GenotypeCaller.Call(refCoverage, altCoverage);
-        return result;
+        /// <summary>
+        /// Extends a LocalVariantResult with structural variant metadata for VCF writing.
+        /// </summary>
+        public LocalVariantResult WithStructuralVariant(
+            SvType svType,
+            int? endPosition = null,
+            AssemblyInfo? assemblyInfo = null,
+            int coverage = 1,
+            int altPathCount = 1)
+        {
+            result.IsStructuralVariant = true;
+            result.SvType = svType;
+            result.EndPosition = endPosition ??
+                (svType is SvType.Inversion or SvType.Translocation ? result.Position : 0);
+            result.AssemblyInfo = assemblyInfo ?? new AssemblyInfo(coverage, result.Alternate.Length, altPathCount);
+
+            return result;
+        }
+
+        /// <summary>
+        /// Extends a LocalVariantResult with genotype calling from coverages.
+        /// </summary>
+        /// <param name="refCoverage">Coverage for reference allele.</param>
+        /// <param name="altCoverage">Coverage for alternate allele.</param>
+        /// <returns>The enriched variant result with Genotype populated.</returns>
+        public LocalVariantResult WithGenotype(
+            int refCoverage,
+            int altCoverage)
+        {
+            result.Genotype = GenotypeCaller.Call(refCoverage, altCoverage);
+            return result;
+        }
     }
 }

@@ -21,8 +21,8 @@ public static class BioSharpIoServiceCollectionExtensions
         services.TryAddTransient<FastQReader>(sp =>
         {
             var factory = sp.GetService<ILoggerFactory>();
-            var logger = factory != null
-                ? (ILogger)factory.CreateLogger<FastQReader>()
+            ILogger logger = factory != null
+                ? factory.CreateLogger<FastQReader>()
                 : NullLogger.Instance;
             return new FastQReader(logger);
         });

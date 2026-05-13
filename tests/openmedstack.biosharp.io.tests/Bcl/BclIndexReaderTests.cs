@@ -24,7 +24,7 @@ public class BclIndexReaderTests
     [Fact]
     public async Task CanReadIndexFile2()
     {
-        var file = new FileInfo(@"illumina_run/0001.bcl.bgzf");
+        var file = new FileInfo("illumina_run/0001.bcl.bgzf");
         var reader = new BclIndexReader(file);
         var record = await reader.Get(200);
         Assert.True(record.BlockAddress < (ulong)file.Length);

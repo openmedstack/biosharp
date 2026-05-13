@@ -49,7 +49,7 @@ public class ReadRealignerTests
             new string('A', 50),
             new string('|', 50),
             80, 50, // ref start 50
-            50, 0); // 50 left clip
+            50); // 50 left clip
 
         var realigner = new ReadRealigner
         {
@@ -108,7 +108,7 @@ public class ReadRealignerTests
         var realigner = new ReadRealigner { MinClipFraction = 0.20f, MinClipSize = 10 };
         var results = realigner.Realign(align, _reference, "chr1", readSeq);
         Assert.NotEmpty(results);
-        Assert.True(results[0].IsLeftClip == false);
+        Assert.False(results[0].IsLeftClip);
     }
 
     [Fact]
@@ -121,8 +121,7 @@ public class ReadRealignerTests
             new string('A', 50),
             new string('A', 50),
             new string('|', 50),
-            60, 0,
-            0, 0);
+            60, 0);
 
         var realigner = new ReadRealigner();
         var results = realigner.Realign(align, _reference, "chr1", readSeq);

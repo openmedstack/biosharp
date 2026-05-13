@@ -1,7 +1,5 @@
 namespace OpenMedStack.BioSharp.Calculations.DeBruijn;
 
-using System;
-
 /// <summary>
 /// Determines zygosity from coverage ratios and assigns genotype calls + GQ.
 /// Intended to be called after bubble analysis, taking ref and alt coverages

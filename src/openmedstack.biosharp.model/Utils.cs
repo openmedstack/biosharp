@@ -4,25 +4,31 @@ using System;
 
 public static class Utils
 {
-    public static char ToQualChar(this double probability)
+    extension(char qualityChar)
     {
-        return (char)(-10 * Math.Log10(probability) + 33);
+        public double ToQuality()
+        {
+            var q = qualityChar - 33;
+            var p = q / -10d;
+            return Math.Pow(10, p);
+        }
     }
 
-    public static double ToQuality(this char qualityChar)
+    extension(double phred)
     {
-        var q = qualityChar - 33;
-        var p = q / -10d;
-        return Math.Pow(10, p);
-    }
+        public double ToQuality()
+        {
+            return Math.Pow(10, -phred / 10d);
+        }
 
-    public static double ToQuality(this double phred)
-    {
-        return Math.Pow(10, -phred / 10d);
-    }
+        public double ToPhred()
+        {
+            return -10 * Math.Log10(phred);
+        }
 
-    public static double ToPhred(this double likelihood)
-    {
-        return -10 * Math.Log10(likelihood);
+        public char ToQualChar()
+        {
+            return (char)(-10 * Math.Log10(phred) + 33);
+        }
     }
 }

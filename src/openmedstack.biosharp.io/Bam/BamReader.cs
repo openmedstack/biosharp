@@ -14,7 +14,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Sam;
 
-public class BamReader
+public partial class BamReader
 {
     private readonly string? _bamFilePath;
     private SamDefinition? _readDefinition;
@@ -334,7 +334,7 @@ public class BamReader
     /// <param name="end">0-based end position of the region.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
     /// <returns>Alignment sections that overlap the requested region.</returns>
-    public async IAsyncEnumerable<AlignmentSection> QueryRegionAsync(
+    public async IAsyncEnumerable<AlignmentSection> QueryRegion(
         string referenceName,
         int start,
         int end,
@@ -343,27 +343,27 @@ public class BamReader
         // Load the BAM index. We need the BAM file path to find the .bai next to it.
         // BamReader only holds a stream, not a path. We expose a property for this.
         var bamFilePath = _bamFilePath!;
-        if (string.IsNullOrEmpty(bamFilePath) || !File.Exists(bamFilePath + ".bai"))
+        if (string.IsNullOrEmpty(bamFilePath) || !File.Exists($"{bamFilePath}.bai"))
         {
-            _logger.LogWarning("No BAM file path or index available for region query");
+            LogNoBamFilePathOrIndexAvailableForRegionQuery();
             yield break;
         }
 
-        var baiFilePath = bamFilePath + ".bai";
+        var baiFilePath = $"{bamFilePath}.bai";
         var indexReader = new BamIndexReader(_logger);
         var index = await indexReader.Read(baiFilePath, cancellationToken).ConfigureAwait(false);
 
         // Find the reference index matching the requested name
-        var refIndex = await FindReferenceIndexAsync(referenceName, cancellationToken);
+        var refIndex = await FindReferenceIndex(referenceName, cancellationToken);
         if (refIndex < 0)
         {
-            _logger.LogWarning("Reference '{RefName}' not found in BAM header", referenceName);
+            LogReferenceRefnameNotFoundInBamHeader(referenceName);
             yield break;
         }
 
         if (refIndex >= index.Content.Length)
         {
-            _logger.LogWarning("Reference index {RefIndex} out of range for BAM index", refIndex);
+            LogReferenceIndexRefindexOutOfRangeForBamIndex(refIndex);
             yield break;
         }
 
@@ -374,25 +374,22 @@ public class BamReader
         var binCount = BamIndexCalculator.Reg2Bins(start, end, binList);
         var bins = binList.Take(binCount).ToArray();
 
-        _logger.LogDebug("Querying region {RefName}:{Start}-{End} — {BinCount} bins",
-            referenceName, start, end, bins.Length);
+        LogQueryingRegionRefnameStartEndBincountBins(referenceName, start, end, bins.Length);
 
         // Collect all chunks from matching bins
         var allChunks = new List<(uint bin, Chunk chunk)>();
         foreach (var bin in bins)
         {
-            if ((int)bin < sequenceIndex.Content.Length)
+            if (bin < sequenceIndex.Content.Length)
             {
-                foreach (var chunk in sequenceIndex.Content[bin].Chunks)
-                {
-                    allChunks.Add((bin, chunk));
-                }
+                allChunks.AddRange(sequenceIndex.Content[bin].Chunks.Select(chunk => (bin, chunk))
+                    .Select(dummy => ((uint bin, Chunk chunk))dummy));
             }
         }
 
         if (allChunks.Count == 0)
         {
-            _logger.LogDebug("No index entries found for region");
+            LogNoIndexEntriesFoundForRegion();
             yield break;
         }
 
@@ -409,107 +406,114 @@ public class BamReader
         var blockSizeBuf = ArrayPool<byte>.Shared.Rent(4);
         try
         {
-        foreach (var (_, chunk) in allChunks)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            fileStream.Seek((long)chunk.Begin, SeekOrigin.Begin);
-
-            // Read block size
-            var readCount = await fileStream.ReadAsync(blockSizeBuf.AsMemory(0, 4), cancellationToken);
-            if (readCount < 4)
+            foreach (var (_, chunk) in allChunks)
             {
-                break;
-            }
+                cancellationToken.ThrowIfCancellationRequested();
 
-            var blockSize = (int)BitConverter.ToUInt32(blockSizeBuf.AsSpan(0, 4));
-            if (blockSize == 0)
-            {
-                continue;
-            }
+                fileStream.Seek((long)chunk.Begin, SeekOrigin.Begin);
 
-            var blockBuf = ArrayPool<byte>.Shared.Rent(blockSize);
-            try
-            {
-            var totalRead = 0;
-            while (totalRead < blockSize)
-            {
-                var remaining = blockSize - totalRead;
-                var actuallyRead =
-                    await fileStream.ReadAsync(blockBuf.AsMemory(totalRead, Math.Min(remaining, 8192)), cancellationToken);
-                if (actuallyRead == 0)
+                // Read block size
+                var readCount = await fileStream.ReadAsync(blockSizeBuf.AsMemory(0, 4), cancellationToken);
+                if (readCount < 4)
                 {
                     break;
                 }
 
-                totalRead += actuallyRead;
-            }
-
-            if (totalRead < blockSize)
-            {
-                continue;
-            }
-
-            var block = new ReadOnlyMemory<byte>(blockBuf, 0, totalRead);
-
-            // Extract position from alignment block
-            if (block.Length < 8)
-            {
-                continue;
-            }
-
-            var position = BitConverter.ToInt32(block.Slice(4, 4).Span) + 1;
-
-            // Check if unmapped
-            var alignmentFlag = (AlignmentSection.AlignmentFlag)BitConverter.ToUInt16(block.Slice(14, 2).Span);
-            if ((alignmentFlag & AlignmentSection.AlignmentFlag.SegmentUnmapped) != 0)
-            {
-                continue;
-            }
-
-            var refConsumed = 0;
-            var nameLen = (int)block.Span[8];
-            var cigarStart = 32 + nameLen;
-            var cigarLength = BitConverter.ToUInt16(block.Slice(12, 2).Span) * 4;
-            var ops = block.Slice(cigarStart, cigarLength).Span;
-
-            for (var i = 0; i < cigarLength; i += 4)
-            {
-                var encoded = BitConverter.ToUInt32(ops.Slice(i, 4));
-                var count = encoded >> 4;
-                var opcode = (byte)(encoded & 0xf);
-                // M(0), D(7), N(8), =(9), X(10) consume reference
-                if (opcode == 0 || opcode == 4 || opcode == 7 || opcode == 8 || opcode == 9 || opcode == 10)
+                var blockSize = (int)BitConverter.ToUInt32(blockSizeBuf.AsSpan(0, 4));
+                if (blockSize == 0)
                 {
-                    refConsumed += (int)count;
+                    continue;
+                }
+
+                var blockBuf = ArrayPool<byte>.Shared.Rent(blockSize);
+                try
+                {
+                    var totalRead = 0;
+                    while (totalRead < blockSize)
+                    {
+                        var remaining = blockSize - totalRead;
+                        var actuallyRead =
+                            await fileStream.ReadAsync(blockBuf.AsMemory(totalRead, Math.Min(remaining, 8192)),
+                                cancellationToken);
+                        if (actuallyRead == 0)
+                        {
+                            break;
+                        }
+
+                        totalRead += actuallyRead;
+                    }
+
+                    if (totalRead < blockSize)
+                    {
+                        continue;
+                    }
+
+                    var block = new ReadOnlyMemory<byte>(blockBuf, 0, totalRead);
+
+                    // Extract position from alignment block
+                    if (block.Length < 8)
+                    {
+                        continue;
+                    }
+
+                    var position = BitConverter.ToInt32(block.Slice(4, 4).Span) + 1;
+
+                    // Check if unmapped
+                    var alignmentFlag = (AlignmentSection.AlignmentFlag)BitConverter.ToUInt16(block.Slice(14, 2).Span);
+                    if ((alignmentFlag & AlignmentSection.AlignmentFlag.SegmentUnmapped) != 0)
+                    {
+                        continue;
+                    }
+
+                    var refConsumed = 0;
+                    var nameLen = (int)block.Span[8];
+                    var cigarStart = 32 + nameLen;
+                    var cigarLength = BitConverter.ToUInt16(block.Slice(12, 2).Span) * 4;
+                    var ops = block.Slice(cigarStart, cigarLength).Span;
+
+                    for (var i = 0; i < cigarLength; i += 4)
+                    {
+                        var encoded = BitConverter.ToUInt32(ops.Slice(i, 4));
+                        var count = encoded >> 4;
+                        var opcode = (byte)(encoded & 0xf);
+                        // M(0), D(7), N(8), =(9), X(10) consume reference
+                        if (opcode is 0 or 4 or 7 or 8 or 9 or 10)
+                        {
+                            refConsumed += (int)count;
+                        }
+                    }
+
+                    var alignmentEnd = position + refConsumed - 1;
+
+                    // Overlap check: [start, end) overlaps [position, alignmentEnd]
+                    if (alignmentEnd >= start && position <= end)
+                    {
+                        yield return ProcessBlock(block.ToArray().AsMemory());
+                    }
+                } // end try blockBuf
+                finally
+                {
+                    ArrayPool<byte>.Shared.Return(blockBuf);
                 }
             }
-
-            var alignmentEnd = position + refConsumed - 1;
-
-            // Overlap check: [start, end) overlaps [position, alignmentEnd]
-            if (alignmentEnd >= start && position <= end)
-            {
-                yield return ProcessBlock(block.ToArray().AsMemory());
-            }
-            } // end try blockBuf
-            finally { ArrayPool<byte>.Shared.Return(blockBuf); }
-        }
         } // end try blockSizeBuf
-        finally { ArrayPool<byte>.Shared.Return(blockSizeBuf); }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(blockSizeBuf);
+        }
     }
 
     /// <summary>
     /// Synchronous wrapper for QueryRegionAsync that reads all matching alignments into a list.
     /// </summary>
-    public async Task<List<AlignmentSection>> QueryRegionListAsync(
+    public async Task<List<AlignmentSection>> QueryRegionList(
         string referenceName,
         int start,
         int end,
         CancellationToken cancellationToken = default)
     {
         var results = new List<AlignmentSection>();
-        await foreach (var section in QueryRegionAsync(referenceName, start, end, cancellationToken)
+        await foreach (var section in QueryRegion(referenceName, start, end, cancellationToken)
             .ConfigureAwait(false))
         {
             results.Add(section);
@@ -521,14 +525,14 @@ public class BamReader
     /// <summary>
     /// Determines the reference index for a given name by reading the BAM header.
     /// </summary>
-    private async Task<int> FindReferenceIndexAsync(string referenceName, CancellationToken cancellationToken)
+    private async Task<int> FindReferenceIndex(string referenceName, CancellationToken cancellationToken)
     {
         if (_readDefinition != null)
         {
             var idx = 0;
             foreach (var sq in _readDefinition.Sq)
             {
-                if (sq != null && sq.Name == referenceName)
+                if (sq.Name == referenceName)
                 {
                     return idx;
                 }
@@ -540,7 +544,7 @@ public class BamReader
         // Fallback: parse the BAM header to find the reference index
         if (!string.IsNullOrEmpty(_bamFilePath))
         {
-            using var headerStream = File.Open(
+            await using var headerStream = File.Open(
                 _bamFilePath,
                 FileMode.Open,
                 FileAccess.Read,
@@ -550,7 +554,7 @@ public class BamReader
             var buf = new byte[1024];
             await header.FillBuffer(buf.AsMemory(0, 4), cancellationToken);
             var textLen = (int)BitConverter.ToUInt32(buf);
-            if (textLen <= 0 || textLen > 100000)
+            if (textLen is <= 0 or > 100000)
             {
                 return -1;
             }
@@ -563,7 +567,7 @@ public class BamReader
             {
                 if (line.StartsWith("@SQ"))
                 {
-                    var nameStart = line.IndexOf("SN:");
+                    var nameStart = line.IndexOf("SN:", StringComparison.Ordinal);
                     if (nameStart >= 0)
                     {
                         var snParts = line[(nameStart + 3)..].Split('\t');
@@ -581,4 +585,19 @@ public class BamReader
 
         return -1;
     }
+
+    [LoggerMessage(LogLevel.Warning, "No BAM file path or index available for region query")]
+    partial void LogNoBamFilePathOrIndexAvailableForRegionQuery();
+
+    [LoggerMessage(LogLevel.Warning, "Reference '{RefName}' not found in BAM header")]
+    partial void LogReferenceRefnameNotFoundInBamHeader(string refName);
+
+    [LoggerMessage(LogLevel.Warning, "Reference index {RefIndex} out of range for BAM index")]
+    partial void LogReferenceIndexRefindexOutOfRangeForBamIndex(int refIndex);
+
+    [LoggerMessage(LogLevel.Debug, "Querying region {RefName}:{Start}-{End} — {BinCount} bins")]
+    partial void LogQueryingRegionRefnameStartEndBincountBins(string refName, int start, int end, int binCount);
+
+    [LoggerMessage(LogLevel.Debug, "No index entries found for region")]
+    partial void LogNoIndexEntriesFoundForRegion();
 }

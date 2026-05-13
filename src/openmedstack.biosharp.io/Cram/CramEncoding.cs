@@ -13,7 +13,7 @@ internal static class CramEncoding
     /// <summary>
     /// CRAM magic bytes: "CRAM" (4 bytes).
     /// </summary>
-    public static readonly byte[] Magic = [0x43, 0x52, 0x41, 0x4D]; // CRAM
+    public static readonly byte[] Magic = "CRAM"u8.ToArray(); // CRAM
 
     /// <summary>Encodes a 32-bit signed integer as ITF8.</summary>
     public static void WriteItf8(Stream stream, int value)
@@ -25,35 +25,33 @@ internal static class CramEncoding
     /// <summary>Encodes a 32-bit unsigned integer as ITF8.</summary>
     public static void WriteItf8(Stream stream, uint value)
     {
-        if (value < 0x80)
+        switch (value)
         {
-            stream.WriteByte((byte)value);
-        }
-        else if (value < 0x4000)
-        {
-            stream.WriteByte((byte)(0x80 | (value >> 8)));
-            stream.WriteByte((byte)(value & 0xFF));
-        }
-        else if (value < 0x200000)
-        {
-            stream.WriteByte((byte)(0xC0 | (value >> 16)));
-            stream.WriteByte((byte)((value >> 8) & 0xFF));
-            stream.WriteByte((byte)(value & 0xFF));
-        }
-        else if (value < 0x10000000)
-        {
-            stream.WriteByte((byte)(0xE0 | (value >> 24)));
-            stream.WriteByte((byte)((value >> 16) & 0xFF));
-            stream.WriteByte((byte)((value >> 8) & 0xFF));
-            stream.WriteByte((byte)(value & 0xFF));
-        }
-        else
-        {
-            stream.WriteByte((byte)(0xF0 | ((value >> 28) & 0x0F)));
-            stream.WriteByte((byte)((value >> 20) & 0xFF));
-            stream.WriteByte((byte)((value >> 12) & 0xFF));
-            stream.WriteByte((byte)((value >> 4) & 0xFF));
-            stream.WriteByte((byte)((value & 0x0F) << 4));
+            case < 0x80:
+                stream.WriteByte((byte)value);
+                break;
+            case < 0x4000:
+                stream.WriteByte((byte)(0x80 | (value >> 8)));
+                stream.WriteByte((byte)(value & 0xFF));
+                break;
+            case < 0x200000:
+                stream.WriteByte((byte)(0xC0 | (value >> 16)));
+                stream.WriteByte((byte)((value >> 8) & 0xFF));
+                stream.WriteByte((byte)(value & 0xFF));
+                break;
+            case < 0x10000000:
+                stream.WriteByte((byte)(0xE0 | (value >> 24)));
+                stream.WriteByte((byte)((value >> 16) & 0xFF));
+                stream.WriteByte((byte)((value >> 8) & 0xFF));
+                stream.WriteByte((byte)(value & 0xFF));
+                break;
+            default:
+                stream.WriteByte((byte)(0xF0 | ((value >> 28) & 0x0F)));
+                stream.WriteByte((byte)((value >> 20) & 0xFF));
+                stream.WriteByte((byte)((value >> 12) & 0xFF));
+                stream.WriteByte((byte)((value >> 4) & 0xFF));
+                stream.WriteByte((byte)((value & 0x0F) << 4));
+                break;
         }
     }
 
@@ -171,7 +169,7 @@ internal static class CramEncoding
         var b5 = ReadByte(stream);
         var b6 = ReadByte(stream);
         var b7 = ReadByte(stream);
-        return unchecked((int)(((b0 & 0x0F) << 28) | (b4 << 20) | (b5 << 12) | (b6 << 4) | ((b7 >> 4) & 0x0F)));
+        return unchecked(((b0 & 0x0F) << 28) | (b4 << 20) | (b5 << 12) | (b6 << 4) | ((b7 >> 4) & 0x0F));
     }
 
     /// <summary>Reads an LTF8-encoded 64-bit integer from <paramref name="stream"/>.</summary>
@@ -190,38 +188,38 @@ internal static class CramEncoding
 
         if ((b0 & 0xC0) == 0x80)
         {
-            return ((b0 & 0x3FL) << 8) | (long)ReadByte(stream);
+            return ((b0 & 0x3FL) << 8) | (uint)ReadByte(stream);
         }
 
         if ((b0 & 0xE0) == 0xC0)
         {
-            return ((b0 & 0x1FL) << 16) | ((long)ReadByte(stream) << 8) | (long)ReadByte(stream);
+            return ((b0 & 0x1FL) << 16) | ((long)ReadByte(stream) << 8) | (uint)ReadByte(stream);
         }
 
         if ((b0 & 0xF0) == 0xE0)
         {
             return ((b0 & 0x0FL) << 24) | ((long)ReadByte(stream) << 16) |
-                ((long)ReadByte(stream) << 8) | (long)ReadByte(stream);
+                ((long)ReadByte(stream) << 8) | (uint)ReadByte(stream);
         }
 
         if ((b0 & 0xF8) == 0xF0)
         {
             return ((b0 & 0x07L) << 32) | ((long)ReadByte(stream) << 24) |
-                ((long)ReadByte(stream) << 16) | ((long)ReadByte(stream) << 8) | (long)ReadByte(stream);
+                ((long)ReadByte(stream) << 16) | ((long)ReadByte(stream) << 8) | (uint)ReadByte(stream);
         }
 
         if ((b0 & 0xFC) == 0xF8)
         {
             return ((b0 & 0x03L) << 40) | ((long)ReadByte(stream) << 32) |
                 ((long)ReadByte(stream) << 24) | ((long)ReadByte(stream) << 16) |
-                ((long)ReadByte(stream) << 8) | (long)ReadByte(stream);
+                ((long)ReadByte(stream) << 8) | (uint)ReadByte(stream);
         }
 
         if ((b0 & 0xFE) == 0xFC)
         {
             return ((b0 & 0x01L) << 48) | ((long)ReadByte(stream) << 40) |
                 ((long)ReadByte(stream) << 32) | ((long)ReadByte(stream) << 24) |
-                ((long)ReadByte(stream) << 16) | ((long)ReadByte(stream) << 8) | (long)ReadByte(stream);
+                ((long)ReadByte(stream) << 16) | ((long)ReadByte(stream) << 8) | (uint)ReadByte(stream);
         }
 
         if (b0 == 0xFE)
@@ -229,7 +227,7 @@ internal static class CramEncoding
             long v = 0;
             for (var i = 0; i < 7; i++)
             {
-                v = (v << 8) | (long)ReadByte(stream);
+                v = (v << 8) | (uint)ReadByte(stream);
             }
 
             return v;

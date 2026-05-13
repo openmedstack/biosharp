@@ -31,7 +31,10 @@ public static class DuplicateMarker
         public int OpticalDuplicateReads { get; set; }
 
         /// <summary>Fraction of total reads that are duplicates.</summary>
-        public double DuplicateRate => TotalReads == 0 ? 0.0 : (double)DuplicateReads / TotalReads;
+        public double DuplicateRate
+        {
+            get { return TotalReads == 0 ? 0.0 : (double)DuplicateReads / TotalReads; }
+        }
     }
 
     // Signature used to group potential duplicates.
@@ -130,7 +133,7 @@ public static class DuplicateMarker
             // Score each template (or singleton) by total MAPQ across mates
             var scored = byName
                 .Select(kvp => (name: kvp.Key, indices: kvp.Value,
-                    score: kvp.Value.Sum(i => (int)alignments[i].MappingQuality)))
+                    score: kvp.Value.Sum(i => alignments[i].MappingQuality)))
                 .OrderByDescending(x => x.score)
                 .ToList();
 
@@ -192,10 +195,7 @@ public static class DuplicateMarker
     {
         // Parse tile coordinates for all reads in the group
         var coords = new List<(int idx, TileCoords? tile)>(groupIndices.Count);
-        foreach (var idx in groupIndices)
-        {
-            coords.Add((idx, ParseTileCoords(original[idx].QName)));
-        }
+        coords.AddRange(groupIndices.Select(idx => (idx, ParseTileCoords(original[idx].QName))));
 
         // Compare every pair within same tile
         for (var i = 0; i < coords.Count - 1; i++)

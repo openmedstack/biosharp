@@ -99,7 +99,7 @@ public sealed class CopyNumberCaller
             {
                 sumDepth += depths[i];
                 var b = char.ToUpperInvariant(localRef[i]);
-                if (b == 'G' || b == 'C')
+                if (b is 'G' or 'C')
                 {
                     gcCount++;
                 }
@@ -167,10 +167,10 @@ public sealed class CopyNumberCaller
                 AssemblyInfo = new AssemblyInfo(
                     (int)seg.MeanNormalisedDepth,
                     svLen,
-                    seg.WindowCount)
+                    seg.WindowCount),
+                // Store CN in AdditionalInformation (used for INFO field in VCF)
+                AdditionalInformation = $"CN={cn};SVLEN={svLen}"
             };
-            // Store CN in AdditionalInformation (used for INFO field in VCF)
-            variant.AdditionalInformation = $"CN={cn};SVLEN={svLen}";
 
             results.Add(variant);
         }
@@ -214,9 +214,12 @@ public sealed class CopyNumberCaller
 
     // ── Segmentation (CBS-lite) ───────────────────────────────────────────────
 
-    private record struct CnvSegment(int StartWindow, int EndWindow, double MeanNormalisedDepth)
+    private readonly record struct CnvSegment(int StartWindow, int EndWindow, double MeanNormalisedDepth)
     {
-        public int WindowCount => EndWindow - StartWindow + 1;
+        public int WindowCount
+        {
+            get { return EndWindow - StartWindow + 1; }
+        }
     }
 
     /// <summary>
@@ -244,12 +247,11 @@ public sealed class CopyNumberCaller
 
             while (end + 1 < corrected.Length)
             {
-                var candidateMean = (sum + corrected[end + 1]) / (end - start + 2);
                 var nextMean = corrected[end + 1];
 
                 // If the next window's depth is dramatically different from the
                 // current block mean (>30% change), start a new segment.
-                if (Math.Abs(nextMean - (sum / (end - start + 1))) > 0.3 * baseline)
+                if (Math.Abs(nextMean - sum / (end - start + 1)) > 0.3 * baseline)
                 {
                     break;
                 }

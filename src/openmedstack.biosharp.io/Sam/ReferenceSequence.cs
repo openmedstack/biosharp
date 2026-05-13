@@ -62,13 +62,13 @@ public record ReferenceSequence
         return new ReferenceSequence(
             parts["SN"],
             uint.Parse(parts["LN"]),
-            parts.TryGetValue("AH", out var ah) ? ah : null,
-            parts.TryGetValue("AN", out var an) ? an : null,
-            parts.TryGetValue("AS", out var xas) ? xas : null,
-            parts.TryGetValue("DS", out var ds) ? ds : null,
-            parts.TryGetValue("M5", out var m5) ? m5 : null,
-            parts.TryGetValue("SP", out var sp) ? sp : null,
-            parts.TryGetValue("TP", out var tp) ? tp : null,
-            parts.TryGetValue("UR", out var ur) ? ur : null);
+            parts.GetValueOrDefault("AH"),
+            parts.GetValueOrDefault("AN"),
+            parts.GetValueOrDefault("AS"),
+            parts.GetValueOrDefault("DS"),
+            parts.GetValueOrDefault("M5"),
+            parts.GetValueOrDefault("SP"),
+            parts.GetValueOrDefault("TP"),
+            parts.GetValueOrDefault("UR"));
     }
 }

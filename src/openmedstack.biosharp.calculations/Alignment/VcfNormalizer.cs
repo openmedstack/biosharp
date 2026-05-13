@@ -184,8 +184,8 @@ public static class VcfNormalizer
             trimLen++;
         }
 
-        trimmedRef = refAllele[..(refAllele.Length - trimLen)];
-        trimmedAlt = altAllele[..(altAllele.Length - trimLen)];
+        trimmedRef = refAllele[..^trimLen];
+        trimmedAlt = altAllele[..^trimLen];
     }
 
     private static LocalVariantResult CopyWithNewAlleles(

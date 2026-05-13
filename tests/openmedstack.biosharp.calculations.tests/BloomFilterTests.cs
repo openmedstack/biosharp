@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using AsyncEnumerable = OpenMedStack.BioSharp.Calculations.Alignment.AsyncEnumerableExtensions;
 using Bloom = OpenMedStack.BioSharp.Calculations.DeBruijn;
 using Sequence = OpenMedStack.BioSharp.Model.Sequence;
@@ -21,7 +19,7 @@ public class BloomFilterTests
     {
         return AsyncEnumerable.ToAsyncEnumerable(
             seqs.Select(s => new Sequence(
-                "r_" + s.GetHashCode(),
+                $"r_{s.GetHashCode()}",
                 s.AsMemory(),
                 new string('I', s.Length).AsMemory())));
     }
@@ -33,7 +31,7 @@ public class BloomFilterTests
     [Fact]
     public void BloomFilter_InsertAndContains_SingleKmer()
     {
-        var filter = new Bloom.BloomFilter(50, 0.01);
+        var filter = new Bloom.BloomFilter(50);
         filter.Add("ACGT");
         Assert.True(filter.Contains("ACGT"));
     }
@@ -45,7 +43,7 @@ public class BloomFilterTests
     [Fact]
     public void BloomFilter_InsertAndContains_MultipleKmers()
     {
-        var filter = new Bloom.BloomFilter(50, 0.01);
+        var filter = new Bloom.BloomFilter(50);
         var kmers = new[] { "ACGT", "TTAA", "GGCC", "ATCG" };
         foreach (var kmer in kmers)
         {
@@ -65,7 +63,7 @@ public class BloomFilterTests
     [Fact]
     public void BloomFilter_NonInsertedKmers_ReturnsFalse()
     {
-        var filter = new Bloom.BloomFilter(1000, 0.01);
+        var filter = new Bloom.BloomFilter(1000);
         filter.Add("ACGTAC");
         // With 1000 bits and 1 element at 0.01 FPR, non-inserted should be mostly false
         // Use enough bits that this is highly likely to be correct
@@ -79,15 +77,15 @@ public class BloomFilterTests
     [Fact]
     public void BloomFilter_UnionContainsAllKmers()
     {
-        var filter1 = new Bloom.BloomFilter(200, 0.01);
-        var filter2 = new Bloom.BloomFilter(200, 0.01);
+        var filter1 = new Bloom.BloomFilter(200);
+        var filter2 = new Bloom.BloomFilter(200);
 
         filter1.Add("ACGT");
         filter1.Add("TTAA");
         filter2.Add("GGCC");
         filter2.Add("ATCG");
 
-        var union = Bloom.BloomFilter.Union(new[] { filter1, filter2 });
+        var union = Bloom.BloomFilter.Union([filter1, filter2]);
 
         Assert.True(union.Contains("ACGT"));
         Assert.True(union.Contains("TTAA"));
@@ -102,15 +100,15 @@ public class BloomFilterTests
     [Fact]
     public void BloomFilter_IntersectionContainsOnlySharedKmers()
     {
-        var filter1 = new Bloom.BloomFilter(200, 0.01);
-        var filter2 = new Bloom.BloomFilter(200, 0.01);
+        var filter1 = new Bloom.BloomFilter(200);
+        var filter2 = new Bloom.BloomFilter(200);
 
         filter1.Add("ACGT");
         filter1.Add("TTAA");
         filter2.Add("ACGT");
         filter2.Add("GGCC");
 
-        var intersection = Bloom.BloomFilter.Intersection(new[] { filter1, filter2 });
+        var intersection = Bloom.BloomFilter.Intersection([filter1, filter2]);
 
         Assert.True(intersection.Contains("ACGT"));
         Assert.False(intersection.Contains("TTAA"), "TTAA only in filter1");
@@ -124,7 +122,7 @@ public class BloomFilterTests
     [Fact]
     public void BloomFilter_EmptyFilter_ReturnsFalseForAll()
     {
-        var filter = new Bloom.BloomFilter(50, 0.01);
+        var filter = new Bloom.BloomFilter(50);
         Assert.False(filter.Contains("ACGT"));
     }
 
@@ -135,9 +133,9 @@ public class BloomFilterTests
     [Fact]
     public void BloomFilter_UnionOfEmptyFilters_Works()
     {
-        var f1 = new Bloom.BloomFilter(50, 0.01);
-        var f2 = new Bloom.BloomFilter(50, 0.01);
-        var union = Bloom.BloomFilter.Union(new[] { f1, f2 });
+        var f1 = new Bloom.BloomFilter(50);
+        var f2 = new Bloom.BloomFilter(50);
+        var union = Bloom.BloomFilter.Union([f1, f2]);
         Assert.NotNull(union);
     }
 
@@ -159,7 +157,7 @@ public class BloomFilterTests
     [Fact]
     public void BloomFilter_InsertNullKmer_ThrowsException()
     {
-        var filter = new Bloom.BloomFilter(50, 0.01);
+        var filter = new Bloom.BloomFilter(50);
         Assert.Throws<ArgumentException>(() => filter.Add((string)null!));
     }
 
@@ -170,7 +168,7 @@ public class BloomFilterTests
     [Fact]
     public void BloomFilter_DuplicateInserts_DontBreakFilter()
     {
-        var filter = new Bloom.BloomFilter(50, 0.01);
+        var filter = new Bloom.BloomFilter(50);
         for (var i = 0; i < 100; i++)
         {
             filter.Add("ACGT");
@@ -202,9 +200,9 @@ public class BloomFilterTests
     [Fact]
     public void BloomFilter_IntersectionOfSingleFilter_ReturnsSelf()
     {
-        var filter = new Bloom.BloomFilter(50, 0.01);
+        var filter = new Bloom.BloomFilter(50);
         filter.Add("ACGT");
-        var intersection = Bloom.BloomFilter.Intersection(new[] { filter });
+        var intersection = Bloom.BloomFilter.Intersection([filter]);
         Assert.True(intersection.Contains("ACGT"));
     }
 
@@ -215,7 +213,7 @@ public class BloomFilterTests
     [Fact]
     public void BloomFilter_UnionOfEmptyArray_Works()
     {
-        var union = Bloom.BloomFilter.Union(Array.Empty<Bloom.BloomFilter>());
+        var union = Bloom.BloomFilter.Union([]);
         Assert.NotNull(union);
     }
 
@@ -226,7 +224,7 @@ public class BloomFilterTests
     [Fact]
     public void BloomFilter_IntersectionWithNullElement_ThrowsException()
     {
-        Bloom.BloomFilter[] nullArray = { new(50, 0.01), null! };
+        Bloom.BloomFilter[] nullArray = [new(50), null!];
         Assert.Throws<ArgumentNullException>(() => Bloom.BloomFilter.Intersection(nullArray));
     }
 
@@ -249,14 +247,14 @@ public class BloomFilterTests
     [Fact]
     public void BloomFilter_SetOperations_PreserveTotalBits()
     {
-        var f1 = new Bloom.BloomFilter(50, 0.01);
-        var f2 = new Bloom.BloomFilter(100, 0.01);
+        var f1 = new Bloom.BloomFilter(50);
+        var f2 = new Bloom.BloomFilter(100);
 
-        var union = Bloom.BloomFilter.Union(new[] { f1, f2 });
+        var union = Bloom.BloomFilter.Union([f1, f2]);
         Assert.True(union.TotalBits >= f1.TotalBits);
         Assert.True(union.TotalBits >= f2.TotalBits);
 
-        var inter = Bloom.BloomFilter.Intersection(new[] { f1, f2 });
+        var inter = Bloom.BloomFilter.Intersection([f1, f2]);
         Assert.True(inter.TotalBits <= Math.Max(f1.TotalBits, f2.TotalBits));
     }
 }

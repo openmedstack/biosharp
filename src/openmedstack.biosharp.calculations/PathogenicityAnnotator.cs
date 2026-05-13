@@ -41,12 +41,12 @@ public sealed class PathogenicityAnnotator
     /// used to locate the required fields.
     /// Can be called multiple times; each call replaces the previous database.
     /// </summary>
-    public async Task LoadAsync(Stream stream, CancellationToken cancellationToken = default)
+    public async Task Load(Stream stream, CancellationToken cancellationToken = default)
     {
         _db.Clear();
 
         using var reader = new StreamReader(stream, leaveOpen: true);
-        bool headerParsed = false;
+        var headerParsed = false;
 
         while (true)
         {
@@ -86,7 +86,7 @@ public sealed class PathogenicityAnnotator
         }
 
         var key = MakeKey(variant.Chromosome, variant.Position, variant.Reference, variant.Alternate);
-        return _db.TryGetValue(key, out var ann) ? ann : null;
+        return _db.GetValueOrDefault(key);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -142,7 +142,7 @@ public sealed class PathogenicityAnnotator
     {
         // Split by tab into a fixed upper bound; resize if needed
         var maxCols = Math.Max(16, Math.Max(_pp2HdivPredCol, _pp2HdivScoreCol) + 1);
-        Span<Range> ranges = maxCols <= 64
+        var ranges = maxCols <= 64
             ? stackalloc Range[64]
             : new Range[maxCols];
 
@@ -162,9 +162,9 @@ public sealed class PathogenicityAnnotator
         var alt       = new string(line[ranges[_altCol]]);
 
         double? siftScore = null;
-        string siftPred = ".";
+        var siftPred = ".";
         double? pp2Score = null;
-        string pp2Pred = ".";
+        var pp2Pred = ".";
 
         if (_siftScoreCol < count)
         {

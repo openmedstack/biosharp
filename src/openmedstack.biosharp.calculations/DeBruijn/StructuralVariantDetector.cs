@@ -65,7 +65,7 @@ public static class StructuralVariantDetector
     /// IMPORTANT: Reference path is identified by alignment to reference sequence,
     /// not by coverage, to correctly classify insertions vs deletions.
     /// </summary>
-    private static IList<LocalVariantResult> AnalyzeBubble(
+    private static List<LocalVariantResult> AnalyzeBubble(
         Bubble bubble,
         DeBruijnGraph? graph,
         string reference,
@@ -83,7 +83,7 @@ public static class StructuralVariantDetector
         var scoredPaths = bubble.Paths.Select(p => new
         {
             Path = p,
-            AlignScore = ScoreAlignmentToRef(p.Sequence, reference, refStart)
+            AlignScore = ScoreAlignmentToRef(p.Sequence, reference)
         }).ToList();
 
         var sortedPaths = scoredPaths
@@ -130,7 +130,7 @@ public static class StructuralVariantDetector
         // Apply RepetitivenessAnalyzer confidence scoring to the bubble
         // Build a simple k-mer count map from the bubble paths
         var kmerCounts = BuildKmerCounts(bubble, graph?.K ?? 21);
-        var confidenceScore = RepetitivenessAnalyzer.AnalyzeBubble(bubble, kmerCounts);
+        _ = RepetitivenessAnalyzer.AnalyzeBubble(bubble, kmerCounts);
         variant.BubbleConfidence = RepetitivenessAnalyzer.Analyze(bubble, kmerCounts);
 
         // Classify variant type
@@ -155,7 +155,7 @@ public static class StructuralVariantDetector
             }
         }
         else if (Math.Abs(lengthDiff) >= 5 ||
-            Math.Abs(lengthDiff) >= (int)Math.Ceiling((double)refPathStr.Length * 0.1))
+            Math.Abs(lengthDiff) >= (int)Math.Ceiling(refPathStr.Length * 0.1))
         {
             // Significant length difference - structural variant
             variant.IsStructuralVariant = true;
@@ -200,8 +200,8 @@ public static class StructuralVariantDetector
         }
 
         // The tip represents bases not in the reference - potential insertion
-        var altCoverage = 1; // tip coverage would come from read depth, use 1 as default
-        var refCoverage = 1;
+        const int altCoverage = 1; // tip coverage would come from read depth, use 1 as default
+        const int refCoverage = 1;
 
         // Try to find where this tip aligns to the reference
         var alignPos = FindPositionInReference(tip.Sequence, reference, refStart);
@@ -361,7 +361,7 @@ public static class StructuralVariantDetector
                 }
             }
 
-            consensus[i] = new char[] { 'A', 'C', 'G', 'T' }[maxIdx];
+            consensus[i] = new[] { 'A', 'C', 'G', 'T' }[maxIdx];
         }
 
         return new string(consensus);
@@ -373,7 +373,7 @@ public static class StructuralVariantDetector
     /// Aligns using the same window-based approach as FindPositionInReference but
     /// returns the raw match score rather than position.
     /// </summary>
-    private static int ScoreAlignmentToRef(string seq, string reference, int refStart)
+    private static int ScoreAlignmentToRef(string seq, string reference)
     {
         if (string.IsNullOrEmpty(seq) || seq.Length > reference.Length)
         {

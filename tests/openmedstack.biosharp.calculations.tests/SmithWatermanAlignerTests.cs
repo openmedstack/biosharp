@@ -10,8 +10,8 @@ public class SmithWatermanAlignerTests
     [Fact]
     public void Align_PerfectMatch_ReturnsExpectedCoordinates()
     {
-        var reference = new Sequence("ref", "TTTTACGTACGTAAAA".ToCharArray(), new string('I', 16).ToCharArray());
-        var read = new Sequence("read", "ACGTACGT".ToCharArray(), new string('I', 8).ToCharArray());
+        var reference = new Sequence("ref", "TTTTACGTACGTAAAA".AsMemory(), new string('I', 16).AsMemory());
+        var read = new Sequence("read", "ACGTACGT".AsMemory(), new string('I', 8).AsMemory());
 
         var alignment = SmithWatermanAligner.Align(reference, read, minScore: 4);
 
@@ -24,8 +24,8 @@ public class SmithWatermanAlignerTests
     [Fact]
     public void Align_WhenCellBudgetExceeded_Throws()
     {
-        var reference = new Sequence("ref", new string('A', 64).ToCharArray(), new string('I', 64).ToCharArray());
-        var read = new Sequence("read", new string('A', 64).ToCharArray(), new string('I', 64).ToCharArray());
+        var reference = new Sequence("ref", new string('A', 64).AsMemory(), new string('I', 64).AsMemory());
+        var read = new Sequence("read", new string('A', 64).AsMemory(), new string('I', 64).AsMemory());
 
         var exception = Assert.Throws<InvalidOperationException>(() =>
             SmithWatermanAligner.Align(reference, read, maxCellCount: 100));
@@ -40,8 +40,8 @@ public class SmithWatermanAlignerTests
         var target = "ACGTGATTACAGGTT";
         var suffix = new string('C', 40);
         var referenceSeq = prefix + target + suffix;
-        var reference = new Sequence("ref", referenceSeq.ToCharArray(), new string('I', referenceSeq.Length).ToCharArray());
-        var read = new Sequence("read", target.ToCharArray(), new string('I', target.Length).ToCharArray());
+        var reference = new Sequence("ref", referenceSeq.AsMemory(), new string('I', referenceSeq.Length).AsMemory());
+        var read = new Sequence("read", target.AsMemory(), new string('I', target.Length).AsMemory());
 
         var alignment = SmithWatermanAligner.Align(
             reference,
@@ -58,8 +58,8 @@ public class SmithWatermanAlignerTests
     [Fact]
     public void Align_WhenMinScoreExceedsTheoreticalMaximum_ReturnsNull()
     {
-        var reference = new Sequence("ref", "ACGTACGT".ToCharArray(), new string('I', 8).ToCharArray());
-        var read = new Sequence("read", "ACGT".ToCharArray(), new string('I', 4).ToCharArray());
+        var reference = new Sequence("ref", "ACGTACGT".AsMemory(), new string('I', 8).AsMemory());
+        var read = new Sequence("read", "ACGT".AsMemory(), new string('I', 4).AsMemory());
 
         var alignment = SmithWatermanAligner.Align(reference, read, matchScore: 2, minScore: 9);
 
@@ -69,8 +69,8 @@ public class SmithWatermanAlignerTests
     [Fact]
     public void Align_WithXDrop_PrunesHopelessAlignment()
     {
-        var reference = new Sequence("ref", new string('A', 40).ToCharArray(), new string('I', 40).ToCharArray());
-        var read = new Sequence("read", new string('T', 20).ToCharArray(), new string('I', 20).ToCharArray());
+        var reference = new Sequence("ref", new string('A', 40).AsMemory(), new string('I', 40).AsMemory());
+        var read = new Sequence("read", new string('T', 20).AsMemory(), new string('I', 20).AsMemory());
 
         var alignment = SmithWatermanAligner.Align(
             reference,

@@ -71,7 +71,7 @@ public class NeedlemanWunschAlgoTests
             Assert.Skip("chr1.fa.gz is not available (Git LFS pointer or missing)");
         }
 
-        var reader = new FastAReader();
+        var reader = new FastAReader(NullLogger<FastAReader>.Instance);
         var sequence = await reader.ReadGz(fastq).FirstAsync();
         var sequence1 = sequence[500_000..500_100]; // Slice to a manageable size for testing
         var sequence2 = sequence[500_010..500_100]; // Slice to a manageable size for testing

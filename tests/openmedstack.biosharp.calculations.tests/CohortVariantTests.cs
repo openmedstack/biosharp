@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AsyncEnumerable = OpenMedStack.BioSharp.Calculations.Alignment.AsyncEnumerableExtensions;
-using DeBruijn = OpenMedStack.BioSharp.Calculations.DeBruijn;
 using Sequence = OpenMedStack.BioSharp.Model.Sequence;
 using Xunit;
 
@@ -19,7 +18,7 @@ public class CohortVariantTests
     {
         return AsyncEnumerable.ToAsyncEnumerable(
             seqs.Select(s => new Sequence(
-                "r_" + s.GetHashCode(),
+                $"r_{s.GetHashCode()}",
                 s.AsMemory(),
                 new string('I', s.Length).AsMemory())));
     }
@@ -31,7 +30,7 @@ public class CohortVariantTests
 
     private static DeBruijn.BloomFilter BuildFilter(IEnumerable<string> kmers)
     {
-        var filter = new DeBruijn.BloomFilter(200, 0.01);
+        var filter = new DeBruijn.BloomFilter(200);
         foreach (var kmer in kmers)
         {
             filter.Add(kmer);
@@ -62,14 +61,14 @@ public class CohortVariantTests
         var refSeq = "AGCTAATAGCTGACTAGCTAGCTAGC";
         var altSeq = "AGCTAATAGCTXXXGACTAGCTAGCTAGC";
 
-        var tumorReads = new[] { refSeq, altSeq, refSeq.Substring(1), altSeq.Substring(1) };
+        var tumorReads = new[] { refSeq, altSeq, refSeq[1..], altSeq[1..] };
 
-        var tumorGraph = BuildGraph(tumorReads, 7);
+        var tumorGraph = BuildGraph(tumorReads);
         var normalKmers = ExtractKmers(refSeq, 7);
         var normalFilter = BuildFilter(normalKmers);
 
-        var variants = await DeBruijn.CohortVariantCaller.CallCohortVariantsAsync(
-            new[] { ("tumor1", tumorGraph) },
+        var variants = await DeBruijn.CohortVariantCaller.CallCohortVariants(
+            [("tumor1", tumorGraph)],
             normalFilter, refSeq, "chr1", 0);
 
         // Just verify the pipeline processes without errors and produces reasonable output
@@ -87,22 +86,21 @@ public class CohortVariantTests
         var altSeq = "AGCTAATAGCTXXXGACTAGCTAGCTAGC";
 
         // All three samples have the same alt
-        var tumorReads = new[] { refSeq, altSeq, refSeq.Substring(1), altSeq.Substring(1) };
+        var tumorReads = new[] { refSeq, altSeq, refSeq[1..], altSeq[1..] };
 
-        var graph1 = BuildGraph(tumorReads, 7);
-        var graph2 = BuildGraph(tumorReads, 7);
-        var graph3 = BuildGraph(tumorReads, 7);
+        var graph1 = BuildGraph(tumorReads);
+        var graph2 = BuildGraph(tumorReads);
+        var graph3 = BuildGraph(tumorReads);
 
         var normalKmers = ExtractKmers(refSeq, 7);
         var normalFilter = BuildFilter(normalKmers);
 
-        var variants = await DeBruijn.CohortVariantCaller.CallCohortVariantsAsync(
-            new[]
-            {
+        var variants = await DeBruijn.CohortVariantCaller.CallCohortVariants(
+            [
                 ("tumor1", graph1),
                 ("tumor2", graph2),
                 ("tumor3", graph3)
-            },
+            ],
             normalFilter, refSeq, "chr1", 0,
             0.15);
 
@@ -195,19 +193,19 @@ public class CohortVariantTests
     public async Task Cohort_NullInputs_ThrowExceptions()
     {
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            DeBruijn.CohortVariantCaller.CallCohortVariantsAsync(
+            DeBruijn.CohortVariantCaller.CallCohortVariants(
                 null!,
                 BuildFilter(ExtractKmers("ACGTAC", 5)), "ref", "chr1", 0));
 
         var filter = BuildFilter(ExtractKmers("ACGT", 5));
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            DeBruijn.CohortVariantCaller.CallCohortVariantsAsync(
-                new[] { ("t1", BuildGraph(new[] { "ACGT" }, 5)) },
+            DeBruijn.CohortVariantCaller.CallCohortVariants(
+                [("t1", BuildGraph(["ACGT"], 5))],
                 null!, "ref", "chr1", 0));
 
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            DeBruijn.CohortVariantCaller.CallCohortVariantsAsync(
-                new[] { ("t1", BuildGraph(new[] { "ACGT" }, 5)) },
+            DeBruijn.CohortVariantCaller.CallCohortVariants(
+                [("t1", BuildGraph(["ACGT"], 5))],
                 filter, null!, "chr1", 0));
 
         Assert.Throws<ArgumentNullException>(() =>
@@ -229,8 +227,8 @@ public class CohortVariantTests
         var refSeq = "AGCTAATAGCTGACTAGCTAGCTAGC";
         var normalFilter = BuildFilter(ExtractKmers(refSeq, 7));
 
-        var variants = await DeBruijn.CohortVariantCaller.CallCohortVariantsAsync(
-            Array.Empty<(string, DeBruijn.DeBruijnGraph)>(),
+        var variants = await DeBruijn.CohortVariantCaller.CallCohortVariants(
+            [],
             normalFilter, refSeq, "chr1", 0);
 
         Assert.Empty(variants);

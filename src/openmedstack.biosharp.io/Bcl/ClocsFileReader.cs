@@ -40,8 +40,8 @@ public class ClocsFileReader : ILocationReader
 {
     private readonly MemoryStream _fileContent = new();
     private readonly FileInfo _clocsFile; // extends AbstractIlluminaPositionFileReader {
-    private static readonly int ImageWidth = 2048;
-    private static readonly int BlockSize = 25;
+    private const int ImageWidth = 2048;
+    private const int BlockSize = 25;
     private static readonly int NumBinsInRow = (int)Math.Ceiling(ImageWidth / (double)BlockSize);
 
     /** Total number of bins */

@@ -5,7 +5,6 @@ using System.Xml.Serialization;
 [XmlRoot(ElementName = "Read")]
 public class Read
 {
-    private string _isIndexedRead = "N";
     public ReadType Type { get; set; }
 
     [XmlAttribute(AttributeName = "Number")]
@@ -17,14 +16,14 @@ public class Read
     [XmlAttribute(AttributeName = "IsIndexedRead")]
     public string IsIndexedRead
     {
-        get { return _isIndexedRead; }
+        get { return field; }
         set
         {
-            _isIndexedRead = value;
-            if (_isIndexedRead == "Y" && Type == ReadType.S)
+            field = value;
+            if (field == "Y" && Type == ReadType.S)
             {
                 Type = ReadType.B;
             }
         }
-    }
+    } = "N";
 }

@@ -11,7 +11,7 @@ public class SequenceByteEncodingTests
 {
     private static readonly char[] _bases = "ACGT".ToCharArray();
 
-    private static IEnumerable<byte> Encode(char[] bases)
+    private static IEnumerable<byte> Encode(ReadOnlyMemory<char> bases)
     {
         var offset = 0;
         while (offset < bases.Length)
@@ -24,7 +24,7 @@ public class SequenceByteEncodingTests
                     break;
                 }
 
-                var data = bases[offset + i];
+                var data = bases.Span[offset + i];
                 switch (data)
                 {
                     case 'A':
@@ -77,7 +77,7 @@ public class SequenceByteEncodingTests
     [InlineData("GACATTA")]
     public void TestEncoding(string data)
     {
-        var bases = data.ToCharArray();
+        var bases = data.AsMemory();
         var byteLength = (uint)Math.Ceiling(bases.Length / 4.0);
         var encoded = Encode(bases);
         var bytes = encoded.ToArray();
@@ -125,7 +125,7 @@ public class SequenceByteEncodingTests
     /// </summary>
     public static byte EncodeQuality(char qualityChar)
     {
-        if (qualityChar < (char)33 || qualityChar > (char)126)
+        if (qualityChar is < (char)33 or > (char)126)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(qualityChar),
@@ -259,7 +259,7 @@ public class SequenceByteEncodingTests
         for (var c = (char)33; c <= (char)96; c++)
         {
             var encoded = EncodeQuality(c);
-            Assert.True((encoded & (byte)0xC0) == 0,
+            Assert.True((encoded & 0xC0) == 0,
                 $"{c} (ASCII {(int)c}) encoded to {encoded} but exceeds 6 bits.");
         }
     }
@@ -297,8 +297,8 @@ public class SequenceByteEncodingTests
     {
         // ACGT with quality scores '!II~'
         // Use quality chars in the 6-bit range (ASCII 33-96, Phred 0-63)
-        var data = new ReadOnlyMemory<char>("ACGT".ToCharArray());
-        var quals = new ReadOnlyMemory<char>("!II`".ToCharArray());
+        var data = "ACGT".AsMemory();
+        var quals = "!II`".AsMemory();
 
         var sequence = new Sequence("test", data, quals);
 
@@ -321,11 +321,11 @@ public class SequenceByteEncodingTests
     {
         // Stress-test: every quality score in the 6-bit range (33..96, Phred 0-63) with all 4 bases.
         // The 6-bit packing scheme (quality << 2 | base) only supports Phred 0-63.
-        var bases = "ACGT".ToCharArray();
+        var bases = "ACGT".AsMemory();
 
         for (var qual = (char)33; qual <= (char)96; qual++)
         {
-            foreach (var baseChr in bases)
+            foreach (var baseChr in bases.Span)
             {
                 var packed = EncodeSequenceByte(baseChr, qual);
                 var (decodedBase, decodedQual) = DecodeSequenceByte(packed);
@@ -340,8 +340,8 @@ public class SequenceByteEncodingTests
     {
         // Ensure that changing the quality doesn't affect the base bits,
         // and that changing the base doesn't affect the quality bits.
-        var baseChr = 'G';
-        var qualities = new char[] { (char)33, (char)73, (char)126 };
+        const char baseChr = 'G';
+        var qualities = new[] { (char)33, (char)73, (char)126 };
         var expectedBaseBits = EncodeBase(baseChr);
 
         foreach (var qual in qualities)
@@ -351,7 +351,7 @@ public class SequenceByteEncodingTests
             Assert.Equal(expectedBaseBits, actualBaseBits);
         }
 
-        var bases = new char[] { 'A', 'C', 'G', 'T' };
+        var bases = new[] { 'A', 'C', 'G', 'T' };
         var expectedQualBits = EncodeQuality((char)50); // '2' -> 17
 
         foreach (var nucleotide in bases)
@@ -376,8 +376,8 @@ public class SequenceByteEncodingTests
 
         foreach (var (id, data, quals) in sequences)
         {
-            var dataMem = new ReadOnlyMemory<char>(data.ToCharArray());
-            var qualsMem = new ReadOnlyMemory<char>(quals.ToCharArray());
+            var dataMem = data.AsMemory();
+            var qualsMem = quals.AsMemory();
 
             var sequence = new Sequence(id, dataMem, qualsMem);
 

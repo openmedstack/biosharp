@@ -7,7 +7,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using OpenMedStack.BioSharp.Model;
 
 /// <summary>
 /// Writes gVCF (genomic VCF) output — a VCF 4.2 file that emits a standard variant
@@ -70,7 +69,7 @@ public static class GvcfWriter
     /// </param>
     /// <param name="chromLength">Optional length for the contig header.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public static async Task WriteAsync(
+    public static async Task Write(
         Stream stream,
         IEnumerable<LocalVariantResult> variants,
         ReadOnlyMemory<char> referenceSequence,
@@ -95,7 +94,7 @@ public static class GvcfWriter
         var refArray = referenceSequence.ToArray();
 
         // ── Header ───────────────────────────────────────────────────────────
-        await WriteHeaderAsync(stream, chromosome, chromLength, cancellationToken).ConfigureAwait(false);
+        await WriteHeader(stream, chromosome, chromLength, cancellationToken).ConfigureAwait(false);
 
         // ── Records ─────────────────────────────────────────────────────────
         // Walk 1-based positions 1..refLen
@@ -108,7 +107,7 @@ public static class GvcfWriter
             if (variantsByPos.TryGetValue(pos, out var variant))
             {
                 // Emit standard variant record
-                await WriteVariantRecordAsync(stream, variant, chromosome, cancellationToken)
+                await WriteVariantRecord(stream, variant, chromosome, cancellationToken)
                     .ConfigureAwait(false);
                 pos++;
             }
@@ -136,7 +135,7 @@ public static class GvcfWriter
                 var refBase = refArray[blockStart - 1]; // 0-based index
                 var gqValue = GqTierBoundaries[startTier]; // lower bound of this tier
 
-                await WriteRefBlockAsync(
+                await WriteRefBlock(
                     stream, chromosome, blockStart, blockEnd,
                     refBase, minDepth, gqValue, cancellationToken).ConfigureAwait(false);
             }
@@ -147,7 +146,7 @@ public static class GvcfWriter
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private static async Task WriteHeaderAsync(
+    private static async Task WriteHeader(
         Stream stream,
         string chromosome,
         long? chromLength,
@@ -174,7 +173,7 @@ public static class GvcfWriter
         await stream.WriteAsync(bytes, ct).ConfigureAwait(false);
     }
 
-    private static async Task WriteVariantRecordAsync(
+    private static async Task WriteVariantRecord(
         Stream stream,
         LocalVariantResult variant,
         string chromosome,
@@ -182,9 +181,8 @@ public static class GvcfWriter
     {
         var filter = variant.IsPass ? "PASS" : "LOW_QUAL";
         var genoStr = variant.Genotype != null
-            ? variant.Genotype.ToVcfGenotype() + ":" + variant.Genotype.GQ + ":" +
-              (variant.Genotype.RefCoverage + variant.Genotype.AltCoverage)
-            : "0/1:50:" + variant.Depth;
+            ? $"{variant.Genotype.ToVcfGenotype()}:{variant.Genotype.GQ}:{variant.Genotype.RefCoverage + variant.Genotype.AltCoverage}"
+            : $"0/1:50:{variant.Depth}";
 
         var line = new StringBuilder(128);
         line.Append(chromosome).Append('\t')
@@ -203,7 +201,7 @@ public static class GvcfWriter
         await stream.WriteAsync(bytes, ct).ConfigureAwait(false);
     }
 
-    private static async Task WriteRefBlockAsync(
+    private static async Task WriteRefBlock(
         Stream stream,
         string chromosome,
         int startPos,

@@ -48,13 +48,9 @@ public static class BubbleFinder
 
                     if (nodes.TryGetValue(node, out var nd) && nd.OutDegree > 0)
                     {
-                        foreach (var nx in nd.OutboundEdges)
+                        foreach (var nx in nd.OutboundEdges.Where(nx => visited.Add(nx)))
                         {
-                            if (!visited.Contains(nx))
-                            {
-                                visited.Add(nx);
-                                queue.Enqueue(nx);
-                            }
+                            queue.Enqueue(nx);
                         }
                     }
                 }
@@ -90,9 +86,8 @@ public static class BubbleFinder
 
                             // Deduplicate: same start, end, and full path = same bubble
                             var key = $"{branch.Id}-->{converge}:{fullPath}";
-                            if (!seenKeys.Contains(key))
+                            if (seenKeys.Add(key))
                             {
-                                seenKeys.Add(key);
                                 paths.Add(new SequencePath(fullPath));
                             }
                         }
@@ -138,14 +133,10 @@ public static class BubbleFinder
                 continue;
             }
 
-            foreach (var nx in nd.OutboundEdges)
+            foreach (var nx in nd.OutboundEdges.Where(visited.Add))
             {
-                if (!visited.Contains(nx))
-                {
-                    visited.Add(nx);
-                    pred[nx] = cur;
-                    queue.Enqueue(nx);
-                }
+                pred[nx] = cur;
+                queue.Enqueue(nx);
             }
         }
 

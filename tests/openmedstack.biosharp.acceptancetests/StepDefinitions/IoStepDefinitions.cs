@@ -52,17 +52,17 @@ public class IoStepDefinitions
     public async Task WhenWriteCramFile()
     {
         var alignments = (AlignmentSection[])_ctx["alignments"];
-        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".cram");
+        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.cram");
         _ctx["cramPath"] = path;
 
         await using var writer = new CramWriter(path, "dummy_reference.fa");
-        await writer.WriteHeaderAsync("@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:1000000");
+        await writer.WriteHeader("@HD\tVN:1.6\n@SQ\tSN:chr1\tLN:1000000");
         foreach (var a in alignments)
         {
-            await writer.WriteAlignmentAsync(a);
+            await writer.WriteAlignment(a);
         }
 
-        await writer.FinalizeAsync();
+        await writer.Finalize();
     }
 
     [When("I read alignments back from the CRAM file")]
@@ -70,9 +70,9 @@ public class IoStepDefinitions
     {
         var path = (string)_ctx["cramPath"];
         var reader = new CramReader(path);
-        _ = await reader.ReadFileHeaderAsync();
+        _ = await reader.ReadFileHeader();
         var records = new List<AlignmentSection>();
-        await foreach (var a in reader.ReadAlignmentsAsync())
+        await foreach (var a in reader.ReadAlignments())
         {
             records.Add(a);
         }
@@ -124,13 +124,13 @@ public class IoStepDefinitions
     public async Task WhenWriteBcfFile()
     {
         var variants = (VcfVariant[])_ctx["vcfVariants"];
-        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".bcf");
+        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.bcf");
         _ctx["bcfPath"] = path;
 
         await using (var writer = new BcfWriter(path))
         {
-            await writer.WriteHeaderAsync(["chr1"]);
-            await writer.WriteVariantsAsync(variants);
+            await writer.WriteHeader(["chr1"]);
+            await writer.WriteVariants(variants);
         }
     }
 
@@ -139,9 +139,9 @@ public class IoStepDefinitions
     {
         var path = (string)_ctx["bcfPath"];
         var reader = new BcfReader(path);
-        _ = await reader.ReadHeaderAsync();
+        _ = await reader.ReadHeader();
         var records = new List<VcfVariant>();
-        await foreach (var v in reader.ReadVariantsAsync())
+        await foreach (var v in reader.ReadVariants())
         {
             records.Add(v);
         }
@@ -170,7 +170,7 @@ public class IoStepDefinitions
     [Given("I have a BGZF-compressed VCF file with sorted records")]
     public async Task GivenBgzfVcfFile()
     {
-        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".vcf.gz");
+        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.vcf.gz");
         _ctx["bgzfVcfPath"] = path;
 
         var variants = new[]
@@ -178,15 +178,15 @@ public class IoStepDefinitions
             new LocalVariantResult { Chromosome = "chr1", Position = 100, Reference = "A", Alternate = "G", QuantitativeQuality = 30 },
             new LocalVariantResult { Chromosome = "chr1", Position = 200, Reference = "C", Alternate = "T", QuantitativeQuality = 40 }
         };
-        await VcfWriter.WriteAsync(path, variants, "chr1", 300, compress: true);
+        await VcfWriter.Write(path, variants, "chr1", 300, compress: true);
     }
 
     [When("I write a tabix index for the VCF file")]
     public async Task WhenWriteTabixIndex()
     {
         var path = (string)_ctx["bgzfVcfPath"];
-        await TabixIndexWriter.WriteAsync(path);
-        _ctx["tbiPath"] = path + ".tbi";
+        await TabixIndexWriter.Write(path);
+        _ctx["tbiPath"] = $"{path}.tbi";
     }
 
     [Then("a .tbi index file should be created alongside the VCF file")]
@@ -211,9 +211,8 @@ public class IoStepDefinitions
     {
         var stream = (MemoryStream)_ctx["gff3Stream"];
         stream.Position = 0;
-        var reader = new GffReader();
         var records = new List<GffRecord>();
-        await foreach (var r in reader.ReadAsync(stream))
+        await foreach (var r in GffReader.Read(stream))
         {
             records.Add(r);
         }
@@ -247,9 +246,8 @@ public class IoStepDefinitions
     {
         var stream = (MemoryStream)_ctx["gtfStream"];
         stream.Position = 0;
-        var reader = new GffReader();
         var records = new List<GffRecord>();
-        await foreach (var r in reader.ReadAsync(stream))
+        await foreach (var r in GffReader.Read(stream))
         {
             records.Add(r);
         }
@@ -281,9 +279,8 @@ public class IoStepDefinitions
     {
         var stream = (MemoryStream)_ctx["bedStream"];
         stream.Position = 0;
-        var reader = new BedReader();
         var intervals = new List<BedInterval>();
-        await foreach (var i in reader.ReadAsync(stream))
+        await foreach (var i in BedReader.Read(stream))
         {
             intervals.Add(i);
         }
@@ -335,8 +332,8 @@ public class IoStepDefinitions
     [Given("I have two FASTQ files representing R1 and R2 of a paired-end library")]
     public void GivenPairedFastqFiles()
     {
-        var r1Path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + "_R1.fastq");
-        var r2Path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + "_R2.fastq");
+        var r1Path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}_R1.fastq");
+        var r2Path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}_R2.fastq");
         File.WriteAllText(r1Path,
             "@read1/1\nACGTACGT\n+\nIIIIIIII\n" +
             "@read2/1\nTTTTAAAA\n+\nIIIIIIII\n");
@@ -354,7 +351,7 @@ public class IoStepDefinitions
         var r2 = (string)_ctx["r2Path"];
         var reader = new FastQReader(NullLogger.Instance);
         var pairs = new List<(Sequence R1, Sequence R2)>();
-        await foreach (var pair in reader.ReadPairedAsync(r1, r2))
+        await foreach (var pair in reader.ReadPaired(r1, r2))
         {
             pairs.Add(pair);
         }
@@ -377,7 +374,7 @@ public class IoStepDefinitions
     [Given("I have an interleaved FASTQ file with alternating R1 and R2 reads")]
     public void GivenInterleavedFastqFile()
     {
-        var path = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + "_interleaved.fastq");
+        var path = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}_interleaved.fastq");
         File.WriteAllText(path,
             "@read1/1\nACGTACGT\n+\nIIIIIIII\n" +
             "@read1/2\nCCCCGGGG\n+\nIIIIIIII\n" +
@@ -392,7 +389,7 @@ public class IoStepDefinitions
         var path = (string)_ctx["interleavedPath"];
         var reader = new FastQReader(NullLogger.Instance);
         var pairs = new List<(Sequence R1, Sequence R2)>();
-        await foreach (var pair in reader.ReadInterleavedAsync(path))
+        await foreach (var pair in reader.ReadInterleaved(path))
         {
             pairs.Add(pair);
         }
@@ -423,10 +420,10 @@ public class IoStepDefinitions
     public async Task WhenWriteCompressedVcf()
     {
         var variants = (LocalVariantResult[])_ctx["localVariants"];
-        var compressedPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".vcf.gz");
-        var plainPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid() + ".vcf");
-        await VcfWriter.WriteAsync(compressedPath, variants, "chr1", 1000, compress: true);
-        await VcfWriter.WriteAsync(plainPath, variants, "chr1", 1000, compress: false);
+        var compressedPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.vcf.gz");
+        var plainPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}.vcf");
+        await VcfWriter.Write(compressedPath, variants, "chr1", 1000, compress: true);
+        await VcfWriter.Write(plainPath, variants, "chr1", 1000, compress: false);
         _ctx["compressedVcfPath"] = compressedPath;
         _ctx["plainVcfPath"] = plainPath;
     }
@@ -447,9 +444,9 @@ public class IoStepDefinitions
         var path = (string)_ctx["compressedVcfPath"];
         Assert.True(File.Exists(path));
         // File must start with BGZF magic or plain VCF header
-        var header = new byte[2];
+        Span<byte> header = stackalloc byte[2];
         using var fs = File.OpenRead(path);
-        fs.Read(header, 0, 2);
+        fs.ReadExactly(header);
         // BGZF starts with 0x1F 0x8B (gzip magic)
         Assert.Equal(0x1F, header[0]);
         Assert.Equal(0x8B, header[1]);
@@ -472,7 +469,7 @@ public class IoStepDefinitions
     {
         var variants = (LocalVariantResult[])_ctx["somaticVariants"];
         var stream = new MemoryStream();
-        await MafWriter.WriteAsync(stream, variants, "TUMOR_SAMPLE");
+        await MafWriter.Write(stream, variants, "TUMOR_SAMPLE");
         stream.Position = 0;
         _ctx["mafContent"] = Encoding.UTF8.GetString(stream.ToArray());
     }

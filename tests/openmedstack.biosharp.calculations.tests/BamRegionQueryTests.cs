@@ -21,7 +21,7 @@ public partial class BamRegionQueryTests
         // mapt.NA12156 has an empty header (textLen=0), but may still have regions
         // We test that the call doesn't throw
         var bamPath = "data/mapt.NA12156.altex.bam";
-        var baiPath = bamPath + ".bai";
+        var baiPath = $"{bamPath}.bai";
 
         if (!File.Exists(baiPath))
         {
@@ -33,7 +33,7 @@ public partial class BamRegionQueryTests
         // This tests the QueryRegionAsync path - no BamReader.Read() was called so
         // there are no reference sequence names. The BAM header is empty (textLen=0)
         // so FindReferenceIndexAsync returns -1, and QueryRegion yields empty.
-        var results = await reader.QueryRegionAsync("chr1", 0, 1000).ToArrayAsync();
+        var results = await reader.QueryRegion("chr1", 0, 1000).ToArrayAsync();
         Assert.Empty(results);
     }
 

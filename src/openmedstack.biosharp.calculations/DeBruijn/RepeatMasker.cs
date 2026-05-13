@@ -5,70 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
-using System.Threading;
 using System.Threading.Tasks;
-
-/// <summary>
-/// Represents a repeat element loaded from a repeat library.
-/// </summary>
-public class RepeatElement
-{
-    /// <summary>Unique identifier for this repeat element.</summary>
-    public string Id { get; set; } = null!;
-
-    /// <summary>Human-readable name.</summary>
-    public string Name { get; set; } = null!;
-
-    /// <summary>Repeat type classification.</summary>
-    public string Type { get; set; } = null!;
-
-    /// <summary>The repeat motif/sequence.</summary>
-    public string Motif { get; set; } = null!;
-
-    /// <summary>Description of the repeat.</summary>
-    public string Description { get; set; } = string.Empty;
-
-    /// <summary>Length of this repeat's motif.</summary>
-    public int MotifLength
-    {
-        get { return Motif.Length; }
-    }
-}
-
-/// <summary>
-/// Holds masked regions produced by RepeatMasker.
-/// </summary>
-public class MaskedRegion
-{
-    /// <summary>Start position (0-based, inclusive).</summary>
-    public int Start { get; set; }
-
-    /// <summary>End position (0-based, exclusive).</summary>
-    public int End { get; set; }
-
-    /// <summary>Length of the masked region.</summary>
-    public int Length
-    {
-        get { return End - Start; }
-    }
-
-    /// <summary>Repeat element that caused masking.</summary>
-    public RepeatElement? Repeat { get; set; }
-
-    /// <summary>Repeat type (SAT, SINE, LINE, etc).</summary>
-    public string RepeatType
-    {
-        get { return Repeat?.Type ?? "unknown"; }
-    }
-
-    /// <summary>The masked sequence segment (N-masked or original).</summary>
-    public string MaskedSequence { get; set; } = null!;
-
-    public override string ToString()
-    {
-        return $"Masked [{Start}-{End}] ({Repeat?.Name ?? "unknown"}) len={Length}";
-    }
-}
 
 /// <summary>
 /// Masks repeat sequences in a DNA sequence using a repeat library.
@@ -101,24 +38,19 @@ public static class RepeatMasker
     /// <param name="filePath">Path to the repeats.json file.</param>
     /// <param name="minMotifLength">Minimum motif length filter.</param>
     /// <returns>List of repeat elements from the library.</returns>
-    public static async Task<IList<RepeatElement>> LoadLibraryAsync(
+    public static async Task<IList<RepeatElement>> LoadLibrary(
         string filePath,
         int? minMotifLength = null)
     {
         var motifMin = minMotifLength ?? DefaultMinMotifLength;
         var json = await File.ReadAllTextAsync(filePath);
 
-        var options = new JsonSerializerOptions
-        {
-            PropertyNameCaseInsensitive = true
-        };
-
         // IL2026: JSON deserialization with options pattern - this library is designed
         // for trimming-aware usage where the user knows the target types, so we suppress.
 #pragma warning disable IL2026
-        var lib = JsonSerializer.Deserialize<RepeatLibrary>(json, options)!;
+        var lib = JsonSerializer.Deserialize<RepeatLibrary>(json, DefaultJsonContext.Default.RepeatLibrary)!;
 #pragma warning restore IL2026
-        if (lib?.Repeats == null)
+        if (lib.Repeats == null)
         {
             throw new InvalidDataException($"Failed to parse repeat library from {filePath}");
         }
@@ -140,7 +72,7 @@ public static class RepeatMasker
     /// If true, ambiguous bases (N) in the sequence do not contribute to repeat matches.
     /// </param>
     /// <returns>List of masked regions.</returns>
-    public static async Task<IList<MaskedRegion>> MaskRepeatsAsync(
+    public static async Task<IList<MaskedRegion>> MaskRepeats(
         string sequence,
         IList<RepeatElement> library,
         bool allowAmbiguity = true)
@@ -149,11 +81,7 @@ public static class RepeatMasker
         {
             return Array.Empty<MaskedRegion>();
         }
-
-        if (library == null)
-        {
-            throw new ArgumentNullException(nameof(library));
-        }
+        ArgumentNullException.ThrowIfNull(library);
 
         // Normalize sequence to uppercase
         var seq = sequence.ToUpper();
@@ -196,7 +124,7 @@ public static class RepeatMasker
                 // Store this match (only if longer than existing at any covered position)
                 for (var m = i; m < i + motifLen; m++)
                 {
-                    if (!maskMap.ContainsKey(m) || motifLen > maskMap[m].motifLen)
+                    if (!maskMap.TryGetValue(m, out var v) || motifLen > v.motifLen)
                     {
                         maskMap[m] = (repeat, i, motifLen);
                     }
@@ -276,16 +204,16 @@ public static class RepeatMasker
 
     /// <summary>
     /// Masks repeats by loading the library from a file path.
-    /// Convenience method that combines LoadLibraryAsync and MaskRepeatsAsync.
+    /// Convenience method that combines LoadLibrary and MaskRepeats.
     /// </summary>
-    public static async Task<IList<MaskedRegion>> MaskRepeatsFromLibraryAsync(
+    public static async Task<IList<MaskedRegion>> MaskRepeatsFromLibrary(
         string sequence,
         string libraryPath,
         int? minMotifLength = null,
         bool allowAmbiguity = true)
     {
-        var library = await LoadLibraryAsync(libraryPath, minMotifLength);
-        return await MaskRepeatsAsync(sequence, library, allowAmbiguity);
+        var library = await LoadLibrary(libraryPath, minMotifLength);
+        return await MaskRepeats(sequence, library, allowAmbiguity);
     }
 
     /// <summary>
@@ -326,14 +254,4 @@ public static class RepeatMasker
         var size = (long)(-totalKmers * Math.Log(fpr) / 0.48045);
         return Math.Max(size, 1L << 16);
     }
-}
-
-/// <summary>
-/// Internal: parsed JSON repeat library structure.
-/// </summary>
-internal class RepeatLibrary
-{
-    public string? Version { get; set; }
-    public string? Description { get; set; }
-    public IList<RepeatElement>? Repeats { get; set; }
 }

@@ -39,7 +39,7 @@ public class AlignmentImprovementTests
         };
 
         var graph = new DeBruijnGraph(5, AsyncEnumerableExtensions.ToAsyncEnumerable(reads.Select(s =>
-            new Sequence("r_" + s.GetHashCode(), s.AsMemory(), new string('I', s.Length).AsMemory()))));
+            new Sequence($"r_{s.GetHashCode()}", s.AsMemory(), new string('I', s.Length).AsMemory()))));
 
         // Before filtering: graph should have edges from both ref and alt paths
         var nodesBefore = graph.GetNodes(CancellationToken.None).Result;
@@ -75,7 +75,7 @@ public class AlignmentImprovementTests
         };
 
         var graph = new DeBruijnGraph(5, AsyncEnumerableExtensions.ToAsyncEnumerable(reads.Select(s =>
-            new Sequence("r_" + s.GetHashCode(), s.AsMemory(), new string('I', s.Length).AsMemory()))));
+            new Sequence($"r_{s.GetHashCode()}", s.AsMemory(), new string('I', s.Length).AsMemory()))));
 
         // Filter with threshold of 5 - should remove all edges with coverage < 5
         graph.FilterLowCoverageEdges(5);
@@ -121,16 +121,16 @@ public class AlignmentImprovementTests
     public void GetHomopolymerRun_IdentifiesHomopolymerRuns()
     {
         var ref1 = "AAATGCCC";
-        Assert.Equal(3, VariantCaller.GetHomopolymerRun(ref1.ToCharArray().AsSpan(), 0));
-        Assert.Equal(3, VariantCaller.GetHomopolymerRun(ref1.ToCharArray().AsSpan(), 1));
-        Assert.Equal(3, VariantCaller.GetHomopolymerRun(ref1.ToCharArray().AsSpan(), 2));
+        Assert.Equal(3, VariantCaller.GetHomopolymerRun(ref1.AsSpan(), 0));
+        Assert.Equal(3, VariantCaller.GetHomopolymerRun(ref1.AsSpan(), 1));
+        Assert.Equal(3, VariantCaller.GetHomopolymerRun(ref1.AsSpan(), 2));
         Assert.Equal(1,
-            VariantCaller.GetHomopolymerRun(ref1.ToCharArray().AsSpan(), 3)); // 'T' is alone (single base = 1)
+            VariantCaller.GetHomopolymerRun(ref1.AsSpan(), 3)); // 'T' is alone (single base = 1)
 
         var ref2 = "CCGGGTAA";
-        Assert.Equal(2, VariantCaller.GetHomopolymerRun(ref2.ToCharArray().AsSpan(), 0)); // CC
-        Assert.Equal(3, VariantCaller.GetHomopolymerRun(ref2.ToCharArray().AsSpan(), 3)); // GGG
-        Assert.Equal(2, VariantCaller.GetHomopolymerRun(ref2.ToCharArray().AsSpan(), 6)); // AA
+        Assert.Equal(2, VariantCaller.GetHomopolymerRun(ref2.AsSpan(), 0)); // CC
+        Assert.Equal(3, VariantCaller.GetHomopolymerRun(ref2.AsSpan(), 3)); // GGG
+        Assert.Equal(2, VariantCaller.GetHomopolymerRun(ref2.AsSpan(), 6)); // AA
     }
 
     /// <summary>
@@ -245,7 +245,7 @@ public class AlignmentImprovementTests
         variant.AddAltAllele("C");
 
         using var stream = new MemoryStream();
-        await VcfWriter.WriteAsync(
+        await VcfWriter.Write(
             stream,
             [variant],
             "chr1",
@@ -284,7 +284,7 @@ public class AlignmentImprovementTests
         };
 
         using var stream = new MemoryStream();
-        await VcfWriter.WriteAsync(
+        await VcfWriter.Write(
             stream,
             [variant],
             "chr1",
@@ -439,7 +439,7 @@ public class AlignmentImprovementTests
         var refSeq = "ACGTGCTAGC"; // no base appears more than once consecutively
         foreach (var i in Enumerable.Range(0, refSeq.Length))
         {
-            Assert.Equal(1, VariantCaller.GetHomopolymerRun(refSeq.ToCharArray().AsSpan(), i));
+            Assert.Equal(1, VariantCaller.GetHomopolymerRun(refSeq.AsSpan(), i));
         }
         // 1 because a single base has run length 1 (itself), NOT 0.
     }
@@ -453,16 +453,16 @@ public class AlignmentImprovementTests
         var refSeq = "AAAAACGT"; // 5 A's at start
         for (var i = 0; i < 5; i++)
         {
-            Assert.Equal(5, VariantCaller.GetHomopolymerRun(refSeq.ToCharArray().AsSpan(), i));
+            Assert.Equal(5, VariantCaller.GetHomopolymerRun(refSeq.AsSpan(), i));
         }
 
-        Assert.Equal(1, VariantCaller.GetHomopolymerRun(refSeq.ToCharArray().AsSpan(), 5)); // C
+        Assert.Equal(1, VariantCaller.GetHomopolymerRun(refSeq.AsSpan(), 5)); // C
 
         var refSeq2 = "ACGTTTTT"; // 5 T's at end
-        Assert.Equal(1, VariantCaller.GetHomopolymerRun(refSeq2.ToCharArray().AsSpan(), 2)); // G
+        Assert.Equal(1, VariantCaller.GetHomopolymerRun(refSeq2.AsSpan(), 2)); // G
         for (var i = 3; i < 8; i++)
         {
-            Assert.Equal(5, VariantCaller.GetHomopolymerRun(refSeq2.ToCharArray().AsSpan(), i));
+            Assert.Equal(5, VariantCaller.GetHomopolymerRun(refSeq2.AsSpan(), i));
         }
     }
 

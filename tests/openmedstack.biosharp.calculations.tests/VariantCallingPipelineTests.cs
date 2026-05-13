@@ -4,6 +4,7 @@ using System.Collections.Generic;
 namespace OpenMedStack.BioSharp.Calculations.Tests;
 
 using System.IO;
+using System.Reflection;
 using System.Threading.Tasks;
 using Model;
 using Alignment;
@@ -27,7 +28,7 @@ public class VariantCallingPipelineTests
             refChars[i] = bases[i % 4];
         }
 
-        _reference = new Sequence("chr1", refChars, new string('I', 1000).ToCharArray());
+        _reference = new Sequence("chr1", refChars, new string('I', 1000).AsMemory());
     }
 
     /// <summary>
@@ -36,10 +37,10 @@ public class VariantCallingPipelineTests
     [Fact]
     public async Task ProcessRead_MatchingRead_ReturnsAligned()
     {
-        var read = new Sequence("read1", "ACGTACGTACGT".ToCharArray(), new string('I', 12).ToCharArray());
+        var read = new Sequence("read1", "ACGTACGTACGT".AsMemory(), new string('I', 12).AsMemory());
 
         var pipeline = new VariantCallingPipeline(_reference, "chr1");
-        var variants = await pipeline.ProcessReadAsync(read);
+        var variants = pipeline.ProcessRead(read);
 
         Assert.Empty(variants); // no variants expected for perfect match
     }
@@ -50,7 +51,7 @@ public class VariantCallingPipelineTests
     [Fact]
     public async Task ProcessRead_SnpInRead_ReturnsVariant()
     {
-        var read = new Sequence("read1", "ACGTxACGTACGT".ToCharArray(), new string('I', 13).ToCharArray());
+        var read = new Sequence("read1", "ACGTxACGTACGT".AsMemory(), new string('I', 13).AsMemory());
 
         var pipeline = new VariantCallingPipeline(_reference, "chr1", new VariantCallingPipeline.PipelineOptions
         {
@@ -61,7 +62,7 @@ public class VariantCallingPipelineTests
             MinAlignmentScore = 5
         });
 
-        var variants = await pipeline.ProcessReadAsync(read);
+        var variants = pipeline.ProcessRead(read);
 
         Assert.NotNull(variants);
     }
@@ -74,7 +75,7 @@ public class VariantCallingPipelineTests
     {
         var extraBases = "TTTTTTTTTTTTTTTTTTTT"; // 20bp insertion
         var readSeq = new string('A', 50) + extraBases + new string('A', 50);
-        var read = new Sequence("read_ins", readSeq.ToCharArray(), new string('I', readSeq.Length).ToCharArray());
+        var read = new Sequence("read_ins", readSeq.AsMemory(), new string('I', readSeq.Length).AsMemory());
 
         var pipeline = new VariantCallingPipeline(_reference, "chr1", new VariantCallingPipeline.PipelineOptions
         {
@@ -84,7 +85,7 @@ public class VariantCallingPipelineTests
             MinVariantQuality = 0
         });
 
-        var variants = await pipeline.ProcessReadAsync(read);
+        var variants = pipeline.ProcessRead(read);
 
         // The read has a large insert, so soft-clip realignment should trigger
         Assert.NotNull(variants);
@@ -98,14 +99,14 @@ public class VariantCallingPipelineTests
     {
         var reads = new[]
         {
-            new Sequence("r1", "ACGTACGT".ToCharArray(), new string('I', 8).ToCharArray()),
-            new Sequence("r2", "ACGTACGT".ToCharArray(), new string('I', 8).ToCharArray())
+            new Sequence("r1", "ACGTACGT".AsMemory(), new string('I', 8).AsMemory()),
+            new Sequence("r2", "ACGTACGT".AsMemory(), new string('I', 8).AsMemory())
         };
 
         var pipeline = new VariantCallingPipeline(_reference, "chr1");
         foreach (var read in reads)
         {
-            await pipeline.ProcessReadAsync(read);
+            pipeline.ProcessRead(read);
         }
 
         var result = pipeline.BuildResult();
@@ -175,7 +176,7 @@ public class VariantCallingPipelineTests
     {
         var pipeline = new VariantCallingPipeline(_reference, "chr1");
 
-        var results =await  pipeline.QueryRegionAsync("chr1", 100, 200);
+        var results =await  pipeline.QueryRegion("chr1", 100, 200);
 
         Assert.Empty(results);
     }
@@ -187,17 +188,17 @@ public class VariantCallingPipelineTests
     public async Task ProcessMultipleReads_AccumulatesVariants()
     {
         var read1 = new Sequence("r1", "ACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT"
-            .ToCharArray(), new string('I', 40).ToCharArray());
+            .AsMemory(), new string('I', 40).AsMemory());
         var read2 = new Sequence("r2", "ACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT"
-            .ToCharArray(), new string('I', 40).ToCharArray());
+            .AsMemory(), new string('I', 40).AsMemory());
         var read3 = new Sequence("r3", "ACGTACGTACGTACGTACGTACGTACGTACGTACGTACGT"
-            .ToCharArray(), new string('I', 40).ToCharArray());
+            .AsMemory(), new string('I', 40).AsMemory());
 
         var pipeline = new VariantCallingPipeline(_reference, "chr1",
             new VariantCallingPipeline.PipelineOptions { MinAlignmentScore = 5 });
-        await pipeline.ProcessReadAsync(read1);
-        await pipeline.ProcessReadAsync(read2);
-        await pipeline.ProcessReadAsync(read3);
+        pipeline.ProcessRead(read1);
+        pipeline.ProcessRead(read2);
+        pipeline.ProcessRead(read3);
 
         var result = pipeline.BuildResult();
 
@@ -212,9 +213,9 @@ public class VariantCallingPipelineTests
         var suffix = new string('C', 3000);
         var reference = new Sequence(
             "chrLarge",
-            (prefix + target + suffix).ToCharArray(),
-            new string('I', prefix.Length + target.Length + suffix.Length).ToCharArray());
-        var read = new Sequence("read1", target.ToCharArray(), new string('I', target.Length).ToCharArray());
+            (prefix + target + suffix).AsMemory(),
+            new string('I', prefix.Length + target.Length + suffix.Length).AsMemory());
+        var read = new Sequence("read1", target.AsMemory(), new string('I', target.Length).AsMemory());
 
         var pipeline = new VariantCallingPipeline(reference, "chrLarge", new VariantCallingPipeline.PipelineOptions
         {
@@ -225,7 +226,7 @@ public class VariantCallingPipelineTests
             MinAlignmentScore = 10
         });
 
-        var variants = await pipeline.ProcessReadAsync(read);
+        var variants = pipeline.ProcessRead(read);
         var result = pipeline.BuildResult();
 
         Assert.Empty(variants);
@@ -252,12 +253,102 @@ public class VariantCallingPipelineTests
                 EnableGraphSvDetection = false
             });
 
-            var loaded = await pipeline.LoadFastQAsync(tempPath, TestContext.Current.CancellationToken);
+            var loaded = await pipeline.LoadFastQ(tempPath, TestContext.Current.CancellationToken);
             var result = pipeline.BuildResult();
 
             Assert.True(loaded);
             Assert.Equal(3, result.Metrics.ReadsProcessed);
             Assert.Equal(3, result.Metrics.ReadsMapped);
+        }
+        finally
+        {
+            File.Delete(tempPath);
+        }
+    }
+
+    [Fact]
+    public void BuildResult_FreebayesLikeReadAcceptance_FiltersSingleReadSupport()
+    {
+        const string target = "ACGTGATTACAGGTT";
+        const string alternateTarget = "ACGTGATTTCAGGTT";
+        var referenceSequence = new string('T', 40) + target + new string('C', 40);
+        var reference = new Sequence(
+            "chr1",
+            referenceSequence.AsMemory(),
+            new string('I', referenceSequence.Length).AsMemory());
+
+        var pipeline = new VariantCallingPipeline(reference, "chr1", new VariantCallingPipeline.PipelineOptions
+        {
+            MinAlignmentScore = 10,
+            MinVariantQuality = 0,
+            EnableSoftClipRealignment = false,
+            EnableGraphSvDetection = false,
+            DegreeOfParallelism = 1,
+            MinAlternateObservationCount = 2,
+            MinAlternateFraction = 0.20
+        });
+
+        for (var index = 0; index < 9; index++)
+        {
+            pipeline.ProcessRead(
+                new Sequence($"ref-{index}", target.AsMemory(), new string('I', target.Length).AsMemory()));
+        }
+
+        pipeline.ProcessRead(
+            new Sequence("alt-0", alternateTarget.AsMemory(), new string('I', alternateTarget.Length).AsMemory()));
+
+        var result = pipeline.BuildResult();
+
+        Assert.Empty(result.Variants);
+        Assert.Equal(1, result.Metrics.VariantsCalled);
+        Assert.Equal(0, result.Metrics.VariantsFinal);
+    }
+
+    [Fact]
+    public void Constructor_LeavesReferenceIndexLazyUntilReadAlignment()
+    {
+        var pipeline = new VariantCallingPipeline(_reference, "chr1");
+        var field = typeof(VariantCallingPipeline).GetField(
+            "_referenceIndex",
+            BindingFlags.NonPublic | BindingFlags.Instance);
+
+        Assert.NotNull(field);
+        Assert.Null(field.GetValue(pipeline));
+
+        pipeline.ProcessRead(new Sequence("r1", "ACGTACGTACGT".AsMemory(), new string('I', 12).AsMemory()));
+
+        Assert.NotNull(field.GetValue(pipeline));
+    }
+
+    [Fact]
+    public void SharedReferenceContext_ReusesSameReferenceIndexAcrossPipelines()
+    {
+        var context = new ReferenceAlignmentContext(_reference);
+        var first = new VariantCallingPipeline(context, "chr1");
+        var second = new VariantCallingPipeline(context, "chr1");
+
+        var firstIndex = first.EnsureReferenceIndex();
+        var secondIndex = second.EnsureReferenceIndex();
+
+        Assert.Same(firstIndex, secondIndex);
+    }
+
+    [Fact]
+    public void SaveAndLoadReferenceIndex_ReusesSerializedIndex()
+    {
+        var first = new VariantCallingPipeline(_reference, "chr1");
+        var tempPath = Path.GetTempFileName();
+
+        try
+        {
+            first.SaveReferenceIndex(tempPath);
+
+            var secondContext = new ReferenceAlignmentContext(_reference);
+            var second = new VariantCallingPipeline(secondContext, "chr1");
+            var restored = second.LoadReferenceIndex(tempPath);
+
+            Assert.Same(restored, second.EnsureReferenceIndex());
+            Assert.Empty(second.ProcessRead(new Sequence("r1", "ACGTACGTACGT".AsMemory(), new string('I', 12).AsMemory())));
         }
         finally
         {
@@ -271,8 +362,8 @@ public class VariantCallingPipelineTests
     [Fact]
     public async Task QueryRegion_WithBamIndex_ReturnsAlignmentsInRegion()
     {
-        var bamPath = "data/GSM409307_UCSD.H3K4me1.bam";
-        var baiPath = bamPath + ".bai";
+        var bamPath = "data/small_test_sorted.bam";
+        var baiPath = $"{bamPath}.bai";
 
         if (!File.Exists(baiPath))
             // Index not available - skip this test
@@ -283,7 +374,7 @@ public class VariantCallingPipelineTests
         var pipeline = new VariantCallingPipeline(_reference, "chr1");
 
         // We can't fully test without the header info in BAM, but the call should not throw
-        var results = pipeline.QueryRegionAsync("chr1", 0, 100);
+        var results = pipeline.QueryRegion("chr1", 0, 100);
         Assert.NotNull(results);
     }
 
@@ -317,7 +408,7 @@ public class VariantCallingPipelineTests
             MinAlignmentScore = 5,
             MinVariantQuality = 0
         });
-        var variants = await pipeline.ProcessReadAsync(read);
+        var variants = pipeline.ProcessRead(read);
         Assert.NotNull(variants);
     }
 
@@ -337,7 +428,7 @@ public class VariantCallingPipelineTests
             MinAlignmentScore = 5
         });
 
-        var variants = await pipeline.ProcessReadAsync(read);
+        var variants = pipeline.ProcessRead(read);
         Assert.NotNull(variants);
     }
 
@@ -355,7 +446,7 @@ public class VariantCallingPipelineTests
         var pipeline = new VariantCallingPipeline(_reference, "chr1");
         foreach (var read in reads)
         {
-            await pipeline.ProcessReadAsync(read);
+            pipeline.ProcessRead(read);
         }
 
         var result = pipeline.BuildResult();
@@ -397,12 +488,12 @@ public class VariantCallingPipelineTests
     {
         var read = new Sequence("r1", "ACGT".AsMemory(), new string('I', 4).AsMemory());
         var pipeline = new VariantCallingPipeline(_reference, "chr1");
-        await pipeline.ProcessReadAsync(read);
+        pipeline.ProcessRead(read);
 
         var tempFile = Path.GetTempFileName();
         try
         {
-            await pipeline.WriteVcfAsync(tempFile);
+            await pipeline.WriteVcf(tempFile);
             Assert.True(File.Exists(tempFile));
             var content = await File.ReadAllTextAsync(tempFile);
             Assert.Contains("##fileformat=VCFv4.2", content);
@@ -427,7 +518,7 @@ public class VariantCallingPipelineTests
         var pipeline = new VariantCallingPipeline(_reference, "chr1");
         foreach (var read in reads)
         {
-            await pipeline.ProcessReadAsync(read);
+            pipeline.ProcessRead(read);
         }
 
         var result = pipeline.BuildResult();
@@ -441,7 +532,7 @@ public class VariantCallingPipelineTests
         var pipeline = new VariantCallingPipeline(_reference, "chr1");
         // Can't directly access _options, but can verify the default behavior works
         var read = new Sequence("r1", "ACGT".AsMemory(), new string('I', 4).AsMemory());
-        var variants = await pipeline.ProcessReadAsync(read);
+        var variants = pipeline.ProcessRead(read);
         Assert.NotNull(variants);
     }
 
@@ -460,7 +551,7 @@ public class VariantCallingPipelineTests
             refChars[i] = bases[i % 4];
         }
 
-        var reference = new Sequence("chr1", refChars, new string('I', 1000).ToCharArray());
+        var reference = new Sequence("chr1", refChars, new string('I', 1000).AsMemory());
 
         // Manually construct an alignment that has a 3bp left soft-clip — well below the 10bp MinClipSize.
         // We call AnalyzeRead via ProcessReadAsync but need to ensure the alignment carries a soft-clip.

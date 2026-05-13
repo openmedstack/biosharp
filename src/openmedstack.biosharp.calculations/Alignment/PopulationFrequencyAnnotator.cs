@@ -8,41 +8,6 @@ using System.Text;
 using System.Threading;
 
 /// <summary>
-/// The result of annotating a variant with population allele frequency data.
-/// </summary>
-public sealed class PopulationFrequencyAnnotation
-{
-    /// <summary>The original variant that was annotated.</summary>
-    public LocalVariantResult Variant { get; }
-
-    /// <summary>gnomAD / ExAC allele frequency (AF). Zero if absent from the database.</summary>
-    public double GnomadAf { get; }
-
-    /// <summary>Maximum AF across populations (AF_popmax). Zero if absent.</summary>
-    public double GnomadAfPopmax { get; }
-
-    /// <summary>Total allele number (AN). Zero if absent.</summary>
-    public int GnomadAn { get; }
-
-    /// <summary>Alternate allele count (AC). Zero if absent.</summary>
-    public int GnomadAc { get; }
-
-    public PopulationFrequencyAnnotation(
-        LocalVariantResult variant,
-        double gnomadAf,
-        double gnomadAfPopmax,
-        int gnomadAn,
-        int gnomadAc)
-    {
-        Variant = variant;
-        GnomadAf = gnomadAf;
-        GnomadAfPopmax = gnomadAfPopmax;
-        GnomadAn = gnomadAn;
-        GnomadAc = gnomadAc;
-    }
-}
-
-/// <summary>
 /// Annotates variants with population allele frequency information by scanning a
 /// VCF-formatted population frequency database (e.g. gnomAD, ExAC) in memory.
 ///
@@ -81,13 +46,13 @@ public sealed class PopulationFrequencyAnnotator
     /// One <see cref="PopulationFrequencyAnnotation"/> per input variant, in the same order.
     /// Variants absent from the database receive zero-valued frequency fields.
     /// </returns>
-    public async IAsyncEnumerable<PopulationFrequencyAnnotation> AnnotateAsync(
+    public static async IAsyncEnumerable<PopulationFrequencyAnnotation> Annotate(
         IEnumerable<LocalVariantResult> variants,
         Stream populationVcfStream,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         // Load the entire population VCF into a dictionary (typically a few hundred MB)
-        var db = await LoadDatabaseAsync(populationVcfStream, cancellationToken).ConfigureAwait(false);
+        var db = await LoadDatabase(populationVcfStream, cancellationToken).ConfigureAwait(false);
 
         foreach (var variant in variants)
         {
@@ -109,7 +74,7 @@ public sealed class PopulationFrequencyAnnotator
 
     // ── Private helpers ───────────────────────────────────────────────────────
 
-    private static async System.Threading.Tasks.Task<Dictionary<VariantKey, PopEntry>> LoadDatabaseAsync(
+    private static async System.Threading.Tasks.Task<Dictionary<VariantKey, PopEntry>> LoadDatabase(
         Stream stream,
         CancellationToken ct)
     {

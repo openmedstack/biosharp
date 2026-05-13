@@ -20,7 +20,7 @@ public class GffReader
     /// The dialect (GFF3 vs GTF) is auto-detected from the ##gff-version pragma or
     /// from the attribute quoting style.
     /// </summary>
-    public async IAsyncEnumerable<GffRecord> ReadAsync(
+    public static async IAsyncEnumerable<GffRecord> Read(
         string path,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
@@ -34,7 +34,7 @@ public class GffReader
                 Share = FileShare.Read
             });
 
-        await foreach (var record in ReadAsync(file, cancellationToken).ConfigureAwait(false))
+        await foreach (var record in Read(file, cancellationToken).ConfigureAwait(false))
         {
             yield return record;
         }
@@ -43,7 +43,7 @@ public class GffReader
     /// <summary>
     /// Reads GFF records from a stream.
     /// </summary>
-    public async IAsyncEnumerable<GffRecord> ReadAsync(
+    public static async IAsyncEnumerable<GffRecord> Read(
         Stream stream,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {

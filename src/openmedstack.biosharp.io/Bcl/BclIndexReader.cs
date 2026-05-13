@@ -15,7 +15,7 @@ using System.Threading.Tasks;
  */
 public class BclIndexReader : IBclIndexReader
 {
-    private static readonly int BciHeaderSize = 8;
+    private const int BciHeaderSize = 8;
 
     private readonly Stream _fileStream;
     private int _nextRecordNumber;

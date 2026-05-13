@@ -73,7 +73,7 @@ public static class MafWriter
     /// <param name="ncbiBuild">Reference genome build, e.g. "GRCh38". Defaults to "GRCh38".</param>
     /// <param name="center">Sequencing center name. Defaults to ".".</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public static async Task WriteAsync(
+    public static async Task Write(
         Stream stream,
         IEnumerable<LocalVariantResult> variants,
         string tumorSampleBarcode,
@@ -113,7 +113,7 @@ public static class MafWriter
     /// <param name="ncbiBuild">Reference genome build. Defaults to "GRCh38".</param>
     /// <param name="center">Sequencing center name. Defaults to ".".</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public static async Task WriteAsync(
+    public static async Task Write(
         Stream stream,
         IEnumerable<SomaticVariant> variants,
         string chromosome,

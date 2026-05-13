@@ -21,7 +21,7 @@ public class HgvsVariantTests
     [InlineData("c.4375_4379delCGATT")]
     public void CanParseDeletionVariant(string input)
     {
-        var variant = HgvsVariant.Parse("NM_004006.2:" + input);
+        var variant = HgvsVariant.Parse($"NM_004006.2:{input}");
 
         Assert.Equal("NM_004006", variant.Reference);
         Assert.Equal(2, variant.Version);
@@ -33,7 +33,7 @@ public class HgvsVariantTests
     [InlineData("c.4375_4385dupCGATTATTCCA")]
     public void CanParseDuplicationVariant(string input)
     {
-        var variant = HgvsVariant.Parse("NM_004006.2:" + input);
+        var variant = HgvsVariant.Parse($"NM_004006.2:{input}");
 
         Assert.Equal("NM_004006", variant.Reference);
         Assert.Equal(2, variant.Version);
@@ -56,7 +56,7 @@ public class HgvsVariantTests
     [InlineData("c.4375_4376delCGinsAGTT")]
     public void CanParseInsertDeleteVariant(string input)
     {
-        var variant = HgvsVariant.Parse("NM_004006.2:" + input);
+        var variant = HgvsVariant.Parse($"NM_004006.2:{input}");
 
         Assert.Equal("NM_004006", variant.Reference);
         Assert.Equal(2, variant.Version);

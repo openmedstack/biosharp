@@ -111,7 +111,7 @@ public sealed class AdapterTrimmer
             return (null, stats);
         }
 
-        return (read.Slice(0, trimPos), stats);
+        return (read[..trimPos], stats);
     }
 
     /// <summary>

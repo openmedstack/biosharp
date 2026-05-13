@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Calculations;
@@ -24,7 +23,7 @@ public class FastqToVcfStepDefinitions
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static async IAsyncEnumerable<Sequence> AsReadsAsync(
+    private static async IAsyncEnumerable<Sequence> AsReads(
         IEnumerable<Sequence> reads,
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)
     {
@@ -95,7 +94,7 @@ public class FastqToVcfStepDefinitions
         _ctx["ftvRefSeq"] = refSeq;
     }
 
-    [Given("I generate (\\d+) reads of length (\\d+) from that reference")]
+    [Given(@"I generate (\d+) reads of length (\d+) from that reference")]
     public void GivenReadsFromReference(int count, int readLength)
     {
         var refStr = (string)_ctx["ftvRefStr"];
@@ -113,7 +112,7 @@ public class FastqToVcfStepDefinitions
         var reads = (List<Sequence>)_ctx["ftvReads"];
         var pipeline = new VariantCallingPipeline(refSeq, "chr1",
             new VariantCallingPipeline.PipelineOptions { MinAlignmentScore = 5 });
-        await pipeline.LoadFastQAsync(AsReadsAsync(reads), null, CancellationToken.None);
+        await pipeline.LoadFastQ(AsReads(reads), null, CancellationToken.None);
         var result = pipeline.BuildResult();
         _ctx["ftvPipeline"] = pipeline;
         _ctx["ftvResult"] = result;
@@ -140,10 +139,10 @@ public class FastqToVcfStepDefinitions
         var reads = (List<Sequence>)_ctx["ftvReads"];
         var pipeline = new VariantCallingPipeline(refSeq, "chr1",
             new VariantCallingPipeline.PipelineOptions { MinAlignmentScore = 5 });
-        await pipeline.LoadFastQAsync(AsReadsAsync(reads), null, CancellationToken.None);
+        await pipeline.LoadFastQ(AsReads(reads), null, CancellationToken.None);
 
-        var vcfPath = Path.GetTempFileName() + ".vcf";
-        await pipeline.WriteVcfAsync(vcfPath, chromLength: 500);
+        var vcfPath = $"{Path.GetTempFileName()}.vcf";
+        await pipeline.WriteVcf(vcfPath, chromLength: 500);
         _ctx["ftvVcfPath"] = vcfPath;
     }
 
@@ -287,7 +286,7 @@ public class FastqToVcfStepDefinitions
         // Alignments: 3 reads perfectly matching the reference at different positions
         var alignments = new List<AlignmentSection>
         {
-            MakeAlignmentSection("r1", 1,  refStr.Substring(0,  60), qual20),
+            MakeAlignmentSection("r1", 1,  refStr[..60], qual20),
             MakeAlignmentSection("r2", 11, refStr.Substring(10, 60), qual20),
             MakeAlignmentSection("r3", 21, refStr.Substring(20, 60), qual20)
         };
@@ -302,9 +301,8 @@ public class FastqToVcfStepDefinitions
     {
         var alignments = (List<AlignmentSection>)_ctx["ftvBqsrAlignments"];
         var reference = (Sequence)_ctx["ftvBqsrRef"];
-        var recalibrator = new BaseQualityRecalibrator();
-        var table = recalibrator.CollectCovariates(alignments, reference);
-        var recalibrated = recalibrator.ApplyRecalibration(alignments, table);
+        var table = BaseQualityRecalibrator.CollectCovariates(alignments, reference);
+        var recalibrated = BaseQualityRecalibrator.ApplyRecalibration(alignments, table);
         _ctx["ftvBqsrRecalibrated"] = recalibrated;
     }
 
@@ -333,8 +331,8 @@ public class FastqToVcfStepDefinitions
                 MinAlignmentScore = 5,
                 MinGraphCoverage = 2   // lower threshold so reads trigger graph analysis
             });
-        await pipeline.LoadFastQAsync(AsReadsAsync(reads), null, CancellationToken.None);
-        var graphResult = await pipeline.RunFullGraphAnalysisAsync(CancellationToken.None);
+        await pipeline.LoadFastQ(AsReads(reads), null, CancellationToken.None);
+        var graphResult = await pipeline.RunFullGraphAnalysis(CancellationToken.None);
         _ctx["ftvGraphResult"] = graphResult;
     }
 
@@ -382,7 +380,7 @@ public class FastqToVcfStepDefinitions
         var refSeq = (Sequence)_ctx["ftvRefSeq"];
         var pipeline = new VariantCallingPipeline(refSeq, "chr1",
             new VariantCallingPipeline.PipelineOptions { MinAlignmentScore = 5 });
-        await pipeline.LoadFastQAsync(AsReadsAsync(cleanedReads), null, CancellationToken.None);
+        await pipeline.LoadFastQ(AsReads(cleanedReads), null, CancellationToken.None);
         _ctx["ftvE2ePipeline"] = pipeline;
     }
 
@@ -390,8 +388,8 @@ public class FastqToVcfStepDefinitions
     public async Task WhenWriteE2eVcf()
     {
         var pipeline = (VariantCallingPipeline)_ctx["ftvE2ePipeline"];
-        var vcfPath = Path.GetTempFileName() + ".vcf";
-        await pipeline.WriteVcfAsync(vcfPath, chromLength: 500);
+        var vcfPath = $"{Path.GetTempFileName()}.vcf";
+        await pipeline.WriteVcf(vcfPath, chromLength: 500);
         _ctx["ftvE2eVcfPath"] = vcfPath;
     }
 

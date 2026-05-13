@@ -2,7 +2,6 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.StepDefinitions;
 
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -24,7 +23,10 @@ public class QualityControlStepDefinitions
 
     // Helper to make an AlignmentSection
     private static AlignmentSection MakeAlignment(
-        string qname, int position, string sequence, string quality,
+        string qname,
+        int position,
+        string sequence,
+        string quality,
         byte mapq = 60,
         AlignmentSection.AlignmentFlag flag = AlignmentSection.AlignmentFlag.None)
         => new(
@@ -56,7 +58,7 @@ public class QualityControlStepDefinitions
     public async Task WhenComputeFastqQualityReport()
     {
         var reads = (List<Sequence>)_ctx["fastqReads"];
-        var report = await FastQQualityReport.ComputeAsync(ToAsyncEnumerable(reads));
+        var report = await FastQQualityReport.Compute(ToAsyncEnumerable(reads));
         _ctx["fastqReport"] = report;
     }
 
@@ -86,7 +88,7 @@ public class QualityControlStepDefinitions
     public void ThenDuplicationLevelEstimate()
     {
         var report = (FastQReport)_ctx["fastqReport"];
-        Assert.True(report.DuplicationLevelEstimate >= 0.0 && report.DuplicationLevelEstimate <= 1.0,
+        Assert.True(report.DuplicationLevelEstimate is >= 0.0 and <= 1.0,
             $"DuplicationLevelEstimate should be in [0,1] but was {report.DuplicationLevelEstimate}");
     }
 
@@ -131,7 +133,8 @@ public class QualityControlStepDefinitions
     public void ThenMappingRateLessOne()
     {
         var stats = (AlignmentSummaryStats)_ctx["alignStats"];
-        Assert.True(stats.MappingRate < 1.0, $"Mapping rate should be <1 due to unmapped read, got {stats.MappingRate}");
+        Assert.True(stats.MappingRate < 1.0,
+            $"Mapping rate should be <1 due to unmapped read, got {stats.MappingRate}");
     }
 
     // ── QC-3: Coverage calculation ────────────────────────────────────────────
@@ -153,7 +156,7 @@ public class QualityControlStepDefinitions
     {
         var alignments = (List<AlignmentSection>)_ctx["covAlignments"];
         var refLen = (int)_ctx["refLength"];
-        var report = new CoverageCalculator().Compute(alignments, refLen);
+        var report = CoverageCalculator.Compute(alignments, refLen);
         _ctx["coverageReport"] = report;
     }
 
@@ -168,7 +171,7 @@ public class QualityControlStepDefinitions
     public void ThenFractionAt10xInRange()
     {
         var report = (CoverageReport)_ctx["coverageReport"];
-        Assert.True(report.FractionAt10x >= 0.0 && report.FractionAt10x <= 1.0,
+        Assert.True(report.FractionAt10x is >= 0.0 and <= 1.0,
             $"FractionAt10x should be in [0,1] but was {report.FractionAt10x}");
     }
 
@@ -214,7 +217,7 @@ public class QualityControlStepDefinitions
         var bamReads = (List<AlignmentSection>)_ctx["panelBamReads"];
         var refLen = (int)_ctx["panelRefLength"];
         var thresholds = new PanelQcThresholds { MinMeanCoverage = threshold };
-        var report = await PanelQcReport.GenerateAsync(
+        var report = await PanelQcReport.Generate(
             ToAsyncEnumerable(fastqReads),
             bamReads,
             refLen,
@@ -393,9 +396,11 @@ public class QualityControlStepDefinitions
     public void GivenAlignmentsWithProperlyPaired()
     {
         var paired1 = MakeAlignment("r1", 100, "ACGTACGT", "IIIIIIII",
-            flag: AlignmentSection.AlignmentFlag.MultipleSegments | AlignmentSection.AlignmentFlag.EachSegmentProperlyAligned);
+            flag: AlignmentSection.AlignmentFlag.MultipleSegments |
+            AlignmentSection.AlignmentFlag.EachSegmentProperlyAligned);
         var paired2 = MakeAlignment("r2", 300, "TTTTAAAA", "IIIIIIII",
-            flag: AlignmentSection.AlignmentFlag.MultipleSegments | AlignmentSection.AlignmentFlag.EachSegmentProperlyAligned);
+            flag: AlignmentSection.AlignmentFlag.MultipleSegments |
+            AlignmentSection.AlignmentFlag.EachSegmentProperlyAligned);
         var unpaired = MakeAlignment("r3", 500, "GCGCGCGC", "IIIIIIII");
         _ctx["bamAlignments"] = new List<AlignmentSection> { paired1, paired2, unpaired };
         _ctx["expectedPaired"] = 2L;
@@ -445,7 +450,7 @@ public class QualityControlStepDefinitions
     {
         var alignments = (List<AlignmentSection>)_ctx["covAlignments"];
         var refLen = (int)_ctx["refLength"];
-        _ctx["coverageReport"] = new CoverageCalculator().Compute(alignments, refLen);
+        _ctx["coverageReport"] = CoverageCalculator.Compute(alignments, refLen);
     }
 
     [Then(@"the mean depth should be approximately (\d+)")]
@@ -484,7 +489,7 @@ public class QualityControlStepDefinitions
         var alignments = (List<AlignmentSection>)_ctx["covAlignments"];
         var refLen = (int)_ctx["refLength"];
         var target = (List<BedInterval>)_ctx["targetBed"];
-        _ctx["coverageReport"] = new CoverageCalculator().Compute(alignments, refLen, target);
+        _ctx["coverageReport"] = CoverageCalculator.Compute(alignments, refLen, target);
     }
 
     [Then("the summary statistics should only consider positions within the target")]
@@ -547,7 +552,7 @@ public class QualityControlStepDefinitions
         var fastqReads = (List<Sequence>)_ctx["panelFastqReads"];
         var bamReads = (List<AlignmentSection>)_ctx["panelBamReads"];
         var refLen = (int)_ctx["panelRefLength"];
-        _ctx["panelQcReport"] = await PanelQcReport.GenerateAsync(
+        _ctx["panelQcReport"] = await PanelQcReport.Generate(
             ToAsyncEnumerable(fastqReads), bamReads, refLen);
     }
 
@@ -556,7 +561,7 @@ public class QualityControlStepDefinitions
     {
         var report = (PanelQcReport)_ctx["panelQcReport"];
         Assert.True(
-            report.MeanCoverageStatus == QcStatus.Fail || report.MeanCoverageStatus == QcStatus.Warn,
+            report.MeanCoverageStatus is QcStatus.Fail or QcStatus.Warn,
             $"Expected Fail or Warn for low coverage, got {report.MeanCoverageStatus}");
     }
 
@@ -566,7 +571,7 @@ public class QualityControlStepDefinitions
         var fastqReads = (List<Sequence>)_ctx["panelFastqReads"];
         var bamReads = (List<AlignmentSection>)_ctx["panelBamReads"];
         var refLen = (int)_ctx["panelRefLength"];
-        var report = await PanelQcReport.GenerateAsync(
+        var report = await PanelQcReport.Generate(
             ToAsyncEnumerable(fastqReads), bamReads, refLen);
         _ctx["panelQcReport"] = report;
 #pragma warning disable IL2026

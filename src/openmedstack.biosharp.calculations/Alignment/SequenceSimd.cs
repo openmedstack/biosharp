@@ -3,7 +3,6 @@ namespace OpenMedStack.BioSharp.Calculations.Alignment;
 using System;
 using System.Collections.Generic;
 using System.Runtime.Intrinsics;
-using System.Runtime.Intrinsics.X86;
 
 /// <summary>
 /// SIMD-accelerated implementations of hot-path sequence operations.
@@ -67,15 +66,15 @@ public static class SequenceSimd
         while (i + vectorSize <= a.Length)
         {
             var va = Vector256.Create(
-                (ushort)a[i], (ushort)a[i+1], (ushort)a[i+2], (ushort)a[i+3],
-                (ushort)a[i+4], (ushort)a[i+5], (ushort)a[i+6], (ushort)a[i+7],
-                (ushort)a[i+8], (ushort)a[i+9], (ushort)a[i+10], (ushort)a[i+11],
-                (ushort)a[i+12], (ushort)a[i+13], (ushort)a[i+14], (ushort)a[i+15]);
+                a[i], a[i+1], a[i+2], a[i+3],
+                a[i+4], a[i+5], a[i+6], a[i+7],
+                a[i+8], a[i+9], a[i+10], a[i+11],
+                a[i+12], a[i+13], a[i+14], a[i+15]);
             var vb = Vector256.Create(
-                (ushort)b[i], (ushort)b[i+1], (ushort)b[i+2], (ushort)b[i+3],
-                (ushort)b[i+4], (ushort)b[i+5], (ushort)b[i+6], (ushort)b[i+7],
-                (ushort)b[i+8], (ushort)b[i+9], (ushort)b[i+10], (ushort)b[i+11],
-                (ushort)b[i+12], (ushort)b[i+13], (ushort)b[i+14], (ushort)b[i+15]);
+                b[i], b[i+1], b[i+2], b[i+3],
+                b[i+4], b[i+5], b[i+6], b[i+7],
+                b[i+8], b[i+9], b[i+10], b[i+11],
+                b[i+12], b[i+13], b[i+14], b[i+15]);
 
             // Compare elements: not-equal mask → each lane is 0xFFFF or 0x0000
             var eq = Vector256.Equals(va, vb);
@@ -110,11 +109,11 @@ public static class SequenceSimd
         while (i + vectorSize <= a.Length)
         {
             var va = Vector128.Create(
-                (ushort)a[i], (ushort)a[i+1], (ushort)a[i+2], (ushort)a[i+3],
-                (ushort)a[i+4], (ushort)a[i+5], (ushort)a[i+6], (ushort)a[i+7]);
+                a[i], a[i+1], a[i+2], a[i+3],
+                a[i+4], a[i+5], a[i+6], a[i+7]);
             var vb = Vector128.Create(
-                (ushort)b[i], (ushort)b[i+1], (ushort)b[i+2], (ushort)b[i+3],
-                (ushort)b[i+4], (ushort)b[i+5], (ushort)b[i+6], (ushort)b[i+7]);
+                b[i], b[i+1], b[i+2], b[i+3],
+                b[i+4], b[i+5], b[i+6], b[i+7]);
 
             var eq = Vector128.Equals(va, vb);
             for (var lane = 0; lane < vectorSize; lane++)
@@ -177,14 +176,14 @@ public static class SequenceSimd
         return ReverseComplementScalar(seq);
     }
 
-    private static char Complement(char base_) => base_ switch
+    private static char Complement(char @base) => @base switch
     {
         'A' or 'a' => 'T',
         'T' or 't' => 'A',
         'C' or 'c' => 'G',
         'G' or 'g' => 'C',
         'U' or 'u' => 'A',
-        _ => base_
+        _ => @base
     };
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -229,7 +228,7 @@ public static class SequenceSimd
         return results;
     }
 
-    private static IEnumerable<int> FindKmerSimd(char[] seq, char[] kmer)
+    private static List<int> FindKmerSimd(char[] seq, char[] kmer)
     {
         var results = new List<int>();
         if (kmer.Length == 0 || seq.Length < kmer.Length)
@@ -245,10 +244,10 @@ public static class SequenceSimd
         while (i + vectorSize <= seq.Length)
         {
             var vSeq = Vector256.Create(
-                (ushort)seq[i], (ushort)seq[i+1], (ushort)seq[i+2], (ushort)seq[i+3],
-                (ushort)seq[i+4], (ushort)seq[i+5], (ushort)seq[i+6], (ushort)seq[i+7],
-                (ushort)seq[i+8], (ushort)seq[i+9], (ushort)seq[i+10], (ushort)seq[i+11],
-                (ushort)seq[i+12], (ushort)seq[i+13], (ushort)seq[i+14], (ushort)seq[i+15]);
+                seq[i], seq[i+1], seq[i+2], seq[i+3],
+                seq[i+4], seq[i+5], seq[i+6], seq[i+7],
+                seq[i+8], seq[i+9], seq[i+10], seq[i+11],
+                seq[i+12], seq[i+13], seq[i+14], seq[i+15]);
             var vFirst = Vector256.Create(first);
             var eq = Vector256.Equals(vSeq, vFirst);
 

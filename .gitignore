@@ -13,9 +13,11 @@ node_modules
 publish
 *.Cache
 artifacts
-data
 PublishProfiles
 .vscode
 launchSettings.json
 .idea
 output
+.DS_Store
+benchmark-*
+.firecrawl

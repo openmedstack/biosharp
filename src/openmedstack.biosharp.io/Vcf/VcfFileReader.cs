@@ -14,13 +14,6 @@ using OpenMedStack.BioSharp.Model.Vcf;
 
 public class VcfFileReader
 {
-    private readonly VcfMetaReader _metaReader;
-
-    public VcfFileReader(VcfMetaReader metaReader)
-    {
-        _metaReader = metaReader;
-    }
-
     public async Task<IHeaderedDisposableAsyncEnumerable<IVariantMetaInformation[], VcfVariant>> Read(
         string path,
         CancellationToken cancellationToken = default)
@@ -67,7 +60,7 @@ public class VcfFileReader
                 if (line?.StartsWith("##") == true)
                 {
                     headerLength += line.Length + 1;
-                    headers.Add(_metaReader.Read(line));
+                    headers.Add(VcfMetaReader.Read(line.AsSpan()));
                 }
                 else if (line?.StartsWith("#CHROM") == true)
                 {
@@ -178,7 +171,7 @@ public class VcfFileReader
     /// Path to the .tbi index file. Defaults to <paramref name="vcfGzPath"/> + ".tbi".
     /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async IAsyncEnumerable<VcfVariant> ReadRegionAsync(
+    public static async IAsyncEnumerable<VcfVariant> ReadRegion(
         string vcfGzPath,
         string chrom,
         int start,
@@ -186,7 +179,7 @@ public class VcfFileReader
         string? indexPath = null,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        indexPath ??= vcfGzPath + ".tbi";
+        indexPath ??= $"{vcfGzPath}.tbi";
 
         if (!File.Exists(indexPath))
         {
@@ -194,7 +187,7 @@ public class VcfFileReader
         }
 
         // Read the tabix index
-        var tbi = await ReadTabixIndexAsync(indexPath, cancellationToken).ConfigureAwait(false);
+        var tbi = await ReadTabixIndex(indexPath, cancellationToken).ConfigureAwait(false);
 
         if (!tbi.TryGetValue(chrom, out var refEntry))
         {
@@ -238,7 +231,7 @@ public class VcfFileReader
         await using var bgzf = new BgzfStream(vcfFile, CompressionMode.Decompress, leaveOpen: false);
 
         // Find the minimum relevant offset (from linear index)
-        ulong startOffset = offsets.Count > 0
+        var startOffset = offsets.Count > 0
             ? Math.Max(minOffset, offsets.Min)
             : minOffset;
 
@@ -294,7 +287,7 @@ public class VcfFileReader
         }
     }
 
-    private static async Task<Dictionary<string, TabixRefEntry>> ReadTabixIndexAsync(
+    private static async Task<Dictionary<string, TabixRefEntry>> ReadTabixIndex(
         string indexPath,
         CancellationToken ct)
     {

@@ -1,8 +1,6 @@
 using System;
-using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using DeBruijn = OpenMedStack.BioSharp.Calculations.DeBruijn;
 using Xunit;
 
 namespace OpenMedStack.BioSharp.Calculations.Tests;
@@ -22,7 +20,7 @@ public class RepeatMaskingTests
     [Fact]
     public async Task LoadLibrary_WithValidPath_ReturnsFilteredRepeats()
     {
-        var repeats = await DeBruijn.RepeatMasker.LoadLibraryAsync(TestLibraryPath, 5);
+        var repeats = await DeBruijn.RepeatMasker.LoadLibrary(TestLibraryPath, 5);
 
         Assert.NotEmpty(repeats);
         // All motifs should be >= 5 chars (minMotifLength = 5)
@@ -47,13 +45,13 @@ public class RepeatMaskingTests
     public async Task MaskRepeats_KnownMotifsProducesMaskedRegions()
     {
         // Load library with low minMotifLength to catch simple repeats
-        var library = await DeBruijn.RepeatMasker.LoadLibraryAsync(TestLibraryPath, 4);
+        var library = await DeBruijn.RepeatMasker.LoadLibrary(TestLibraryPath, 4);
 
         // Create a sequence with known repeat motifs from the library
         // REP001 has motif "GATT"
         var sequence = "AAAA" + "GATT" + "GATT" + "GATT" + "CCCC" + "TTTT";
 
-        var regions = await DeBruijn.RepeatMasker.MaskRepeatsAsync(sequence, library, false);
+        var regions = await DeBruijn.RepeatMasker.MaskRepeats(sequence, library, false);
 
         // Should have detected at least one masked region
         Assert.NotEmpty(regions);
@@ -66,12 +64,12 @@ public class RepeatMaskingTests
     [Fact]
     public async Task MaskRepeats_NoRepeatsInSequence_ReturnsEmpty()
     {
-        var library = await DeBruijn.RepeatMasker.LoadLibraryAsync(TestLibraryPath, 4);
+        var library = await DeBruijn.RepeatMasker.LoadLibrary(TestLibraryPath, 4);
 
         // Random sequence unlikely to match any repeat motif
         var sequence = "ACGTACGTACGTACGTACGTACGTACGTACGT";
 
-        var regions = await DeBruijn.RepeatMasker.MaskRepeatsAsync(sequence, library, false);
+        var regions = await DeBruijn.RepeatMasker.MaskRepeats(sequence, library, false);
 
         Assert.Empty(regions);
     }
@@ -82,12 +80,12 @@ public class RepeatMaskingTests
     [Fact]
     public async Task MaskRepeats_AmbiguityMasking_IgnoresNPositions()
     {
-        var library = await DeBruijn.RepeatMasker.LoadLibraryAsync(TestLibraryPath, 4);
+        var library = await DeBruijn.RepeatMasker.LoadLibrary(TestLibraryPath, 4);
 
         // Sequence with Ns in the middle of a repeat - should NOT match due to ambiguity
         var sequence = "AAAA" + "GATT" + "N" + "GATT" + "GATT" + "CCCC";
 
-        var regions = await DeBruijn.RepeatMasker.MaskRepeatsAsync(sequence, library, true);
+        var regions = await DeBruijn.RepeatMasker.MaskRepeats(sequence, library);
 
         // Even with ambiguity blocking, should find other matches
         Assert.True(regions.Count >= 0); // Graph successfully processed
@@ -99,9 +97,9 @@ public class RepeatMaskingTests
     [Fact]
     public async Task CreateBloomFilterFromLibrary_ContainsAllMotifKmers()
     {
-        var library = await DeBruijn.RepeatMasker.LoadLibraryAsync(TestLibraryPath, 4);
+        var library = await DeBruijn.RepeatMasker.LoadLibrary(TestLibraryPath, 4);
 
-        var filter = DeBruijn.RepeatMasker.CreateBloomFilterFromLibrary(library, 4, 0.01);
+        var filter = DeBruijn.RepeatMasker.CreateBloomFilterFromLibrary(library, 4);
 
         // Test a few specific motifs from the library
         var motifKmers = new[]
@@ -124,20 +122,20 @@ public class RepeatMaskingTests
     [Fact]
     public async Task MaskRepeats_NullInputs_ThrowsForNullLibrary()
     {
-        var library = await DeBruijn.RepeatMasker.LoadLibraryAsync(TestLibraryPath, 4);
+        var library = await DeBruijn.RepeatMasker.LoadLibrary(TestLibraryPath, 4);
 
         // null library should throw
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            DeBruijn.RepeatMasker.MaskRepeatsAsync(
+            DeBruijn.RepeatMasker.MaskRepeats(
                 "ACGTACGT", null!));
 
         // null/empty sequence should return empty (not throw)
-        var emptyResult = await DeBruijn.RepeatMasker.MaskRepeatsAsync("", library, true);
+        var emptyResult = await DeBruijn.RepeatMasker.MaskRepeats("", library);
         Assert.Empty(emptyResult);
 
         // null library should also throw
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            DeBruijn.RepeatMasker.LoadLibraryAsync(null!, 4));
+            DeBruijn.RepeatMasker.LoadLibrary(null!, 4));
     }
 
     /// <summary>
@@ -147,7 +145,7 @@ public class RepeatMaskingTests
     public async Task MaskRepeatsFromLibrary_FullPipeline_Works()
     {
         var sequence = "AAAA" + "GATT" + "GATT" + "CCCC" + "TTTT";
-        var regions = await DeBruijn.RepeatMasker.MaskRepeatsFromLibraryAsync(
+        var regions = await DeBruijn.RepeatMasker.MaskRepeatsFromLibrary(
             sequence, TestLibraryPath, 4, false);
 
         Assert.True(regions.Count >= 0);
@@ -169,7 +167,7 @@ public class RepeatMaskingTests
     [Fact]
     public async Task RepeatElement_PopulatedFromLibrary()
     {
-        var library = await DeBruijn.RepeatMasker.LoadLibraryAsync(TestLibraryPath, 4);
+        var library = await DeBruijn.RepeatMasker.LoadLibrary(TestLibraryPath, 4);
 
         var satRepeats = library.Where(r => r.Type == "satellite").ToList();
         Assert.NotEmpty(satRepeats);

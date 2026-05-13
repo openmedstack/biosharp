@@ -48,7 +48,7 @@ public partial record FileMetadata
             parts["VN"],
             parts.TryGetValue("SO", out var so) ? Enum.Parse<SortingOrder>(so, true) : SortingOrder.Unknown,
             parts.TryGetValue("GO", out var go) ? Enum.Parse<AlignmentGrouping>(go, true) : AlignmentGrouping.None,
-            parts.TryGetValue("SS", out var ss) ? ss : null);
+            parts.GetValueOrDefault("SS"));
     }
 
     public enum SortingOrder : byte

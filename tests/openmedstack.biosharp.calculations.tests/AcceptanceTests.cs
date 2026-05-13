@@ -71,7 +71,7 @@ public class AcceptanceTests : IDisposable
     public async Task AC1_1_LoadTranscriptsAsync_PopulatesTranscripts()
     {
         using var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsAsync(_fastaPath);
+        await engine.LoadTranscripts(_fastaPath);
 
         // LoadTranscriptsAsync is public; we verify it didn't throw and
         // that AnnotateVariantAsync can produce results (proving transcripts loaded).
@@ -84,7 +84,7 @@ public class AcceptanceTests : IDisposable
             ErrorProbabilities = []
         };
 
-        var annotations = engine.AnnotateVariantAsync(variant);
+        var annotations = engine.AnnotateVariant(variant);
         Assert.NotNull(annotations);
         Assert.Equal(2, annotations.Length); // one per transcript
     }
@@ -94,7 +94,7 @@ public class AcceptanceTests : IDisposable
     public async Task AC1_2_LoadTranscriptsAsync_NonExistentFile_ThrowsFileNotFoundException()
     {
         using var engine = new VariantAnnotationEngine();
-        await Assert.ThrowsAsync<FileNotFoundException>(() => engine.LoadTranscriptsAsync("nonexistent.fasta"));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => engine.LoadTranscripts("nonexistent.fasta"));
     }
 
     // AC1.3: AnnotateVcfAsync returns annotations for all transcripts when no transcriptId is given
@@ -102,9 +102,9 @@ public class AcceptanceTests : IDisposable
     public async Task AC1_3_AnnotateVcfAsync_AllTranscripts_ReturnsCorrectCount()
     {
         using var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsAsync(_fastaPath);
+        await engine.LoadTranscripts(_fastaPath);
 
-        var annotations = await engine.AnnotateVcfAsync(_vcfPath, null, 5.0f).ToListAsync();
+        var annotations = await engine.AnnotateVcf(_vcfPath).ToListAsync();
 
         // 2 variants × 2 transcripts = 4 annotations
         Assert.Equal(4, annotations.Count);
@@ -115,10 +115,10 @@ public class AcceptanceTests : IDisposable
     public async Task AC1_4_AnnotateVcfAsync_TranscriptIdFilter_Works()
     {
         using var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsAsync(_fastaPath);
+        await engine.LoadTranscripts(_fastaPath);
 
         var annotations = new List<VariantAnnotation>();
-        await foreach (var ann in engine.AnnotateVcfAsync(_vcfPath, "NM_001", 5.0f))
+        await foreach (var ann in engine.AnnotateVcf(_vcfPath, "NM_001"))
         {
             annotations.Add(ann);
         }
@@ -143,10 +143,10 @@ public class AcceptanceTests : IDisposable
         ]);
 
         using var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsAsync(_fastaPath);
+        await engine.LoadTranscripts(_fastaPath);
 
         var annotations = new List<VariantAnnotation>();
-        await foreach (var ann in engine.AnnotateVcfAsync(vcfFilePath, null, 5.0f))
+        await foreach (var ann in engine.AnnotateVcf(vcfFilePath))
         {
             annotations.Add(ann);
         }
@@ -173,7 +173,7 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC2_1_PositionWithinSpliceWindowUpstream_ReturnsUpstream()
     {
-        var ctx = CreateContext(1003, 2000, 5000);
+        var ctx = CreateContext(1003);
         Assert.Equal(VariantConsequence.Upstream, ctx.ClassifyPosition(1000));
     }
 
@@ -182,7 +182,7 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC2_2_PositionWithinSpliceWindowDownstream_ReturnsDownstream()
     {
-        var ctx = CreateContext(1, 3000, 5000);
+        var ctx = CreateContext(1, 3000);
         Assert.Equal(VariantConsequence.Downstream, ctx.ClassifyPosition(3003));
     }
 
@@ -191,7 +191,7 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC2_3_PositionIn5UTR_ReturnsUpstream()
     {
-        var ctx = CreateContext(1000, 2000, 5000);
+        var ctx = CreateContext();
         Assert.Equal(VariantConsequence.Upstream, ctx.ClassifyPosition(500));
     }
 
@@ -200,7 +200,7 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC2_4_PositionIn3UTR_ReturnsDownstream()
     {
-        var ctx = CreateContext(1000, 2000, 5000);
+        var ctx = CreateContext();
         Assert.Equal(VariantConsequence.Downstream, ctx.ClassifyPosition(2500));
     }
 
@@ -224,7 +224,7 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC2_7_PositionInIntron_ReturnsIntronic()
     {
-        var introns = new List<(int Start, int End)> { (9000, 9800) };
+        List<(int Start, int End)> introns = [(9000, 9800)];
         var ctx = AnnotationContext.FromCdsAndGeneBoundaries(
             10000, 12000, 8000, 13000, introns);
         Assert.Equal(VariantConsequence.Intronic, ctx.ClassifyPosition(9500));
@@ -282,7 +282,7 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC2_BoundariesReturnUpstreamDownstream_WithoutGeneBoundaries()
     {
-        var ctx = CreateContext(1000, 2000);
+        var ctx = CreateContext();
         // pos 996-999: upstream (not splice site without gene boundaries)
         Assert.Equal(VariantConsequence.Upstream, ctx.ClassifyPosition(996));
         Assert.Equal(VariantConsequence.Upstream, ctx.ClassifyPosition(997));
@@ -322,7 +322,7 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC2_GeneBoundaries_WithIntrons_CompleteCoverage()
     {
-        var introns = new List<(int Start, int End)> { (105, 130) };
+        List<(int Start, int End)> introns = [(105, 130)];
         var ctx = AnnotationContext.FromCdsAndGeneBoundaries(
             100, 200, 50, 350, introns);
 
@@ -363,10 +363,10 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC2_ClassifyConsequence_WithAnnotationContext_ReturnsNonCoding()
     {
-        var ctx = CreateContext(1000, 2000, 5000);
+        var ctx = CreateContext();
 
-        var seq = new Sequence("trans", new ReadOnlyMemory<char>(new string('.', 5000).ToCharArray()),
-            new ReadOnlyMemory<char>(new string('.', 5000).ToCharArray()));
+        var seq = new Sequence("trans", new string('.', 5000).AsMemory(),
+            new string('.', 5000).AsMemory());
         var codonChange = VariantAnnotator.Substitution("ATG", 500, 'T', 'A');
         Assert.NotNull(codonChange);
 
@@ -380,12 +380,12 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC2_ClassifyConsequence_SpliceSite_ReturnsSpliceSite()
     {
-        var introns = new List<(int Start, int End)> { (1, 800) };
+        List<(int Start, int End)> introns = [(1, 800)];
         var ctx = AnnotationContext.FromCdsAndGeneBoundaries(
             1000, 2000, 500, 2500, introns);
 
-        var seq = new Sequence("trans", new ReadOnlyMemory<char>(new string('.', 5000).ToCharArray()),
-            new ReadOnlyMemory<char>(new string('.', 5000).ToCharArray()));
+        var seq = new Sequence("trans", new string('.', 5000).AsMemory(),
+            new string('.', 5000).AsMemory());
 
         // Position 997 is in the upstream splice window
         var codonChange = VariantAnnotator.Substitution("ATG", 997, 'A', 'T');
@@ -401,12 +401,12 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC2_ClassifyConsequence_Downstream_ReturnsDownstream()
     {
-        var introns = new List<(int Start, int End)> { (1, 500) };
+        List<(int Start, int End)> introns = [(1, 500)];
         var ctx = AnnotationContext.FromCdsAndGeneBoundaries(
             1000, 2000, 500, 3000, introns);
 
-        var seq = new Sequence("trans", new ReadOnlyMemory<char>(new string('.', 5000).ToCharArray()),
-            new ReadOnlyMemory<char>(new string('.', 5000).ToCharArray()));
+        var seq = new Sequence("trans", new string('.', 5000).AsMemory(),
+            new string('.', 5000).AsMemory());
 
         // Position 2500 is downstream of CDS but within 3kb
         var codonChange = VariantAnnotator.Substitution("ATG", 2500, 'A', 'G');
@@ -459,8 +459,8 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC3_3_Mnp_TwoSubstitutionsInOneCodon()
     {
-        var positions = new List<int> { 2, 3 };
-        var altBases = new List<char> { 'C', 'G' };
+        List<int> positions = [2, 3];
+        List<char> altBases = ['C', 'G'];
 
         var result = VariantAnnotator.Mnp("ATG", positions, altBases);
         Assert.NotNull(result);
@@ -472,8 +472,8 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC3_3_Mnp_SingleSubstitution()
     {
-        var positions = new List<int> { 1 };
-        var altBases = new List<char> { 'G' };
+        List<int> positions = [1];
+        List<char> altBases = ['G'];
 
         var result = VariantAnnotator.Mnp("ATG", positions, altBases);
         Assert.NotNull(result);
@@ -485,8 +485,8 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC3_4_Mnp_SpansTwoCodons()
     {
-        var positions = new List<int> { 3, 4 };
-        var altBases = new List<char> { 'A', 'T' };
+        List<int> positions = [3, 4];
+        List<char> altBases = ['A', 'T'];
 
         var result = VariantAnnotator.Mnp("ATGCGT", positions, altBases);
         Assert.NotNull(result);
@@ -498,8 +498,8 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC3_4_Mnp_PositionOutOfRange_ReturnsNull()
     {
-        var positions = new List<int> { 5 };
-        var altBases = new List<char> { 'T' };
+        List<int> positions = [5];
+        List<char> altBases = ['T'];
         var result = VariantAnnotator.Mnp("ATG", positions, altBases);
         Assert.Null(result);
     }
@@ -508,8 +508,8 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC3_4_Mnp_CountMismatch_ThrowsArgumentException()
     {
-        var positions = new List<int> { 1 };
-        var altBases = new List<char> { 'A', 'T' };
+        List<int> positions = [1];
+        List<char> altBases = ['A', 'T'];
         Assert.Throws<ArgumentException>(() => VariantAnnotator.Mnp("ATG", positions, altBases));
     }
 
@@ -568,8 +568,7 @@ public class AcceptanceTests : IDisposable
         // ref = all A's (90 chars). Deletion ATG->G (2-bp del) at pos 1.
         // Mutated: "" + G + A*87 = "GAA" + "AAA"... (Glu, Lys, Lys...) - no stop codon.
         // CountAminosUntilStop returns -1 when no stop is found.
-        var seq = new Sequence("trans", new ReadOnlyMemory<char>(new string('A', 90).ToCharArray()),
-            new ReadOnlyMemory<char>(new string('.', 90).ToCharArray()));
+        var seq = new Sequence("trans", new string('A', 90).AsMemory(), new string('.', 90).AsMemory());
 
         var codonChange = VariantAnnotator.MultiDeletion("ATG", 1, 2);
         Assert.NotNull(codonChange);
@@ -589,8 +588,8 @@ public class AcceptanceTests : IDisposable
         // Use all C's - no stop codon possible (CCC=Pro, repeated).
         // Deletion CCC->C at pos 1 (2-bp del). Mutated = C + C*87 = C*88.
         // Count: all CCC -> Pro, no stop -> -1.
-        var seq = new Sequence("trans", new ReadOnlyMemory<char>(new string('C', 90).ToCharArray()),
-            new ReadOnlyMemory<char>(new string('.', 90).ToCharArray()));
+        var seq = new Sequence("trans", new string('C', 90).AsMemory(),
+            new string('.', 90).AsMemory());
 
         var codonChange = VariantAnnotator.MultiDeletion("CCC", 1, 2);
         Assert.NotNull(codonChange);
@@ -607,8 +606,8 @@ public class AcceptanceTests : IDisposable
     public void AC3_8_FrameshiftOffset_CorrectlyCountsUntilStop()
     {
         var dna = "ATGCCCGGGTAA";
-        var seq = new Sequence("trans", new ReadOnlyMemory<char>(dna.ToCharArray()),
-            new ReadOnlyMemory<char>(new string('.', dna.Length).ToCharArray()));
+        var seq = new Sequence("trans", dna.AsMemory(),
+            new string('.', dna.Length).AsMemory());
 
         var codonChange = VariantAnnotator.Insertion("ATG", 4, 'A');
         Assert.NotNull(codonChange);
@@ -633,8 +632,7 @@ public class AcceptanceTests : IDisposable
         // Codons in shifted frame: GAA(E), AAA(K), TAG(STOP) → count = 2
         // Uses simple Annotate overload to avoid refBase/altBase in BuildHgvsCoding.
         var dna = "AAAAATAG";
-        var seq = new Sequence("trans", new ReadOnlyMemory<char>(dna.ToCharArray()),
-            new ReadOnlyMemory<char>(new string('.', dna.Length).ToCharArray()));
+        var seq = new Sequence("trans", dna.AsMemory(), new string('.', dna.Length).AsMemory());
 
         var codonChange = VariantAnnotator.Insertion("AAA", 1, 'G');
         Assert.NotNull(codonChange);
@@ -668,8 +666,7 @@ public class AcceptanceTests : IDisposable
         // First 3 chars of original "CCA" = CCA (Pro)
         // First 3 chars of mutated "CTA" = CTA (Leu)
         // Pro -> Leu = Missense
-        var seq = new Sequence("trans", new ReadOnlyMemory<char>(refSeq.ToCharArray()),
-            new ReadOnlyMemory<char>(new string('!', refSeq.Length).ToCharArray()));
+        var seq = new Sequence("trans", refSeq.AsMemory(), new string('!', refSeq.Length).AsMemory());
 
         var result = codonChange.Annotate("NM_999", seq, 4);
 
@@ -683,10 +680,9 @@ public class AcceptanceTests : IDisposable
     public void AC3_10_Mnp_Annotate_ReturnsMissense()
     {
         // ATG(M) -> ACG(T) = missense (pos 2 change T->C in ATG)
-        var codonChange = VariantAnnotator.Mnp("ATG", new List<int> { 2 }, new List<char> { 'C' });
+        var codonChange = VariantAnnotator.Mnp("ATG", [2], ['C']);
         Assert.NotNull(codonChange);
-        var seq = new Sequence("trans", new ReadOnlyMemory<char>("ATGCCC".ToCharArray()),
-            new ReadOnlyMemory<char>(new string('I', 6).ToCharArray()));
+        var seq = new Sequence("trans", "ATGCCC".AsMemory(), new string('I', 6).AsMemory());
 
         var result = codonChange.Annotate("NM_888", seq, 1);
 
@@ -702,8 +698,7 @@ public class AcceptanceTests : IDisposable
         // Delete 3 bases (ATG), insert 2 (AAG) = delta -1 => Frameshift
         var codonChange = VariantAnnotator.Delins("ATGCC", 1, 3, "AA");
         Assert.NotNull(codonChange);
-        var seq = new Sequence("trans", new ReadOnlyMemory<char>("ATGCCGGGTAA".ToCharArray()),
-            new ReadOnlyMemory<char>(new string('.', 11).ToCharArray()));
+        var seq = new Sequence("trans", "ATGCCGGGTAA".AsMemory(), new string('.', 11).AsMemory());
 
         var result = codonChange.Annotate("NM_777", seq, 1);
 
@@ -727,8 +722,7 @@ public class AcceptanceTests : IDisposable
         Assert.NotNull(codonChange);
         Assert.Equal("TGC", codonChange.OriginalCodon);
         Assert.Equal("ATGGGGCCGGG", codonChange.MutatedCodon);
-        var seq = new Sequence("trans", new ReadOnlyMemory<char>(refSeq.ToCharArray()),
-            new ReadOnlyMemory<char>(new string('!', refSeq.Length).ToCharArray()));
+        var seq = new Sequence("trans", refSeq.AsMemory(), new string('!', refSeq.Length).AsMemory());
         var result = codonChange.Annotate("NM_667", seq, 4);
 
         Assert.NotNull(result);
@@ -756,8 +750,8 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void Mnp_MultipleSubstitutions_DifferentCodons()
     {
-        var positions = new List<int> { 2, 8 };
-        var altBases = new List<char> { 'C', 'C' };
+        List<int> positions = [2, 8];
+        List<char> altBases = ['C', 'C'];
         var result = VariantAnnotator.Mnp("ATGCGTATG", positions, altBases);
         Assert.NotNull(result);
         Assert.Equal("ATGCGTATG", result.OriginalCodon);
@@ -768,8 +762,7 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void FrameshiftOffset_InframeDeletion_DoesNotSetOffset()
     {
-        var seq = new Sequence("trans", new ReadOnlyMemory<char>(new string('A', 30).ToCharArray()),
-            new ReadOnlyMemory<char>(new string('.', 30).ToCharArray()));
+        var seq = new Sequence("trans", new string('A', 30).AsMemory(), new string('.', 30).AsMemory());
 
         var codonChange = VariantAnnotator.MultiDeletion("AAA", 1, 3);
         Assert.NotNull(codonChange);
@@ -785,19 +778,19 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void Mnp_NullRefCodons_Throws()
     {
-        Assert.Throws<ArgumentException>(() => VariantAnnotator.Mnp(null!, new List<int>(), new List<char>()));
+        Assert.Throws<ArgumentNullException>(() => VariantAnnotator.Mnp(null!, (List<int>)[], (List<char>)[]));
     }
 
     [Fact]
     public void Mnp_NullPositions_Throws()
     {
-        Assert.Throws<ArgumentNullException>(() => VariantAnnotator.Mnp("ATG", null!, Array.Empty<char>()));
+        Assert.Throws<ArgumentNullException>(() => VariantAnnotator.Mnp("ATG", null!, []));
     }
 
     [Fact]
     public void Mnp_NullAltBases_Throws()
     {
-        Assert.Throws<ArgumentNullException>(() => VariantAnnotator.Mnp("ATG", new List<int>(), null!));
+        Assert.Throws<ArgumentNullException>(() => VariantAnnotator.Mnp("ATG", [], null!));
     }
 
     // ================================================================
@@ -871,7 +864,7 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC_CTX_8_FromCdsAndGeneBoundaries_ValidParams_ProducesCorrectValues()
     {
-        var introns = new List<(int Start, int End)> { (120, 150), (200, 250) };
+        List<(int Start, int End)> introns = [(120, 150), (200, 250)];
         var ctx = AnnotationContext.FromCdsAndGeneBoundaries(100, 300, 50, 500, introns);
         Assert.Equal(100, ctx.CdsStart);
         Assert.Equal(300, ctx.CdsEnd);
@@ -889,7 +882,7 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC_CTX_9_ClassifyPosition_GeneBoundariesNoIntrons_Works()
     {
-        var ctx = AnnotationContext.FromCdsAndGeneBoundaries(100, 300, 50, 500, null);
+        var ctx = AnnotationContext.FromCdsAndGeneBoundaries(100, 300, 50, 500);
         Assert.Null(ctx.Introns);
 
         // CDS region
@@ -909,7 +902,7 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC_CTX_10_IntronicPosition_NoIntronList_DelegatesToCodingClassifier()
     {
-        var ctx = AnnotationContext.FromCdsAndGeneBoundaries(100, 300, 50, 500, Array.Empty<(int Start, int End)>());
+        var ctx = AnnotationContext.FromCdsAndGeneBoundaries(100, 300, 50, 500, []);
         // Position in CDS with no introns = null (coding, delegate to variant classifier)
         Assert.Null(ctx.ClassifyPosition(200));
         // Position outside CDS with no introns = Upstream/Downstream
@@ -938,8 +931,8 @@ public class AcceptanceTests : IDisposable
         ]);
 
         using var engine = new VariantAnnotationEngine();
-        await Assert.ThrowsAsync<FileNotFoundException>(() => engine.LoadTranscriptsAsync("nonexistent.fasta"));
-        await engine.LoadTranscriptsAsync(fastaPath);
+        await Assert.ThrowsAsync<FileNotFoundException>(() => engine.LoadTranscripts("nonexistent.fasta"));
+        await engine.LoadTranscripts(fastaPath);
 
         var variant = new VcfVariant
         {
@@ -947,10 +940,10 @@ public class AcceptanceTests : IDisposable
             Position = 1,
             Reference = "G",
             Alternate = "T",
-            ErrorProbabilities = Array.Empty<int>()
+            ErrorProbabilities = []
         };
 
-        var annotations = engine.AnnotateVariantAsync(variant);
+        var annotations = engine.AnnotateVariant(variant);
         Assert.NotNull(annotations);
         Assert.Single(annotations);
         Assert.Equal(VariantConsequence.Uncertain, annotations[0].Consequence);
@@ -961,8 +954,7 @@ public class AcceptanceTests : IDisposable
     public void AC_UC_4_BuildHgvsCoding_NullRefAltBase_ProducesCodingNotation()
     {
         // Use the codonChange.Annotate overload without refBase/altBase
-        var seq = new Sequence("trans", new ReadOnlyMemory<char>(new string('A', 30).ToCharArray()),
-            new ReadOnlyMemory<char>(new string('.', 30).ToCharArray()));
+        var seq = new Sequence("trans", new string('A', 30).AsMemory(), new string('.', 30).AsMemory());
         var codonChange = VariantAnnotator.Substitution("GCT", 1, 'G', 'A');
         Assert.NotNull(codonChange);
 
@@ -1016,12 +1008,11 @@ public class AcceptanceTests : IDisposable
     [Fact]
     public void AC_ED_4_PositionBeyondTranscriptWithinGeneBoundary_ReturnsIntergenic()
     {
-        var introns = new List<(int Start, int End)> { (105, 130) };
-        var ctx = AnnotationContext.FromCdsAndGeneBoundaries(
+        List<(int Start, int End)> introns = [(105, 130)];
+        _ = AnnotationContext.FromCdsAndGeneBoundaries(
             100, 200, 50, 1000, introns);
         // Use a transcript long enough to hold position 3500 and within gene (50-1000)
-        var seq = new Sequence("trans", new ReadOnlyMemory<char>(new string('A', 4000).ToCharArray()),
-            new ReadOnlyMemory<char>(new string('I', 4000).ToCharArray()));
+        var seq = new Sequence("trans", new string('A', 4000).AsMemory(), new string('I', 4000).AsMemory());
         // Position 3500 is within gene (50-1000)? No, 3500 > 1000, so it's beyond gene -> Intergenic
         // For a position that IS within gene but beyond 3kb from CDS: use gene boundaries of 50-5000
         var ctx2 = AnnotationContext.FromCdsAndGeneBoundaries(
@@ -1056,10 +1047,10 @@ public class AcceptanceTests : IDisposable
         ]);
 
         using var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsAsync(fastaPath);
+        await engine.LoadTranscripts(fastaPath);
 
         var annotations = new List<VariantAnnotation>();
-        await foreach (var ann in engine.AnnotateVcfAsync(vcfPath, null, 5.0f))
+        await foreach (var ann in engine.AnnotateVcf(vcfPath))
         {
             annotations.Add(ann);
         }
@@ -1082,9 +1073,9 @@ public class AcceptanceTests : IDisposable
         ]);
 
         using var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsAsync(fastaPath);
+        await engine.LoadTranscripts(fastaPath);
 
-        var annotations = await engine.AnnotateVcfAsync(vcfPath, null, 5.0f).ToListAsync();
+        var annotations = await engine.AnnotateVcf(vcfPath).ToListAsync();
         Assert.Empty(annotations);
     }
 
@@ -1138,9 +1129,9 @@ public class AcceptanceTests : IDisposable
         ]);
 
         using var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsAsync(fastaPath);
+        await engine.LoadTranscripts(fastaPath);
 
-        var annotations = await engine.AnnotateVcfAsync(vcfPath, null, 5.0f).ToListAsync();
+        var annotations = await engine.AnnotateVcf(vcfPath).ToListAsync();
         // Filter is INFO-level, engine does not filter by it
         Assert.Single(annotations);
     }
@@ -1161,9 +1152,9 @@ public class AcceptanceTests : IDisposable
         ]);
 
         using var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsAsync(fastaPath);
+        await engine.LoadTranscripts(fastaPath);
 
-        var annotations = await engine.AnnotateVcfAsync(vcfPath, "NM_UNKNOWN", 5.0f).ToListAsync();
+        var annotations = await engine.AnnotateVcf(vcfPath, "NM_UNKNOWN").ToListAsync();
         Assert.Empty(annotations);
     }
 }

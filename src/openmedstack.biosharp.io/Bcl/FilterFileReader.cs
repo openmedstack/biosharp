@@ -86,12 +86,9 @@ public class FilterFileReader : IEnumerable<bool>
         instance.NumClusters =
             BitConverter.ToUInt32(headerBuf.AsSpan(8, 4));
 
-        if (instance._filterFile.Length != instance.NumClusters + HeaderSize)
-        {
-            throw new Exception($"Filter file size mismatch in file {file.FullName}");
-        }
-
-        return instance;
+        return instance._filterFile.Length != instance.NumClusters + HeaderSize
+            ? throw new Exception($"Filter file size mismatch in file {file.FullName}")
+            : instance;
     }
 
     /// <inheritdoc />

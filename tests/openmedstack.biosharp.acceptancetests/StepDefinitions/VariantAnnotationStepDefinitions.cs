@@ -1,6 +1,5 @@
 namespace OpenMedStack.BioSharp.AcceptanceTests.StepDefinitions;
 
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -34,7 +33,7 @@ public class VariantAnnotationStepDefinitions
             "chr1\ttest\tcds\t1500\t1700\t.\t+\t0\ttranscript_id \"NM_001\"; gene_id \"GENE1\";",
             "chr1\ttest\tcds\t1800\t1950\t.\t+\t0\ttranscript_id \"NM_001\"; gene_id \"GENE1\";"
         );
-        var gtfPath = Path.GetTempFileName() + ".gtf";
+        var gtfPath = $"{Path.GetTempFileName()}.gtf";
         await File.WriteAllTextAsync(gtfPath, gtfContent);
         _ctx["gtfPath"] = gtfPath;
     }
@@ -44,7 +43,7 @@ public class VariantAnnotationStepDefinitions
     {
         var gtfPath = (string)_ctx["gtfPath"];
         var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsFromGtfAsync(gtfPath, CancellationToken.None);
+        await engine.LoadTranscriptsFromGtf(gtfPath, CancellationToken.None);
         _ctx["annotationEngine"] = engine;
     }
 
@@ -74,7 +73,7 @@ public class VariantAnnotationStepDefinitions
             "chr1\ttest\tcds\t1100\t1500\t.\t+\t0\ttranscript_id \"NM_002\"; gene_id \"GENE2\";",
             "chr1\ttest\tcds\t2000\t2900\t.\t+\t0\ttranscript_id \"NM_002\"; gene_id \"GENE2\";"
         );
-        var gtfPath = Path.GetTempFileName() + ".gtf";
+        var gtfPath = $"{Path.GetTempFileName()}.gtf";
         await File.WriteAllTextAsync(gtfPath, gtfContent);
         // Variant at position 1502 (2 bases into intron after exon end 1500)
         var variant = new VcfVariant
@@ -94,7 +93,7 @@ public class VariantAnnotationStepDefinitions
         var gtfPath = (string)_ctx["spliceSiteGtfPath"];
         var variant = (VcfVariant)_ctx["spliceSiteVariant"];
         var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsFromGtfAsync(gtfPath, CancellationToken.None);
+        await engine.LoadTranscriptsFromGtf(gtfPath, CancellationToken.None);
         var annotations = engine.AnnotateVariantFromContexts(variant).ToList();
         _ctx["spliceSiteAnnotations"] = annotations;
     }
@@ -109,7 +108,7 @@ public class VariantAnnotationStepDefinitions
     // ── ANN-2: ClinVar + dbSNP Annotation ────────────────────────────────────
 
     [Given("I have a ClinVar VCF with a pathogenic variant at chr1:100")]
-    public async Task GivenClinVarVcfWithPathogenicVariant()
+    public void GivenClinVarVcfWithPathogenicVariant()
     {
         var vcfContent = string.Join("\n",
             "##fileformat=VCFv4.2",
@@ -129,7 +128,7 @@ public class VariantAnnotationStepDefinitions
         var stream = (MemoryStream)_ctx["clinvarStream"];
         stream.Position = 0;
         var annotator = new ClinVarAnnotator();
-        await annotator.LoadAsync(stream, CancellationToken.None);
+        await annotator.Load(stream, CancellationToken.None);
         var variant = new VcfVariant
         {
             Chromosome = "chr1", Position = 100,
@@ -149,7 +148,7 @@ public class VariantAnnotationStepDefinitions
     }
 
     [Given("I have a dbSNP VCF with an rsID for a variant at chr1:200")]
-    public async Task GivenDbSnpVcfWithRsId()
+    public void GivenDbSnpVcfWithRsId()
     {
         var vcfContent = string.Join("\n",
             "##fileformat=VCFv4.2",
@@ -166,7 +165,7 @@ public class VariantAnnotationStepDefinitions
         var stream = (MemoryStream)_ctx["dbsnpStream"];
         stream.Position = 0;
         var annotator = new DbSnpAnnotator();
-        await annotator.LoadAsync(stream, CancellationToken.None);
+        await annotator.Load(stream, CancellationToken.None);
         var variant = new VcfVariant
         {
             Chromosome = "chr1", Position = 200,
@@ -188,7 +187,7 @@ public class VariantAnnotationStepDefinitions
     // ── ANN-3: Pathogenicity Annotation ──────────────────────────────────────
 
     [Given("I have a dbNSFP-format database with SIFT and PolyPhen-2 scores for a missense variant")]
-    public async Task GivenDbNsfpWithScores()
+    public void GivenDbNsfpWithScores()
     {
         var dbContent = string.Join("\n",
             "chr\tpos\tref\talt\tSIFT_score\tSIFT_pred\tPolyphen2_HDIV_score\tPolyphen2_HDIV_pred",
@@ -204,7 +203,7 @@ public class VariantAnnotationStepDefinitions
         var stream = (MemoryStream)_ctx["dbnsfpStream"];
         stream.Position = 0;
         var annotator = new PathogenicityAnnotator();
-        await annotator.LoadAsync(stream, CancellationToken.None);
+        await annotator.Load(stream, CancellationToken.None);
         var variant = new VcfVariant
         {
             Chromosome = "chr1", Position = 300,
@@ -214,10 +213,13 @@ public class VariantAnnotationStepDefinitions
         };
         var variantAnnotation = new VariantAnnotation
         {
-            Chromosome = "chr1", Position = 300,
-            Reference = "A", Alternate = "G",
+            Chromosome = "chr1",
+            Position = 300,
+            Reference = "A",
+            Alternate = "G",
             Consequence = VariantConsequence.Missense,
-            AffectedGene = "NM_003"
+            AffectedGene = "NM_003",
+            HgvsNotation = "NM_003:c.1?",
         };
         _ctx["pathAnnotation"] = annotator.Annotate(variant, variantAnnotation);
     }
@@ -253,7 +255,7 @@ public class VariantAnnotationStepDefinitions
             "chr1\ttest\tcds\t1050\t1500\t.\t+\t0\ttranscript_id \"NM_004\"; gene_id \"GENE4\";",
             "chr1\ttest\tcds\t1600\t2950\t.\t+\t0\ttranscript_id \"NM_004\"; gene_id \"GENE4\";"
         );
-        var gtfPath = Path.GetTempFileName() + ".gtf";
+        var gtfPath = $"{Path.GetTempFileName()}.gtf";
         await File.WriteAllTextAsync(gtfPath, gtfContent);
         // Position 1501 = first base of intron (canonical splice donor)
         var spliceVariant = new VcfVariant
@@ -273,7 +275,7 @@ public class VariantAnnotationStepDefinitions
         var gtfPath = (string)_ctx["spliceDonorGtfPath"];
         var variant = (VcfVariant)_ctx["spliceDonorVariant"];
         var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsFromGtfAsync(gtfPath, CancellationToken.None);
+        await engine.LoadTranscriptsFromGtf(gtfPath, CancellationToken.None);
         var annotations = engine.AnnotateVariantFromContexts(variant).ToList();
         _ctx["spliceDonorAnnotations"] = annotations;
     }
@@ -283,8 +285,7 @@ public class VariantAnnotationStepDefinitions
     {
         var annotations = (List<VariantAnnotation>)_ctx["spliceDonorAnnotations"];
         Assert.Contains(annotations, a =>
-            a.Consequence == VariantConsequence.SpliceSite ||
-            a.Consequence == VariantConsequence.SpliceSiteDisruptive);
+            a.Consequence is VariantConsequence.SpliceSite or VariantConsequence.SpliceSiteDisruptive);
     }
 
     // ── ADDITIONAL steps matching feature file exactly ──────────────────────
@@ -299,7 +300,7 @@ public class VariantAnnotationStepDefinitions
             "chr1\ttest\tcds\t1050\t1200\t.\t+\t0\ttranscript_id \"NM_001\"; gene_id \"GENE1\";",
             "chr1\ttest\tcds\t1500\t1950\t.\t+\t0\ttranscript_id \"NM_001\"; gene_id \"GENE1\";"
         );
-        var gtfPath = Path.GetTempFileName() + ".gtf";
+        var gtfPath = $"{Path.GetTempFileName()}.gtf";
         await File.WriteAllTextAsync(gtfPath, gtfContent);
         _ctx["gtfPath"] = gtfPath;
     }
@@ -309,7 +310,7 @@ public class VariantAnnotationStepDefinitions
     {
         var gtfPath = (string)_ctx["gtfPath"];
         var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsFromGtfAsync(gtfPath, CancellationToken.None);
+        await engine.LoadTranscriptsFromGtf(gtfPath, CancellationToken.None);
         _ctx["annotationEngine"] = engine;
     }
 
@@ -362,7 +363,7 @@ public class VariantAnnotationStepDefinitions
         var stream = (MemoryStream)_ctx["clinvarStream"];
         stream.Position = 0;
         var annotator = new ClinVarAnnotator();
-        await annotator.LoadAsync(stream, CancellationToken.None);
+        await annotator.Load(stream, CancellationToken.None);
         var variant = (VcfVariant)_ctx["clinvarVariant"];
         _ctx["clinvarAnnotation"] = annotator.Annotate(variant);
     }
@@ -426,7 +427,7 @@ public class VariantAnnotationStepDefinitions
         var stream = (MemoryStream)_ctx["dbsnpStream"];
         stream.Position = 0;
         var annotator = new DbSnpAnnotator();
-        await annotator.LoadAsync(stream, CancellationToken.None);
+        await annotator.Load(stream, CancellationToken.None);
         var variant = (VcfVariant)_ctx["dbsnpVariant"];
         _ctx["dbsnpAnnotation"] = annotator.Annotate(variant);
     }
@@ -463,13 +464,17 @@ public class VariantAnnotationStepDefinitions
         var stream = (MemoryStream)_ctx["dbnsfpStream"];
         stream.Position = 0;
         var annotator = new PathogenicityAnnotator();
-        await annotator.LoadAsync(stream, CancellationToken.None);
+        await annotator.Load(stream, CancellationToken.None);
         var variant = (VcfVariant)_ctx["dbnsfpVariant"];
         var variantAnnotation = new VariantAnnotation
         {
-            Chromosome = variant.Chromosome, Position = variant.Position,
-            Reference = variant.Reference, Alternate = variant.Alternate,
-            Consequence = VariantConsequence.Missense, AffectedGene = "GENE1"
+            Chromosome = variant.Chromosome,
+            Position = variant.Position,
+            Reference = variant.Reference,
+            Alternate = variant.Alternate,
+            Consequence = VariantConsequence.Missense,
+            AffectedGene = "GENE1",
+            HgvsNotation = $"GENE1:c.1?",
         };
         _ctx["pathAnnotation"] = annotator.Annotate(variant, variantAnnotation);
     }
@@ -505,13 +510,17 @@ public class VariantAnnotationStepDefinitions
         var stream = (MemoryStream)_ctx["dbnsfpStream"];
         stream.Position = 0;
         var annotator = new PathogenicityAnnotator();
-        await annotator.LoadAsync(stream, CancellationToken.None);
+        await annotator.Load(stream, CancellationToken.None);
         var variant = (VcfVariant)_ctx["dbnsfpVariant"];
         var variantAnnotation = new VariantAnnotation
         {
-            Chromosome = variant.Chromosome, Position = variant.Position,
-            Reference = variant.Reference, Alternate = variant.Alternate,
-            Consequence = VariantConsequence.Missense, AffectedGene = "GENE1"
+            Chromosome = variant.Chromosome,
+            Position = variant.Position,
+            Reference = variant.Reference,
+            Alternate = variant.Alternate,
+            Consequence = VariantConsequence.Missense,
+            AffectedGene = "GENE1",
+            HgvsNotation = $"GENE1:{variant.Chromosome}:{variant.Position}{variant.Reference}>{variant.Alternate}",
         };
         _ctx["pathAnnotation"] = annotator.Annotate(variant, variantAnnotation);
     }
@@ -534,7 +543,7 @@ public class VariantAnnotationStepDefinitions
             "chr1\ttest\tcds\t1050\t1500\t.\t+\t0\ttranscript_id \"NM_004\"; gene_id \"GENE4\";",
             "chr1\ttest\tcds\t1600\t2950\t.\t+\t0\ttranscript_id \"NM_004\"; gene_id \"GENE4\";"
         );
-        var gtfPath = Path.GetTempFileName() + ".gtf";
+        var gtfPath = $"{Path.GetTempFileName()}.gtf";
         await File.WriteAllTextAsync(gtfPath, gtfContent);
         _ctx["spliceDonorGtfPath"] = gtfPath;
         _ctx["spliceDonorVariant"] = new VcfVariant
@@ -552,7 +561,7 @@ public class VariantAnnotationStepDefinitions
         var gtfPath = (string)_ctx["spliceDonorGtfPath"];
         var variant = (VcfVariant)_ctx["spliceDonorVariant"];
         var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsFromGtfAsync(gtfPath, CancellationToken.None);
+        await engine.LoadTranscriptsFromGtf(gtfPath, CancellationToken.None);
         _ctx["spliceDonorAnnotations"] = engine.AnnotateVariantFromContexts(variant).ToList();
     }
 
@@ -561,7 +570,6 @@ public class VariantAnnotationStepDefinitions
     {
         var annotations = (List<VariantAnnotation>)_ctx["spliceDonorAnnotations"];
         Assert.Contains(annotations, a =>
-            a.Consequence == VariantConsequence.SpliceSite ||
-            a.Consequence == VariantConsequence.SpliceSiteDisruptive);
+            a.Consequence is VariantConsequence.SpliceSite or VariantConsequence.SpliceSiteDisruptive);
     }
 }

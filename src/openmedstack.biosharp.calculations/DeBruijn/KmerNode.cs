@@ -11,7 +11,7 @@ public class KmerNode
     {
         Id = id ?? throw new ArgumentNullException(nameof(id));
         InboundEdges = inboundEdges;
-        OutboundEdges = outboundNodes?.ToList() ?? new List<string>();
+        OutboundEdges = outboundNodes.ToList();
         OutboundCoverage = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
     }
 

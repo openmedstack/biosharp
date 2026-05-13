@@ -37,7 +37,7 @@ public sealed class BaseQualityRecalibrator
     /// Pass null or an empty set to include all sites.
     /// </param>
     /// <returns>A <see cref="RecalibrationTable"/> ready for <see cref="ApplyRecalibration"/>.</returns>
-    public RecalibrationTable CollectCovariates(
+    public static RecalibrationTable CollectCovariates(
         IEnumerable<AlignmentSection> alignments,
         Sequence reference,
         IReadOnlySet<int>? knownVariantPositions = null)
@@ -97,22 +97,13 @@ public sealed class BaseQualityRecalibrator
     }
 
     /// <summary>
-    /// Overload that accepts <see cref="AlignmentSection"/> objects from a SAM/BAM stream and
-    /// a reference provided as a <see cref="Sequence"/>.
-    /// </summary>
-    public RecalibrationTable CollectCovariates(
-        IEnumerable<AlignmentSection> alignments,
-        Sequence reference)
-        => CollectCovariates(alignments, reference, null);
-
-    /// <summary>
     /// Applies recalibration to a collection of alignments, replacing each base quality
     /// with the empirical Phred score from the <paramref name="table"/>.
     /// </summary>
     /// <param name="alignments">Alignments to recalibrate.</param>
     /// <param name="table">Recalibration table produced by <see cref="CollectCovariates"/>.</param>
     /// <returns>New <see cref="AlignmentSection"/> list with adjusted quality strings.</returns>
-    public IReadOnlyList<AlignmentSection> ApplyRecalibration(
+    public static IReadOnlyList<AlignmentSection> ApplyRecalibration(
         IEnumerable<AlignmentSection> alignments,
         RecalibrationTable table)
     {

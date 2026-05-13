@@ -1,9 +1,9 @@
+namespace OpenMedStack.BioSharp.Calculations.Tests;
+
 using System;
 using System.Linq;
 using OpenMedStack.BioSharp.Model;
 using Xunit;
-
-namespace OpenMedStack.BioSharp.Calculations.Tests;
 
 public class VariantAnnotatorTests
 {
@@ -11,7 +11,7 @@ public class VariantAnnotatorTests
 
     private static ReadOnlyMemory<char> Dots(int n)
     {
-        return new ReadOnlyMemory<char>(new string('.', n).ToCharArray());
+        return new string('.', n).AsMemory();
     }
 
     // ==================== Codon Translation Tests ====================
@@ -299,8 +299,7 @@ public class VariantAnnotatorTests
 
         var seq = new Sequence("chr1:1-300", Dots(3), Dots(3));
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_000",
+        var result = codonChange.Annotate("NM_000",
             seq,
             1,
             'G', 'G');
@@ -318,8 +317,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("GCT", 2, 'C', 'A');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_001",
+        var result = codonChange.Annotate("NM_001",
             seq,
             2,
             'C', 'A');
@@ -340,8 +338,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("CGA", 1, 'C', 'T');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_002",
+        var result = codonChange.Annotate("NM_002",
             seq,
             1,
             'C', 'T');
@@ -359,8 +356,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Deletion("GCT", 4, 'G');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_003",
+        var result = codonChange.Annotate("NM_003",
             seq,
             4,
             'G', 'T');
@@ -377,8 +373,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("GCT", 2, 'C', 'A');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_004",
+        var result = codonChange.Annotate("NM_004",
             seq,
             11,
             'C', 'A');
@@ -396,8 +391,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("GCT", 3, 'T', 'T');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_013",
+        var result = codonChange.Annotate("NM_013",
             new Sequence("x", Dots(3), Dots(3)),
             1,
             'T', 'T');
@@ -415,8 +409,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("ATG", 100, 'A', 'T');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_011",
+        var result = codonChange.Annotate("NM_011",
             seq,
             100,
             'A', 'T');
@@ -432,8 +425,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("ATG", 1, 'A', 'T');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_005",
+        var result = codonChange.Annotate("NM_005",
             seq,
             1,
             'A', 'T');
@@ -452,8 +444,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("GCT", 2, 'C', 'A');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_999",
+        var result = codonChange.Annotate("NM_999",
             new Sequence("x", Dots(3), Dots(3)),
             2,
             'C', 'A');
@@ -467,8 +458,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("GCT", 2, 'C', 'A');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_999",
+        var result = codonChange.Annotate("NM_999",
             new Sequence("x", Dots(3), Dots(3)),
             2);
 
@@ -482,8 +472,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Deletion("GCT", 2, 'C');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_998",
+        var result = codonChange.Annotate("NM_998",
             new Sequence("x", Dots(3), Dots(3)),
             2);
 
@@ -498,8 +487,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.MultiDeletion("GCT", 1, 2);
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_997",
+        var result = codonChange.Annotate("NM_997",
             new Sequence("x", Dots(3), Dots(3)),
             1);
 
@@ -513,15 +501,14 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Insertion("GCT", 1, 'G');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_996",
+        var result = codonChange.Annotate("NM_996",
             new Sequence("x", Dots(3), Dots(3)),
             1,
             'G', 'G');
 
         // altSeq = "G", refSeq = "GCT", altSeq(1) < refSeq(3) => else path
-        // "c.1_1ins" + "G" = "c.1_1insG"
-        Assert.Equal("c.1_1insG", result!.HgvsCoding);
+        // Per HGVS, insertion falls between two adjacent positions: c.1_2insG
+        Assert.Equal("c.1_2insG", result!.HgvsCoding);
     }
 
     [Fact]
@@ -530,14 +517,14 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Insertion("GCT", 1, 'G');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_996",
+        var result = codonChange.Annotate("NM_996",
             new Sequence("x", Dots(3), Dots(3)),
             1);
 
         // altSeq = "GGCT" (from mutated codon), refSeq = "GCT"
         // altSeq.Length(4) > refSeq.Length(3) => insSeq = "GGCT".Substring(3) = "T"
-        Assert.Equal("c.1_1insT", result!.HgvsCoding);
+        // Per HGVS, insertion falls between two adjacent positions: c.1_2insT
+        Assert.Equal("c.1_2insT", result!.HgvsCoding);
     }
 
     // ==================== HGVS Protein Notation Tests ====================
@@ -549,8 +536,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("GCG", 28, 'G', 'T');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_005",
+        var result = codonChange.Annotate("NM_005",
             seq,
             28);
 
@@ -565,8 +551,7 @@ public class VariantAnnotatorTests
         var seq = new Sequence("trans", Dots(15), Dots(15));
         var codonChange = VariantAnnotator.Substitution("GCT", 1, 'G', 'G');
         Assert.NotNull(codonChange);
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_006",
+        var result = codonChange.Annotate("NM_006",
             seq,
             1, 'G', 'G');
 
@@ -593,8 +578,7 @@ public class VariantAnnotatorTests
         Assert.NotNull(codonChange);
 
         var seq = new Sequence("trans", Dots(3), Dots(3));
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_999",
+        var result = codonChange.Annotate("NM_999",
             seq,
             1, 'A', 'T');
 
@@ -610,8 +594,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("GCT", 1, 'G', 'A');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "GENE",
+        var result = codonChange.Annotate("GENE",
             seq,
             1, 'G', 'A');
 
@@ -626,8 +609,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("ATG", 1, 'A', 'T');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_123",
+        var result = codonChange.Annotate("NM_123",
             new Sequence("trans", Dots(3), Dots(3)),
             1, 'A', 'T');
 
@@ -641,8 +623,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("GCT", 2, 'C', 'G');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "TEST",
+        var result = codonChange.Annotate("TEST",
             new Sequence("x", Dots(3), Dots(3)),
             2, 'C', 'G');
 
@@ -656,8 +637,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("GCT", 2, 'C', 'G');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "TEST",
+        var result = codonChange.Annotate("TEST",
             new Sequence("x", Dots(3), Dots(3)),
             2, 'C', 'G');
 
@@ -673,12 +653,12 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("GCT", 1, 'G', 'A');
         Assert.NotNull(codonChange);
 
-        Assert.Throws<ArgumentException>(() =>
-            VariantAnnotator.Annotate(codonChange, null!,
+        Assert.Throws<ArgumentNullException>(() =>
+            codonChange.Annotate(null!,
                 new Sequence("x", Dots(3), Dots(3)), 1));
 
         Assert.Throws<ArgumentException>(() =>
-            VariantAnnotator.Annotate(codonChange, "",
+            codonChange.Annotate("",
                 new Sequence("x", Dots(3), Dots(3)), 1));
     }
 
@@ -698,7 +678,7 @@ public class VariantAnnotatorTests
         Assert.NotNull(codonChange);
 
         Assert.Throws<ArgumentNullException>(() =>
-            VariantAnnotator.Annotate(codonChange, "NM_999",
+            codonChange.Annotate("NM_999",
                 null!, 1));
     }
 
@@ -722,8 +702,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("ATG", 1, 'A', 'T');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_000",
+        var result = codonChange.Annotate("NM_000",
             new Sequence("trans", Dots(3), Dots(3)),
             0, 'A', 'T');
 
@@ -737,8 +716,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("ATG", 1, 'A', 'T');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_000",
+        var result = codonChange.Annotate("NM_000",
             new Sequence("trans", Dots(3), Dots(3)),
             -5, 'A', 'T');
 
@@ -753,8 +731,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("ATG", 1, 'A', 'G');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_007",
+        var result = codonChange.Annotate("NM_007",
             seq,
             1, 'A', 'G');
 
@@ -771,8 +748,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.MultiDeletion("GCT", 1, 3);
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_008",
+        var result = codonChange.Annotate("NM_008",
             seq,
             1);
 
@@ -787,8 +763,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Insertion("GCT", 1, 'G');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_009",
+        var result = codonChange.Annotate("NM_009",
             seq,
             1);
 
@@ -826,8 +801,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("XYZ", 1, 'X', 'A');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_010",
+        var result = codonChange.Annotate("NM_010",
             seq,
             1);
 
@@ -842,8 +816,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("TAA", 1, 'T', 'C');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_011",
+        var result = codonChange.Annotate("NM_011",
             seq,
             1);
 
@@ -858,8 +831,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Substitution("CAA", 10, 'C', 'T');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_012",
+        var result = codonChange.Annotate("NM_012",
             seq,
             10, 'C', 'T');
 
@@ -878,8 +850,7 @@ public class VariantAnnotatorTests
         Assert.NotNull(codonChange);
 
         // refBase must be null so refSeq comes from codonChange.MutatedCodon="GCT"
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_013",
+        var result = codonChange.Annotate("NM_013",
             seq,
             1, null, '-');
 
@@ -897,8 +868,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.Deletion("GCT", 1, 'G');
         Assert.NotNull(codonChange);
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_900",
+        var result = codonChange.Annotate("NM_900",
             new Sequence("x", Dots(3), Dots(3)),
             1);
 
@@ -913,8 +883,7 @@ public class VariantAnnotatorTests
         var codonChange = VariantAnnotator.MultiDeletion("GCT", 2, 2);
         Assert.NotNull(codonChange); // GC at positions 2-3, mutated="GT"
 
-        var result = VariantAnnotator.Annotate(codonChange,
-            "NM_901",
+        var result = codonChange.Annotate("NM_901",
             new Sequence("x", Dots(3), Dots(3)),
             2);
 

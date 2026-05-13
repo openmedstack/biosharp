@@ -13,7 +13,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Model;
 
-public class FastQReader
+public partial class FastQReader
 {
     private enum CompressionKind
     {
@@ -33,6 +33,7 @@ public class FastQReader
         string path,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        LogStartReadingFastqFromPath(path);
         await using var file = File.Open(
             path,
             new FileStreamOptions
@@ -44,15 +45,13 @@ public class FastQReader
             });
 
         Stream input = file;
-        var compressionKind = await DetectCompressionAsync(file, path, cancellationToken).ConfigureAwait(false);
-        if (compressionKind == CompressionKind.Bgzf)
+        var compressionKind = await DetectCompression(file, path, cancellationToken).ConfigureAwait(false);
+        input = compressionKind switch
         {
-            input = new BgzfStream(file, CompressionMode.Decompress, leaveOpen: false);
-        }
-        else if (compressionKind == CompressionKind.Gzip)
-        {
-            input = new GZipStream(file, CompressionMode.Decompress, leaveOpen: false);
-        }
+            CompressionKind.Bgzf => new BgzfStream(file, CompressionMode.Decompress, leaveOpen: false),
+            CompressionKind.Gzip => new GZipStream(file, CompressionMode.Decompress, leaveOpen: false),
+            _ => input
+        };
 
         await using var _ = input.ConfigureAwait(false);
         using var reader = new StreamReader(input, Encoding.ASCII, detectEncodingFromByteOrderMarks: false);
@@ -95,7 +94,8 @@ public class FastQReader
 
             if (letters.Length != quality.Length)
             {
-                throw new InvalidDataException($"FASTQ record in '{path}' has mismatched sequence and quality lengths.");
+                throw new InvalidDataException(
+                    $"FASTQ record in '{path}' has mismatched sequence and quality lengths.");
             }
 
             yield return new Sequence(id[1..], letters.AsMemory(), quality.AsMemory());
@@ -142,7 +142,7 @@ public class FastQReader
             if (separatorOrQuality.Length > 0 && separatorOrQuality[0] == '+')
             {
                 quality = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false)
-                    ?? throw new InvalidDataException("Incomplete FASTQ record.");
+                 ?? throw new InvalidDataException("Incomplete FASTQ record.");
             }
             else
             {
@@ -166,7 +166,7 @@ public class FastQReader
     /// <param name="stream">Input stream (plain text, assumed not compressed).</param>
     /// <param name="bufferCapacity">Maximum number of pre-parsed records to buffer. Default: 1024.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async IAsyncEnumerable<Sequence> ReadWithReadAheadAsync(
+    public async IAsyncEnumerable<Sequence> ReadWithReadAhead(
         Stream stream,
         int bufferCapacity = 1024,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -203,7 +203,7 @@ public class FastQReader
         await producerTask.ConfigureAwait(false);
     }
 
-    private static async Task<CompressionKind> DetectCompressionAsync(
+    private static async Task<CompressionKind> DetectCompression(
         FileStream stream,
         string path,
         CancellationToken cancellationToken)
@@ -256,7 +256,7 @@ public class FastQReader
     /// When <c>false</c>, logs a warning and continues.
     /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async IAsyncEnumerable<(Sequence R1, Sequence R2)> ReadPairedAsync(
+    public async IAsyncEnumerable<(Sequence R1, Sequence R2)> ReadPaired(
         string r1Path,
         string r2Path,
         bool strict = true,
@@ -312,7 +312,7 @@ public class FastQReader
     /// When <c>true</c> (default), throws on name mismatch; when <c>false</c>, logs a warning.
     /// </param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public async IAsyncEnumerable<(Sequence R1, Sequence R2)> ReadInterleavedAsync(
+    public async IAsyncEnumerable<(Sequence R1, Sequence R2)> ReadInterleaved(
         string path,
         bool strict = true,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -382,4 +382,7 @@ public class FastQReader
 
         return name;
     }
+
+    [LoggerMessage(LogLevel.Debug, "Start reading FASTQ from '{Path}'")]
+    partial void LogStartReadingFastqFromPath(string path);
 }

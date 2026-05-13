@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
@@ -83,7 +82,7 @@ public class BamWriter
 
         block.Write(alignmentSection.Sequence.WriteSequence());
         var quality = alignmentSection.Quality.AsSpan();
-        Span<byte> qualBytes = quality.Length <= 512 ? stackalloc byte[quality.Length] : new byte[quality.Length];
+        var qualBytes = quality.Length <= 512 ? stackalloc byte[quality.Length] : new byte[quality.Length];
         for (var i = 0; i < quality.Length; i++)
         {
             qualBytes[i] = quality[i] == ' ' ? (byte)255 : (byte)quality[i];
@@ -241,11 +240,6 @@ public class BamWriter
             return 's';
         }
 
-        if (type == typeof(ushort))
-        {
-            return 'S';
-        }
-
-        throw new InvalidDataException("Invalid tag value");
+        return type == typeof(ushort) ? 'S' : throw new InvalidDataException("Invalid tag value");
     }
 }

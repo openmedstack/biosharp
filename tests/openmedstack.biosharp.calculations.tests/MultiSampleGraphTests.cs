@@ -1,10 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using AsyncEnumerable = OpenMedStack.BioSharp.Calculations.Alignment.AsyncEnumerableExtensions;
-using DeBruijn = OpenMedStack.BioSharp.Calculations.DeBruijn;
 using Sequence = OpenMedStack.BioSharp.Model.Sequence;
 using Xunit;
 
@@ -20,7 +18,7 @@ public class MultiSampleGraphTests
     {
         return AsyncEnumerable.ToAsyncEnumerable(
             seqs.Select(s => new Sequence(
-                "r_" + s.GetHashCode(),
+                $"r_{s.GetHashCode()}",
                 s.AsMemory(),
                 new string('I', s.Length).AsMemory())));
     }
@@ -37,8 +35,8 @@ public class MultiSampleGraphTests
     [Fact]
     public void AddSample_AddsGraph()
     {
-        var sample1 = BuildGraph(new[] { "ACGTACGACTAGC" });
-        var sample2 = BuildGraph(new[] { "ACGTACGACTAGT" });
+        var sample1 = BuildGraph(["ACGTACGACTAGC"]);
+        var sample2 = BuildGraph(["ACGTACGACTAGT"]);
 
         var graph = new DeBruijn.MultiSampleGraph(4);
 
@@ -51,7 +49,7 @@ public class MultiSampleGraphTests
         Assert.False(graph.HasSample("sample3"));
 
         // Union filter should have k-mers from both samples
-        var union = graph.GetUnionFilterAsync().Result;
+        var union = graph.GetUnionFilter().Result;
         Assert.NotNull(union);
     }
 
@@ -62,14 +60,14 @@ public class MultiSampleGraphTests
     [Fact]
     public void UnionFilter_ContainsKmersFromAllSamples()
     {
-        var sample1 = BuildGraph(new[] { "ACGTACGACTAGC" }, 5);
-        var sample2 = BuildGraph(new[] { "TTTTACGACTAGT" }, 5);
+        var sample1 = BuildGraph(["ACGTACGACTAGC"]);
+        var sample2 = BuildGraph(["TTTTACGACTAGT"]);
 
         var graph = new DeBruijn.MultiSampleGraph(5);
         graph.AddSample("s1", sample1);
         graph.AddSample("s2", sample2);
 
-        var union = graph.GetUnionFilterAsync().Result;
+        var union = graph.GetUnionFilter().Result;
 
         // Collect all k-mers from sample 1
         var kmer1 = ExtractKmers("ACGTACGACTAGC", 5);
@@ -93,12 +91,12 @@ public class MultiSampleGraphTests
     [Fact]
     public void UnionFilter_NotContainsKmersFromNonExistentSample()
     {
-        var sample1 = BuildGraph(new[] { "ACGTACGACTAGC" }, 5);
+        var sample1 = BuildGraph(["ACGTACGACTAGC"]);
 
         var graph = new DeBruijn.MultiSampleGraph(5);
         graph.AddSample("s1", sample1);
 
-        var union = graph.GetUnionFilterAsync().Result;
+        var union = graph.GetUnionFilter().Result;
 
         // This k-mer was never in any sample
         var neverAddedKmer = "GGGGG";
@@ -112,14 +110,14 @@ public class MultiSampleGraphTests
     [Fact]
     public async Task HasKmerInSample_ReturnsTrue()
     {
-        var sample1 = BuildGraph(new[] { "ACGTACGACTAGC" }, 5);
+        var sample1 = BuildGraph(["ACGTACGACTAGC"]);
 
         var graph = new DeBruijn.MultiSampleGraph(5);
         graph.AddSample("s1", sample1);
 
         var kmer = ExtractKmers("ACGTACGACTAGC", 5).First();
 
-        Assert.True(await graph.HasKmerInSampleAsync("s1", kmer));
+        Assert.True(await graph.HasKmerInSample("s1", kmer));
     }
 
     /// <summary>
@@ -129,14 +127,14 @@ public class MultiSampleGraphTests
     [Fact]
     public async Task HasKmerInSample_ReturnsFalse()
     {
-        var sample1 = BuildGraph(new[] { "ACGTACGACTAGC" }, 5);
+        var sample1 = BuildGraph(["ACGTACGACTAGC"]);
 
         var graph = new DeBruijn.MultiSampleGraph(5);
         graph.AddSample("s1", sample1);
 
         // Never added to any sample
         var neverAdded = "TTTTT";
-        Assert.False(await graph.HasKmerInSampleAsync("s1", neverAdded));
+        Assert.False(await graph.HasKmerInSample("s1", neverAdded));
     }
 
     /// <summary>
@@ -147,8 +145,8 @@ public class MultiSampleGraphTests
     public async Task HasKmerInAllSamples_ReturnsTrue()
     {
         var read1 = "ACGTACGACTAGC";
-        var sample1 = BuildGraph(new[] { read1 }, 5);
-        var sample2 = BuildGraph(new[] { read1, "ACGTACGACTAGT" }, 5);
+        var sample1 = BuildGraph([read1]);
+        var sample2 = BuildGraph([read1, "ACGTACGACTAGT"]);
 
         var graph = new DeBruijn.MultiSampleGraph(5);
         graph.AddSample("s1", sample1);
@@ -157,7 +155,7 @@ public class MultiSampleGraphTests
         var sharedKmer = ExtractKmers(read1, 5).First();
 
         var samples = new List<string> { "s1", "s2" };
-        Assert.True(await graph.HasKmerInAllSamplesAsync(samples, sharedKmer));
+        Assert.True(await graph.HasKmerInAllSamples(samples, sharedKmer));
     }
 
     /// <summary>
@@ -167,8 +165,8 @@ public class MultiSampleGraphTests
     [Fact]
     public async Task HasKmerInAllSamples_ReturnsFalse()
     {
-        var sample1 = BuildGraph(new[] { "ACGTACGACTAGC" }, 5);
-        var sample2 = BuildGraph(new[] { "TTTTACGACTAGT" }, 5);
+        var sample1 = BuildGraph(["ACGTACGACTAGC"]);
+        var sample2 = BuildGraph(["TTTTACGACTAGT"]);
 
         var graph = new DeBruijn.MultiSampleGraph(5);
         graph.AddSample("s1", sample1);
@@ -178,7 +176,7 @@ public class MultiSampleGraphTests
         var uniqueKmer = ExtractKmers("ACGTACGACTAGC", 5).First();
 
         var samples = new List<string> { "s1", "s2" };
-        Assert.False(await graph.HasKmerInAllSamplesAsync(samples, uniqueKmer));
+        Assert.False(await graph.HasKmerInAllSamples(samples, uniqueKmer));
     }
 
     /// <summary>
@@ -188,21 +186,21 @@ public class MultiSampleGraphTests
     [Fact]
     public async Task GetUniqueKmersInSample_ReturnsUniqueKmers()
     {
-        var sample1 = BuildGraph(new[] { "AAAAACCCCGGGGT" }, 5);
-        var sample2 = BuildGraph(new[] { "TTTTTAGGGGCCCC" }, 5);
+        var sample1 = BuildGraph(["AAAAACCCCGGGGT"]);
+        var sample2 = BuildGraph(["TTTTTAGGGGCCCC"]);
 
         var graph = new DeBruijn.MultiSampleGraph(5);
         graph.AddSample("s1", sample1);
         graph.AddSample("s2", sample2);
 
-        var uniqueInS1 = await graph.GetUniqueKmersInSampleAsync("s1");
+        var uniqueInS1 = await graph.GetUniqueKmersInSample("s1");
 
         Assert.NotNull(uniqueInS1);
 
         // Each returned k-mer should NOT be in s2
         foreach (var km in uniqueInS1)
         {
-            Assert.False(await graph.HasKmerInSampleAsync("s2", km),
+            Assert.False(await graph.HasKmerInSample("s2", km),
                 $"K-mer '{km}' claimed unique to s1 but found in s2");
         }
     }
@@ -215,23 +213,23 @@ public class MultiSampleGraphTests
     public async Task GetSharedKmers_ReturnsCommonKmers()
     {
         var commonRead = "ACGTACGACTAGCCGT";
-        var sample1 = BuildGraph(new[] { "ACGTACGACTAGC", commonRead, "ACGTACGACTAGT" }, 5);
-        var sample2 = BuildGraph(new[] { commonRead, "ACGTACGACTAGT" }, 5);
+        var sample1 = BuildGraph(["ACGTACGACTAGC", commonRead, "ACGTACGACTAGT"]);
+        var sample2 = BuildGraph([commonRead, "ACGTACGACTAGT"]);
 
         var graph = new DeBruijn.MultiSampleGraph(5);
         graph.AddSample("s1", sample1);
         graph.AddSample("s2", sample2);
 
-        var shared = await graph.GetSharedKmersAsync(new[] { "s1", "s2" });
+        var shared = await graph.GetSharedKmers(["s1", "s2"]);
 
         Assert.NotNull(shared);
 
         // Each shared kmer should be in both samples
         foreach (var km in shared)
         {
-            Assert.True(await graph.HasKmerInSampleAsync("s1", km),
+            Assert.True(await graph.HasKmerInSample("s1", km),
                 $"Shared k-mer '{km}' not found in s1");
-            Assert.True(await graph.HasKmerInSampleAsync("s2", km),
+            Assert.True(await graph.HasKmerInSample("s2", km),
                 $"Shared k-mer '{km}' not found in s2");
         }
     }
@@ -243,8 +241,8 @@ public class MultiSampleGraphTests
     [Fact]
     public async Task BuildUnionGraph_ProducesValidGraph()
     {
-        var sample1 = BuildGraph(new[] { "ACGTACGACTAGC" }, 5);
-        var sample2 = BuildGraph(new[] { "ACGTACGACTAGT" }, 5);
+        var sample1 = BuildGraph(["ACGTACGACTAGC"]);
+        var sample2 = BuildGraph(["ACGTACGACTAGT"]);
 
         var graph = new DeBruijn.MultiSampleGraph(5);
         graph.AddSample("s1", sample1);
@@ -271,7 +269,7 @@ public class MultiSampleGraphTests
 
         Assert.Equal(0, graph.SampleCount);
 
-        var union = graph.GetUnionFilterAsync().Result;
+        var union = graph.GetUnionFilter().Result;
         Assert.NotNull(union);
 
         var unionGraph = graph.BuildUnionGraph().Result;
@@ -285,16 +283,16 @@ public class MultiSampleGraphTests
     [Fact]
     public void UnionFilter_Size_GrowsWithSamples()
     {
-        var sample1 = BuildGraph(new[] { "ACGTACGACTAGC" }, 5);
-        var sample2 = BuildGraph(new[] { "TTTTTTTTTTTTTTTT" }, 5);
-        var sample3 = BuildGraph(new[] { "GGGGGGGGGGGGGGGG" }, 5);
+        var sample1 = BuildGraph(["ACGTACGACTAGC"]);
+        var sample2 = BuildGraph(["TTTTTTTTTTTTTTTT"]);
+        var sample3 = BuildGraph(["GGGGGGGGGGGGGGGG"]);
 
         var graph = new DeBruijn.MultiSampleGraph(5);
         graph.AddSample("s1", sample1);
-        var unionAfter1 = graph.GetUnionFilterAsync().Result;
+        var unionAfter1 = graph.GetUnionFilter().Result;
 
         graph.AddSample("s2", sample2);
-        var unionAfter2 = graph.GetUnionFilterAsync().Result;
+        var unionAfter2 = graph.GetUnionFilter().Result;
 
         Assert.True((long)unionAfter2.TotalBits >= (long)unionAfter1.TotalBits);
     }
@@ -306,8 +304,8 @@ public class MultiSampleGraphTests
     [Fact]
     public async Task GetTotalUniqueKmerCount_ReturnsCorrectCount()
     {
-        var sample1 = BuildGraph(new[] { "ACGTACGACTAGC" }, 5);
-        var sample2 = BuildGraph(new[] { "ACGTACGACTAGT" }, 5);
+        var sample1 = BuildGraph(["ACGTACGACTAGC"]);
+        var sample2 = BuildGraph(["ACGTACGACTAGT"]);
 
         var graph = new DeBruijn.MultiSampleGraph(5);
         graph.AddSample("s1", sample1);

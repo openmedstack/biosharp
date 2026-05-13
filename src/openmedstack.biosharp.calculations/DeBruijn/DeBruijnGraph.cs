@@ -12,7 +12,7 @@ using Model;
 
 public class DeBruijnGraph
 {
-    private readonly int _k;
+    private const int DefaultBuildBatchSize = 1024;
     private readonly IAsyncEnumerable<Sequence> _reads;
     private readonly Dictionary<string, KmerNode> _graph = new();
     private bool _built = false;
@@ -20,7 +20,7 @@ public class DeBruijnGraph
 
     public DeBruijnGraph(int k, IAsyncEnumerable<Sequence> reads)
     {
-        _k = k;
+        K = k;
         _reads = reads;
     }
 
@@ -37,29 +37,40 @@ public class DeBruijnGraph
             return;
         }
 
-        // Buffer reads so k-mer extraction can be parallelized
-        var allReads = new List<ReadOnlyMemory<char>>();
+        var bufferedReads = new List<ReadOnlyMemory<char>>(DefaultBuildBatchSize);
         await foreach (var line in _reads.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
-            allReads.Add(line.GetData());
+            bufferedReads.Add(line.GetData());
+            if (bufferedReads.Count >= DefaultBuildBatchSize)
+            {
+                BuildChunk(bufferedReads);
+                bufferedReads.Clear();
+            }
         }
 
-        if (allReads.Count == 0)
+        if (bufferedReads.Count > 0)
+        {
+            BuildChunk(bufferedReads);
+        }
+    }
+
+    private void BuildChunk(IReadOnlyCollection<ReadOnlyMemory<char>> reads)
+    {
+        if (reads.Count == 0)
         {
             return;
         }
 
-        // Parallel k-mer extraction: each thread maintains its own partial graph
         var partitions = new ConcurrentBag<Dictionary<string, KmerNode>>();
         Parallel.ForEach(
-            allReads,
+            reads,
             () => new Dictionary<string, KmerNode>(),
             (data, _, local) =>
             {
                 var span = data.Span;
-                for (var index = 0; index <= span.Length - _k; index++)
+                for (var index = 0; index <= span.Length - K; index++)
                 {
-                    var kmer = new string(span.Slice(index, _k));
+                    var kmer = new string(span.Slice(index, K));
                     var left = kmer[..^1];
                     var right = kmer[1..];
 
@@ -88,7 +99,11 @@ public class DeBruijnGraph
             },
             local => partitions.Add(local));
 
-        // Merge partial graphs serially into the shared graph
+        MergePartitions(partitions);
+    }
+
+    private void MergePartitions(IEnumerable<Dictionary<string, KmerNode>> partitions)
+    {
         foreach (var partition in partitions)
         {
             foreach (var (key, node) in partition)
@@ -151,7 +166,7 @@ public class DeBruijnGraph
         foreach (var candidate in candidates)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var seq = WalkFrom(candidate.Key, coverage, visited, _k);
+            var seq = WalkFrom(candidate.Key, coverage, visited, K);
             if (seq != null)
             {
                 sequences.Add(seq);
@@ -223,10 +238,7 @@ public class DeBruijnGraph
         return new Dictionary<string, KmerNode>(_graph);
     }
 
-    public int K
-    {
-        get { return _k; }
-    }
+    public int K { get; }
 
     /// <summary>
     /// Filters out edges with coverage below the threshold.
@@ -236,7 +248,7 @@ public class DeBruijnGraph
     /// </summary>
     public void FilterLowCoverageEdges(int? minCoverage = null)
     {
-        BuildGraph(default).GetAwaiter().GetResult();
+        BuildGraph(CancellationToken.None).GetAwaiter().GetResult();
         var allCoverages = new List<int>();
         foreach (var node in _graph.Values)
         {

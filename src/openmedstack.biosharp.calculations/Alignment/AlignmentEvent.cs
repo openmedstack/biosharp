@@ -25,7 +25,7 @@ public class AlignmentEvent
     /// Length of homopolymer run at this event's position in the reference.
     /// Used for quality scoring: homopolymer indels are downweighted.
     /// </summary>
-    public int HomopolymerRun { get; internal set; } = 0;
+    public int HomopolymerRun { get; internal set; }
 
     /// <summary>True if this is a substitution/SNP.</summary>
     public bool IsSubstitution
@@ -36,6 +36,6 @@ public class AlignmentEvent
     /// <summary>True if this is an indel (insertion or deletion).</summary>
     public bool IsIndel
     {
-        get { return EventType == EventType.Insertion || EventType == EventType.Deletion; }
+        get { return EventType is EventType.Insertion or EventType.Deletion; }
     }
 }

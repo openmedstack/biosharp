@@ -48,11 +48,11 @@ public record Program
         }
         return new Program(
             parts["ID"],
-            parts.TryGetValue("PN", out var pn) ? pn : null,
-            parts.TryGetValue("CL", out var cl) ? cl : null,
-            parts.TryGetValue("PP", out var pp) ? pp : null,
-            parts.TryGetValue("DS", out var ds) ? ds : null,
-            parts.TryGetValue("VN", out var vn) ? vn : null);
+            parts.GetValueOrDefault("PN"),
+            parts.GetValueOrDefault("CL"),
+            parts.GetValueOrDefault("PP"),
+            parts.GetValueOrDefault("DS"),
+            parts.GetValueOrDefault("VN"));
     }
 
     /// <inheritdoc />

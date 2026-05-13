@@ -6,7 +6,7 @@ using Model;
 
 /// <summary>
 /// Position-weight-matrix (PWM) based splice site predictor.
-/// 
+///
 /// Donor site (5' splice site): 9-position window from -3 to +6
 ///   relative to the exon|intron boundary, where position +1 is the
 ///   first intronic nucleotide (canonical: GT).
@@ -22,47 +22,61 @@ public static class SpliceSitePredictor
 {
     // ── Donor PWM (5'ss): 9 positions, indices 0..8 = positions -3..+6 ────
     // Each row [A, C, G, T] as log₂(freq / 0.25).
-    private static ReadOnlySpan<double> DonorPwm => [
-        //   A       C       G       T     (position)
-         0.49,   0.53,  -0.60,  -1.01,  // -3  (C/A biased)
-         1.29,  -0.95,  -0.40,  -1.80,  // -2  (A biased)
-        -1.37,  -1.87,   1.64,  -2.24,  // -1  (G biased)
-        -6.64,  -7.20,   1.99,  -7.57,  // +1  (near-invariant G)
-        -7.97,  -7.83,  -7.48,   1.99,  // +2  (near-invariant T)
-         1.30,  -1.36,  -0.72,  -0.88,  // +3  (A biased)
-         1.50,  -1.64,  -1.11,  -1.34,  // +4  (A biased)
-        -1.32,  -1.63,   1.51,  -1.22,  // +5  (G biased)
-        -1.77,  -1.61,  -1.02,   1.53   // +6  (T biased)
-    ];
+    private static ReadOnlySpan<double> DonorPwm
+    {
+        get
+        {
+            return
+            [
+                //   A       C       G       T     (position)
+                0.49, 0.53, -0.60, -1.01, // -3  (C/A biased)
+                1.29, -0.95, -0.40, -1.80, // -2  (A biased)
+                -1.37, -1.87, 1.64, -2.24, // -1  (G biased)
+                -6.64, -7.20, 1.99, -7.57, // +1  (near-invariant G)
+                -7.97, -7.83, -7.48, 1.99, // +2  (near-invariant T)
+                1.30, -1.36, -0.72, -0.88, // +3  (A biased)
+                1.50, -1.64, -1.11, -1.34, // +4  (A biased)
+                -1.32, -1.63, 1.51, -1.22, // +5  (G biased)
+                -1.77, -1.61, -1.02, 1.53 // +6  (T biased)
+            ];
+        }
+    }
 
     // ── Acceptor PWM (3'ss): 23 positions, indices 0..22 = positions -20..+3 ─
     // Pyrimidine tract (-20 to -3), followed by AG (-2,-1), then exon (+1 to +3).
-    private static ReadOnlySpan<double> AcceptorPwm => [
-        //   A       C       G       T     (position)
-        -0.93,   0.26,  -0.57,   0.79,  // -20
-        -0.93,   0.26,  -0.57,   0.79,  // -19
-        -0.93,   0.26,  -0.57,   0.79,  // -18
-        -0.93,   0.26,  -0.57,   0.79,  // -17
-        -0.93,   0.26,  -0.57,   0.79,  // -16
-        -0.93,   0.26,  -0.57,   0.79,  // -15
-        -0.93,   0.26,  -0.57,   0.79,  // -14
-        -0.93,   0.26,  -0.57,   0.79,  // -13
-        -0.93,   0.26,  -0.57,   0.79,  // -12
-        -0.93,   0.26,  -0.57,   0.79,  // -11
-        -0.93,   0.26,  -0.57,   0.79,  // -10
-        -0.93,   0.26,  -0.57,   0.79,  // -9
-        -0.93,   0.26,  -0.57,   0.79,  // -8
-        -0.93,   0.26,  -0.57,   0.79,  // -7
-        -0.93,   0.26,  -0.57,   0.79,  // -6
-        -0.93,   0.26,  -0.57,   0.79,  // -5
-        -0.93,   0.26,  -0.57,   0.79,  // -4
-        -0.93,   0.26,  -0.57,   0.79,  // -3
-        -5.30,   0.80,  -5.30,   0.30,  // -2  (near-invariant A/C before AG)
-        -5.30,  -5.30,   1.95,  -5.30,  // -1  (near-invariant G of AG)
-         0.49,  -0.33,   0.53,  -0.50,  // +1
-         0.62,  -0.88,   0.20,  -0.30,  // +2
-         0.20,  -0.20,   0.48,  -0.30   // +3
-    ];
+    private static ReadOnlySpan<double> AcceptorPwm
+    {
+        get
+        {
+            return
+            [
+                //   A       C       G       T     (position)
+                -0.93, 0.26, -0.57, 0.79, // -20
+                -0.93, 0.26, -0.57, 0.79, // -19
+                -0.93, 0.26, -0.57, 0.79, // -18
+                -0.93, 0.26, -0.57, 0.79, // -17
+                -0.93, 0.26, -0.57, 0.79, // -16
+                -0.93, 0.26, -0.57, 0.79, // -15
+                -0.93, 0.26, -0.57, 0.79, // -14
+                -0.93, 0.26, -0.57, 0.79, // -13
+                -0.93, 0.26, -0.57, 0.79, // -12
+                -0.93, 0.26, -0.57, 0.79, // -11
+                -0.93, 0.26, -0.57, 0.79, // -10
+                -0.93, 0.26, -0.57, 0.79, // -9
+                -0.93, 0.26, -0.57, 0.79, // -8
+                -0.93, 0.26, -0.57, 0.79, // -7
+                -0.93, 0.26, -0.57, 0.79, // -6
+                -0.93, 0.26, -0.57, 0.79, // -5
+                -0.93, 0.26, -0.57, 0.79, // -4
+                -0.93, 0.26, -0.57, 0.79, // -3
+                -5.30, 0.80, -5.30, 0.30, // -2  (near-invariant A/C before AG)
+                -5.30, -5.30, 1.95, -5.30, // -1  (near-invariant G of AG)
+                0.49, -0.33, 0.53, -0.50, // +1
+                0.62, -0.88, 0.20, -0.30, // +2
+                0.20, -0.20, 0.48, -0.30 // +3
+            ];
+        }
+    }
 
     private const int DonorWindowSize = 9;    // positions -3..+6
     private const int AcceptorWindowSize = 23; // positions -20..+3
@@ -94,7 +108,7 @@ public static class SpliceSitePredictor
         }
 
         var pwm = DonorPwm;
-        double score = 0.0;
+        var score = 0.0;
         for (var i = 0; i < DonorWindowSize; i++)
         {
             var idx = BaseIndex(context[i]);
@@ -119,7 +133,7 @@ public static class SpliceSitePredictor
         }
 
         var pwm = AcceptorPwm;
-        double score = 0.0;
+        var score = 0.0;
         for (var i = 0; i < AcceptorWindowSize; i++)
         {
             var idx = BaseIndex(context[i]);
@@ -226,7 +240,6 @@ public static class SpliceSitePredictor
     /// </summary>
     /// <param name="transcriptData">Full transcript sequence as a char span.</param>
     /// <param name="variantPos">1-based position of the variant on the transcript.</param>
-    /// <param name="refBase">Reference nucleotide at the variant position.</param>
     /// <param name="altBase">Alternate nucleotide.</param>
     /// <param name="donorBoundary">
     /// 1-based transcript position of the last exon base (= the exon|intron boundary).
@@ -236,7 +249,6 @@ public static class SpliceSitePredictor
     internal static VariantConsequence UpgradeDonorConsequence(
         ReadOnlySpan<char> transcriptData,
         int variantPos,
-        char refBase,
         char altBase,
         int donorBoundary,
         double threshold,
@@ -262,7 +274,7 @@ public static class SpliceSitePredictor
         Span<char> altCtx = stackalloc char[DonorWindowSize];
         refCtx.CopyTo(altCtx);
         var variantOffset = variantPos - windowStart; // 0-based index within window
-        if (variantOffset >= 0 && variantOffset < DonorWindowSize)
+        if (variantOffset is >= 0 and < DonorWindowSize)
         {
             altCtx[variantOffset] = altBase;
         }
@@ -297,7 +309,7 @@ public static class SpliceSitePredictor
         Span<char> altCtx = stackalloc char[DonorWindowSize];
         refCtx.CopyTo(altCtx);
         var variantOffset = variantPos - windowStart;
-        if (variantOffset >= 0 && variantOffset < DonorWindowSize)
+        if (variantOffset is >= 0 and < DonorWindowSize)
         {
             altCtx[variantOffset] = altBase;
         }

@@ -5,7 +5,6 @@ namespace OpenMedStack.BioSharp.Io;
 
 public static class Extensions
 {
-    private const string CigarCodes = "MIDNSHP=X";
     private const string SequenceChars = "=ACMGRSVTWYHKDBN";
 
     public static uint Encode(this (uint count, CigarOp op) ops)
@@ -23,7 +22,7 @@ public static class Extensions
     public static string ReadSequence(this Span<byte> bytes)
     {
         var maxLength = bytes.Length * 2;
-        Span<char> buffer = maxLength <= 512 ? stackalloc char[maxLength] : new char[maxLength];
+        var buffer = maxLength <= 512 ? stackalloc char[maxLength] : new char[maxLength];
         var len = 0;
         foreach (var b in bytes)
         {

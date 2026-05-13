@@ -3,7 +3,6 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
-using System.Globalization;
 
 /// <summary>
 /// <para>
@@ -94,14 +93,14 @@ public record AlignmentSection
 
         return new AlignmentSection(
             new string(span[ranges[0]]),
-            (AlignmentFlag)int.Parse(span[ranges[1]], NumberStyles.Integer),
+            (AlignmentFlag)int.Parse(span[ranges[1]]),
             new string(span[ranges[2]]),
-            int.Parse(span[ranges[3]], NumberStyles.Integer),
-            byte.Parse(span[ranges[4]], NumberStyles.Integer),
+            int.Parse(span[ranges[3]]),
+            byte.Parse(span[ranges[4]]),
             GetOpCodes(span[ranges[5]]),
             int.TryParse(span[ranges[6]], out var rnext) ? rnext : 0,
-            int.Parse(span[ranges[7]], NumberStyles.Integer),
-            int.Parse(span[ranges[8]], NumberStyles.Integer),
+            int.Parse(span[ranges[7]]),
+            int.Parse(span[ranges[8]]),
             new string(span[ranges[9]]),
             new string(span[ranges[10]]),
             tags);

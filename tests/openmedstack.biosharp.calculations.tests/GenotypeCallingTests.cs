@@ -23,7 +23,7 @@ public class GenotypeCallingTests
     private static IAsyncEnumerable<Sequence> MakeReads(IEnumerable<string> seqs)
     {
         return AsyncEnumerable.ToAsyncEnumerable(seqs.Select(s =>
-            new Sequence("r_" + s.GetHashCode(), s.AsMemory(), new string('I', s.Length).AsMemory())));
+            new Sequence($"r_{s.GetHashCode()}", s.AsMemory(), new string('I', s.Length).AsMemory())));
     }
 
     // ==========================================================
@@ -42,7 +42,7 @@ public class GenotypeCallingTests
         Assert.True(g.GQ >= 0);
         Assert.Equal(20, g.RefCoverage);
         Assert.Equal(10, g.AltCoverage);
-        Assert.True(g.AltRefRatio >= 0.4 && g.AltRefRatio < 0.6);
+        Assert.True(g.AltRefRatio is >= 0.4 and < 0.6);
     }
 
     /// <summary>
@@ -197,7 +197,7 @@ public class GenotypeCallingTests
     public void Genotype_GQ_ClampedToRange()
     {
         var g = new Genotype(10000, 10000);
-        Assert.True(g.GQ >= 0 && g.GQ <= 99);
+        Assert.True(g.GQ is >= 0 and <= 99);
     }
 
     // ==========================================================
@@ -315,7 +315,7 @@ public class GenotypeCallingTests
         var line = VcfRecordBuilder.BuildWithGenotype(vr, "chr1", vr.Genotype!);
         Assert.Contains("GT=0/1", line);
         Assert.Contains($"DP={vr.Depth}", line);
-        Assert.Contains($"GQ=", line);
+        Assert.Contains("GQ=", line);
     }
 
     /// <summary>
@@ -337,11 +337,11 @@ public class GenotypeCallingTests
         };
         vr.WithGenotype(20, 10);
 
-        await VcfWriter.WriteAsync(
+        await VcfWriter.Write(
             mem,
-            new[] { vr },
+            [vr],
             "chr1",
-            sampleNames: new[] { "SAMPLE1" },
+            sampleNames: ["SAMPLE1"],
             cancellationToken: CancellationToken.None);
 
         var text = Encoding.UTF8.GetString(mem.ToArray());
@@ -349,8 +349,8 @@ public class GenotypeCallingTests
         Assert.Contains("GT:GQ:DP", text);
         // Genotype 0/1 should appear
         Assert.Contains("0/1", text);
-        Assert.Contains("##FORMAT=<ID name=\"GT\"", text);
-        Assert.Contains("##FORMAT=<ID name=\"GQ\"", text);
+        Assert.Contains("##FORMAT=<ID=GT,Number=1,Type=String,Description=\"Genotype\">", text);
+        Assert.Contains("##FORMAT=<ID=GQ,Number=1,Type=Integer,Description=\"Genotype quality\">", text);
         Assert.Contains("#CHROM", text);
     }
 
@@ -372,12 +372,12 @@ public class GenotypeCallingTests
         };
         vr.WithGenotype(20, 10); // gives 0/1
 
-        await VcfWriter.WriteAsync(
+        await VcfWriter.Write(
             mem,
-            new[] { vr },
+            [vr],
             "chr1",
-            sampleNames: new[] { "SAMPLE1" },
-            genotypes: new string?[][] { new string?[] { "1/1", "99", "30" } },
+            sampleNames: ["SAMPLE1"],
+            genotypes: new string?[][] { ["1/1", "99", "30"] },
             cancellationToken: CancellationToken.None);
 
         var text = Encoding.UTF8.GetString(mem.ToArray());
@@ -409,7 +409,7 @@ public class GenotypeCallingTests
 
         var result = await StructuralVariantDetector.AnalyzeGraph(
             new DeBruijnGraph(k, AsyncEnumerable.ToAsyncEnumerable(reads.Select(s =>
-                new Sequence("r_" + s.GetHashCode(), s.AsMemory(), new string('I', s.Length).AsMemory())))),
+                new Sequence($"r_{s.GetHashCode()}", s.AsMemory(), new string('I', s.Length).AsMemory())))),
             refSeq, "chr1", 0);
 
         Assert.NotEmpty(result.Variants);
@@ -419,8 +419,8 @@ public class GenotypeCallingTests
 
         // Apply genotype calling: ref coverage from ref path, alt from alt path
         variant.WithGenotype(
-            (int)variant.AssemblyInfo!.Coverage * 2 / 3, // ~2/3 ref
-            (int)variant.AssemblyInfo!.Coverage * 1 / 3); // ~1/3 alt
+            variant.AssemblyInfo!.Coverage * 2 / 3, // ~2/3 ref
+            variant.AssemblyInfo!.Coverage * 1 / 3); // ~1/3 alt
 
         Assert.NotNull(variant.Genotype);
     }
@@ -448,7 +448,7 @@ public class GenotypeCallingTests
 
         var result = await StructuralVariantDetector.AnalyzeGraph(
             new DeBruijnGraph(k, AsyncEnumerable.ToAsyncEnumerable(reads.Select(s =>
-                new Sequence("r_" + s.GetHashCode(), s.AsMemory(), new string('I', s.Length).AsMemory())))),
+                new Sequence($"r_{s.GetHashCode()}", s.AsMemory(), new string('I', s.Length).AsMemory())))),
             refSeq, "chr1", 0);
 
         Assert.NotEmpty(result.Variants);

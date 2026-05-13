@@ -1,65 +1,12 @@
 namespace OpenMedStack.BioSharp.Calculations.Alignment;
 
-using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Io.Sam;
 using Model;
-
-/// <summary>
-/// Pass/Warn/Fail status for a single QC metric.
-/// </summary>
-public enum QcStatus
-{
-    Pass,
-    Warn,
-    Fail
-}
-
-/// <summary>
-/// Configurable thresholds for panel QC decisions.
-/// </summary>
-public sealed class PanelQcThresholds
-{
-    /// <summary>Minimum mean coverage to PASS (default: 20x).</summary>
-    public double MinMeanCoverage { get; init; } = 20.0;
-
-    /// <summary>Minimum mean coverage to WARN (below this → FAIL). Default: 10x.</summary>
-    public double WarnMeanCoverage { get; init; } = 10.0;
-
-    /// <summary>Minimum mapping rate [0–1] to PASS (default: 0.90).</summary>
-    public double MinMappingRate { get; init; } = 0.90;
-
-    /// <summary>Minimum mapping rate to WARN (default: 0.80).</summary>
-    public double WarnMappingRate { get; init; } = 0.80;
-
-    /// <summary>Maximum duplicate rate [0–1] to PASS (default: 0.20).</summary>
-    public double MaxDuplicateRate { get; init; } = 0.20;
-
-    /// <summary>Maximum duplicate rate to WARN (default: 0.30).</summary>
-    public double WarnDuplicateRate { get; init; } = 0.30;
-
-    /// <summary>Minimum Q30 fraction [0–1] to PASS (default: 0.80).</summary>
-    public double MinQ30Fraction { get; init; } = 0.80;
-
-    /// <summary>Minimum Q30 fraction to WARN (default: 0.70).</summary>
-    public double WarnQ30Fraction { get; init; } = 0.70;
-}
-
-/// <summary>
-/// Summary of QC metrics for use in clinical reports.
-/// </summary>
-public sealed class QcSummary
-{
-    public double MeanCoverage { get; init; }
-    public double MappingRate { get; init; }
-    public double DuplicateRate { get; init; }
-    public double Q30Fraction { get; init; }
-}
 
 /// <summary>
 /// Complete panel QC report composing FastQC metrics, alignment statistics, and coverage metrics.
@@ -90,15 +37,20 @@ public sealed class PanelQcReport
     public QcStatus Q30FractionStatus { get; init; }
 
     /// <summary>Overall status: worst of the individual metric statuses.</summary>
-    public QcStatus OverallStatus =>
-        new[] { MeanCoverageStatus, MappingRateStatus, DuplicateRateStatus, Q30FractionStatus }
-            .OrderByDescending(s => (int)s)
-            .First();
+    public QcStatus OverallStatus
+    {
+        get
+        {
+            return new[] { MeanCoverageStatus, MappingRateStatus, DuplicateRateStatus, Q30FractionStatus }
+                .OrderByDescending(s => (int)s)
+                .First();
+        }
+    }
 
     /// <summary>
     /// Generates a complete panel QC report.
     /// </summary>
-    public static async Task<PanelQcReport> GenerateAsync(
+    public static async Task<PanelQcReport> Generate(
         IAsyncEnumerable<Sequence> fastqReads,
         IReadOnlyList<AlignmentSection> bamReads,
         int referenceLength,
@@ -109,9 +61,9 @@ public sealed class PanelQcReport
         thresholds ??= new PanelQcThresholds();
 
         // Compute all three sub-reports in parallel
-        var fastqTask = FastQQualityReport.ComputeAsync(fastqReads, cancellationToken: cancellationToken);
+        var fastqTask = FastQQualityReport.Compute(fastqReads, cancellationToken: cancellationToken);
         var alignStats = AlignmentStatsCalculator.Compute(bamReads);
-        var coverage = new CoverageCalculator().Compute(bamReads, referenceLength, targetIntervals);
+        var coverage = CoverageCalculator.Compute(bamReads, referenceLength, targetIntervals);
 
         var fastqReport = await fastqTask.ConfigureAwait(false);
 
@@ -184,8 +136,7 @@ public sealed class PanelQcReport
             _ => "red"
         };
         sb.AppendLine(
-            $"<tr><td>{metric}</td><td>{value}</td><td>{threshold}</td>" +
-            $"<td style='color:{color}'>{status}</td></tr>");
+            $"<tr><td>{metric}</td><td>{value}</td><td>{threshold}</td><td style='color:{color}'>{status}</td></tr>");
     }
 
     private static double ComputeQ30Fraction(FastQReport fastqReport)
@@ -200,6 +151,7 @@ public sealed class PanelQcReport
                 q30Reads += count;
             }
         }
+
         return totalReads == 0 ? 0.0 : (double)q30Reads / totalReads;
     }
 
@@ -210,12 +162,7 @@ public sealed class PanelQcReport
             return QcStatus.Pass;
         }
 
-        if (value >= warnThreshold)
-        {
-            return QcStatus.Warn;
-        }
-
-        return QcStatus.Fail;
+        return value >= warnThreshold ? QcStatus.Warn : QcStatus.Fail;
     }
 
     private static QcStatus EvalLowerIsBetter(double value, double passThreshold, double warnThreshold)
@@ -225,11 +172,6 @@ public sealed class PanelQcReport
             return QcStatus.Pass;
         }
 
-        if (value <= warnThreshold)
-        {
-            return QcStatus.Warn;
-        }
-
-        return QcStatus.Fail;
+        return value <= warnThreshold ? QcStatus.Warn : QcStatus.Fail;
     }
 }

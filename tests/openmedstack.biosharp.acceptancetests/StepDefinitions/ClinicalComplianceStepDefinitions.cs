@@ -1,14 +1,14 @@
+using OpenMedStack.BioSharp.Calculations.Report;
+
 namespace OpenMedStack.BioSharp.AcceptanceTests.StepDefinitions;
 
 using System;
 using System.IO;
 using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using Calculations.Alignment;
 using Io.FastA;
 using Model;
-using Report;
 using Reqnroll;
 using Xunit;
 
@@ -43,11 +43,11 @@ public class ClinicalComplianceStepDefinitions
     public async Task WhenWriteProvenanceRecord()
     {
         var provenance = (PipelineProvenance)_ctx["provenance"];
-        var vcfPath = Path.GetTempFileName() + ".vcf";
+        var vcfPath = $"{Path.GetTempFileName()}.vcf";
         await File.WriteAllTextAsync(vcfPath, "##fileformat=VCFv4.2\n");
-        await ProvenanceWriter.WriteAsync(provenance, vcfPath);
+        await provenance.Write(vcfPath);
         _ctx["vcfPath"] = vcfPath;
-        _ctx["provenancePath"] = vcfPath + ".provenance.json";
+        _ctx["provenancePath"] = $"{vcfPath}.provenance.json";
     }
 
     [Then("a JSON provenance file should exist next to the VCF")]
@@ -96,7 +96,7 @@ public class ClinicalComplianceStepDefinitions
     {
         var content = (string)_ctx["sampleSheetContent"];
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
-        var sheet = await SampleSheetReader.ReadAsync(stream);
+        var sheet = await SampleSheetReader.Read(stream);
         _ctx["sampleSheet"] = sheet;
     }
 
@@ -136,7 +136,7 @@ public class ClinicalComplianceStepDefinitions
     {
         var bytes = (byte[])_ctx["fastaBytes"];
         using var stream = new MemoryStream(bytes);
-        var checksums = await ReferenceValidator.ComputeChecksumsAsync(stream);
+        var checksums = await ReferenceValidator.ComputeChecksums(stream);
         _ctx["checksums"] = checksums;
     }
 
@@ -158,7 +158,7 @@ public class ClinicalComplianceStepDefinitions
         var fasta = ">chr1\nACGTACGTACGTACGT\n";
         var bytes = Encoding.UTF8.GetBytes(fasta);
         using var stream = new MemoryStream(bytes);
-        var checksums = await ReferenceValidator.ComputeChecksumsAsync(stream);
+        var checksums = await ReferenceValidator.ComputeChecksums(stream);
         _ctx["refFastaBytes"] = bytes;
         _ctx["correctMd5"] = checksums.Md5;
     }
@@ -172,7 +172,7 @@ public class ClinicalComplianceStepDefinitions
         Exception? ex = null;
         try
         {
-            await ReferenceValidator.ValidateAsync(stream, md5);
+            await ReferenceValidator.Validate(stream, md5);
         }
         catch (Exception e)
         {
@@ -205,7 +205,7 @@ public class ClinicalComplianceStepDefinitions
         Exception? ex = null;
         try
         {
-            await ReferenceValidator.ValidateAsync(stream, md5);
+            await ReferenceValidator.Validate(stream, md5);
         }
         catch (ReferenceValidationException e)
         {
@@ -237,7 +237,8 @@ public class ClinicalComplianceStepDefinitions
                 AffectedGene = "BRCA1",
                 ClinicalSignificance = "Pathogenic",
                 HgvsCoding = "c.100A>G",
-                HgvsProtein = "p.Thr34Ala"
+                HgvsProtein = "p.Thr34Ala",
+                HgvsNotation = "BRCA1:c.100A>G",
             },
             new VariantAnnotation
             {
@@ -246,7 +247,8 @@ public class ClinicalComplianceStepDefinitions
                 Consequence = VariantConsequence.Synonymous,
                 AffectedGene = "TP53",
                 ClinicalSignificance = "Benign",
-                HgvsCoding = "c.500C>T"
+                HgvsCoding = "c.500C>T",
+                HgvsNotation = "TP53:c.500C>T",
             }
         };
         var metadata = new ClinicalReportMetadata
@@ -266,8 +268,7 @@ public class ClinicalComplianceStepDefinitions
     {
         var variants = (VariantAnnotation[])_ctx["reportVariants"];
         var metadata = (ClinicalReportMetadata)_ctx["reportMetadata"];
-        var writer = new ClinicalReportWriter();
-        var json = writer.WriteJson(variants, metadata);
+        var json = ClinicalReportWriter.WriteJson(variants, metadata);
         _ctx["jsonReport"] = json;
     }
 
@@ -294,8 +295,7 @@ public class ClinicalComplianceStepDefinitions
     {
         var variants = (VariantAnnotation[])_ctx["reportVariants"];
         var metadata = (ClinicalReportMetadata)_ctx["reportMetadata"];
-        var writer = new ClinicalReportWriter();
-        var html = writer.WriteHtml(variants, metadata);
+        var html = ClinicalReportWriter.WriteHtml(variants, metadata);
         _ctx["htmlReport"] = html;
     }
 
@@ -332,11 +332,11 @@ public class ClinicalComplianceStepDefinitions
     public async Task WhenWriteProvenanceRecordForVcf()
     {
         var provenance = (PipelineProvenance)_ctx["provenance"];
-        var vcfPath = Path.GetTempFileName() + ".vcf";
+        var vcfPath = $"{Path.GetTempFileName()}.vcf";
         await File.WriteAllTextAsync(vcfPath, "##fileformat=VCFv4.2\n");
-        await ProvenanceWriter.WriteAsync(provenance, vcfPath);
+        await provenance.Write(vcfPath);
         _ctx["vcfPath"] = vcfPath;
-        _ctx["provenancePath"] = vcfPath + ".provenance.json";
+        _ctx["provenancePath"] = $"{vcfPath}.provenance.json";
     }
 
     [Then("a provenance JSON file should exist alongside the VCF file")]
@@ -440,7 +440,7 @@ public class ClinicalComplianceStepDefinitions
     {
         var bytes = (byte[])_ctx["fastaBytes"];
         using var stream = new MemoryStream(bytes);
-        _ctx["checksums"] = await ReferenceValidator.ComputeChecksumsAsync(stream);
+        _ctx["checksums"] = await ReferenceValidator.ComputeChecksums(stream);
     }
 
     [Then("the MD5 checksum should be a 32-character hex string")]
@@ -479,7 +479,7 @@ public class ClinicalComplianceStepDefinitions
         try
         {
             using var stream = new MemoryStream(bytes);
-            await ReferenceValidator.ValidateAsync(stream, md5);
+            await ReferenceValidator.Validate(stream, md5);
         }
         catch (ReferenceValidationException e)
         {
@@ -493,12 +493,12 @@ public class ClinicalComplianceStepDefinitions
     {
         var bytes = (byte[])_ctx["fastaBytes"];
         using var stream1 = new MemoryStream(bytes);
-        var checksums = await ReferenceValidator.ComputeChecksumsAsync(stream1);
+        var checksums = await ReferenceValidator.ComputeChecksums(stream1);
         Exception? ex = null;
         try
         {
             using var stream2 = new MemoryStream(bytes);
-            await ReferenceValidator.ValidateAsync(stream2, checksums.Md5);
+            await ReferenceValidator.Validate(stream2, checksums.Md5);
         }
         catch (Exception e)
         {
@@ -520,7 +520,8 @@ public class ClinicalComplianceStepDefinitions
                 AffectedGene = "BRCA1",
                 ClinicalSignificance = "Pathogenic",
                 HgvsCoding = "c.100A>G",
-                HgvsProtein = "p.Thr34Ala"
+                HgvsProtein = "p.Thr34Ala",
+                HgvsNotation = "BRCA1:c.100A>G",
             },
             new VariantAnnotation
             {
@@ -529,7 +530,8 @@ public class ClinicalComplianceStepDefinitions
                 Consequence = VariantConsequence.Synonymous,
                 AffectedGene = "TP53",
                 ClinicalSignificance = "Benign",
-                HgvsCoding = "c.500C>T"
+                HgvsCoding = "c.500C>T",
+                HgvsNotation = "TP53:c.500C>T",
             }
         };
         _ctx["reportMetadata"] = new ClinicalReportMetadata
@@ -547,7 +549,7 @@ public class ClinicalComplianceStepDefinitions
     {
         var variants = (VariantAnnotation[])_ctx["reportVariants"];
         var metadata = (ClinicalReportMetadata)_ctx["reportMetadata"];
-        _ctx["jsonReport"] = new ClinicalReportWriter().WriteJson(variants, metadata);
+        _ctx["jsonReport"] = ClinicalReportWriter.WriteJson(variants, metadata);
     }
 
     [Then("the JSON should contain a SampleName field")]
@@ -578,7 +580,7 @@ public class ClinicalComplianceStepDefinitions
     {
         var variants = (VariantAnnotation[])_ctx["reportVariants"];
         var metadata = (ClinicalReportMetadata)_ctx["reportMetadata"];
-        _ctx["htmlReport"] = new ClinicalReportWriter().WriteHtml(variants, metadata);
+        _ctx["htmlReport"] = ClinicalReportWriter.WriteHtml(variants, metadata);
     }
 
     [Then("the HTML should contain a table element")]

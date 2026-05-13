@@ -1,0 +1,32 @@
+{
+  "referenceId": "NC_000913.3 Escherichia coli str. K-12 substr. MG1655, complete genome",
+  "referenceLength": 4641652,
+  "region": {
+    "chromosome": "NC_000913.3",
+    "start": 1000000,
+    "end": 1000200,
+    "sequence": "GTGTCAGCTTTCGTGGTGTGCAGCTGGCGTCAGATGACAACATGCTGCCAGACAGCCTGAAAGGGTTTGCGCCTGTGGTGCGTGGTATCGCCAAAAGCAATGCCCAGATAACGATTAAGCAAAATGGTTACACCATTTACCAAACTTATGTATCGCCTGGTGCTTTTGAAATTAGTGATCTCTATTCCACGTCGTCGAGCG"
+  },
+  "pairCount": 250,
+  "flattenedReadCount": 500,
+  "mappedReadCount": 160,
+  "softClipRealignedReadCount": 160,
+  "rawVariantCount": 2776,
+  "mergedVariantCount": 2776,
+  "structuralVariantCount": 0,
+  "variantTypeCounts": {
+    "Deletion": 35,
+    "Insertion": 53,
+    "SNP": 2688
+  },
+  "vcfSha256": "ea21a8737e01526168f74ad0fd9428f3fff6748999d8a79b70d22df4f1a3174b",
+  "recordCount": 2776,
+  "firstRecord": "NC_000913.3\t20050\t.\tAG\tAC\t40\tPASS\tDP=1",
+  "lastRecord": "NC_000913.3\t4602590\t.\tA\tAC\t35\tPASS\tDP=1",
+  "regionQuery": {
+    "chromosome": "NC_000913.3",
+    "start": 20000,
+    "end": 20150,
+    "count": 26
+  }
+}

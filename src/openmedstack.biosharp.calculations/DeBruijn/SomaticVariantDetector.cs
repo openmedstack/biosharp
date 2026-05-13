@@ -3,56 +3,7 @@ namespace OpenMedStack.BioSharp.Calculations.DeBruijn;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
-
-/// <summary>
-/// Holds information about a somatic variant detected from tumor-normal comparison.
-/// </summary>
-public class SomaticVariant
-{
-    /// <summary>Simplified VCF-style position (1-based).</summary>
-    public int Position { get; set; }
-
-    /// <summary>Reference allele.</summary>
-    public string Reference { get; set; } = null!;
-
-    /// <summary>Alternative (tumor-specific) allele.</summary>
-    public string Alternate { get; set; } = null!;
-
-    /// <summary>Tumor coverage at this locus.</summary>
-    public int TumorCoverage { get; set; }
-
-    /// <summary>Normal coverage at this locus.</summary>
-    public int NormalCoverage { get; set; }
-
-    /// <summary>
-    /// Local tumor allele fraction (alt / total).
-    /// </summary>
-    public double TumorAlleleFraction
-    {
-        get
-        {
-            var total = TumorCoverage + NormalCoverage;
-            return total > 0 ? (double)TumorCoverage / total : 0.0;
-        }
-    }
-
-    /// <summary>Phred-scaled quality estimate.</summary>
-    public int Quality { get; set; }
-
-    /// <summary>
-    /// Estimated confidence level based on coverage and allele fraction.
-    /// </summary>
-    public BubbleConfidence Confidence { get; set; } = BubbleConfidence.Medium;
-
-    public override string ToString()
-    {
-        return $"Somatic[{Position}: {Reference}->{Alternate}] " +
-            $"Tumor={TumorCoverage} Normal={NormalCoverage} Q={Quality} {Confidence}";
-    }
-}
 
 /// <summary>
 /// Detects somatic (tumor-specific) variants by comparing a tumor De Bruijn graph
@@ -84,16 +35,14 @@ public static class SomaticVariantDetector
     /// <param name="normalFilter">Bloom filter built from normal-sample k-mers. K-mers
     /// present here are considered germline/common and filtered out.</param>
     /// <param name="reference">Reference sequence for position alignment.</param>
-    /// <param name="chromosome">Chromosome name.</param>
     /// <param name="refStart">Reference start position.</param>
     /// <param name="minAlleleFraction">Minimum alt fraction in tumor (default 0.30).</param>
     /// <param name="minTumorCoverage">Minimum tumor coverage (default 5).</param>
     /// <returns>List of somatic variants detected.</returns>
-    public static async Task<IList<SomaticVariant>> DetectSomaticVariantsAsync(
+    public static async Task<IList<SomaticVariant>> DetectSomaticVariants(
         DeBruijnGraph tumorGraph,
         BloomFilter normalFilter,
         string reference,
-        string chromosome,
         int refStart,
         double? minAlleleFraction = null,
         int? minTumorCoverage = null)
@@ -113,11 +62,6 @@ public static class SomaticVariantDetector
             throw new ArgumentNullException(nameof(reference));
         }
 
-        if (string.IsNullOrEmpty(chromosome))
-        {
-            throw new ArgumentNullException(nameof(chromosome));
-        }
-
         var maf = minAlleleFraction ?? DefaultMinAlleleFraction;
         var minTumorCov = minTumorCoverage ?? DefaultMinTumorCoverage;
 
@@ -127,15 +71,14 @@ public static class SomaticVariantDetector
         foreach (var bubble in bubbles)
         {
             // Build k-mer counts from bubble paths to determine alt/ref
-            var kmerCounts = BuildBubbleKmerCounts(bubble, tumorGraph.K);
+            _ = BuildBubbleKmerCounts(bubble, tumorGraph.K);
 
             // Identify reference path (highest alignment score) and alt paths
             var scoredPaths = bubble.Paths
-                .Where(p => p != null)
                 .Select(p => new
                 {
                     Path = p,
-                    AlignScore = ScoreAlignmentToRef(p.Sequence, reference, refStart)
+                    AlignScore = ScoreAlignmentToRef(p.Sequence, reference)
                 })
                 .OrderByDescending(x => x.AlignScore)
                 .ThenByDescending(x => x.Path.Coverage)
@@ -149,7 +92,7 @@ public static class SomaticVariantDetector
             var refPath = scoredPaths[0].Path;
             var altPaths = scoredPaths.Skip(1).Where(x => x.Path != null).ToList();
 
-            if (!altPaths.Any())
+            if (altPaths.Count == 0)
             {
                 continue;
             }
@@ -235,8 +178,8 @@ public static class SomaticVariantDetector
 
         var normalFilter = await BuildNormalFilter(multiGraph, normalName);
 
-        return await DetectSomaticVariantsAsync(
-            tumorGraph, normalFilter, reference, chromosome, refStart,
+        return await DetectSomaticVariants(
+            tumorGraph, normalFilter, reference, refStart,
             minAlleleFraction, minTumorCoverage);
     }
 
@@ -254,17 +197,17 @@ public static class SomaticVariantDetector
             normalKmers.Add(node.Id);
             foreach (var neighbor in node.OutboundEdges)
             {
-                var edgeKmer = node.Id + neighbor[neighbor.Length - 1];
+                var edgeKmer = node.Id + neighbor[^1];
                 if (edgeKmer.Length >= multiGraph.K)
                 {
-                    normalKmers.Add(edgeKmer.Substring(0, Math.Min(edgeKmer.Length, multiGraph.K)));
+                    normalKmers.Add(edgeKmer[..Math.Min(edgeKmer.Length, multiGraph.K)]);
                 }
             }
         }
 
         // Estimate: 1.5x to account for false negatives
         var estimated = Math.Max(normalKmers.Count * 2, multiGraph.K);
-        var filter = new BloomFilter(estimated, 0.01);
+        var filter = new BloomFilter(estimated);
         foreach (var km in normalKmers)
         {
             filter.Add(km);
@@ -273,7 +216,7 @@ public static class SomaticVariantDetector
         return filter;
     }
 
-    private static int ScoreAlignmentToRef(string seq, string reference, int refStart)
+    private static int ScoreAlignmentToRef(string seq, string reference)
     {
         if (string.IsNullOrEmpty(seq) || seq.Length > reference.Length)
         {
@@ -315,7 +258,7 @@ public static class SomaticVariantDetector
         }
 
         var maxLen = altPaths.Max(p => p.Sequence.Length);
-        var consonants = new char[] { 'A', 'C', 'G', 'T' };
+        var consonants = new[] { 'A', 'C', 'G', 'T' };
         var consensus = new char[maxLen];
 
         for (var i = 0; i < maxLen; i++)
@@ -420,7 +363,7 @@ public static class SomaticVariantDetector
             return BubbleConfidence.Low;
         }
 
-        if (total >= 8 && alleleFraction >= 0.25 && alleleFraction <= 0.75)
+        if (total >= 8 && alleleFraction is >= 0.25 and <= 0.75)
         {
             return BubbleConfidence.High; // expected range for somatic heterozygous calls
         }

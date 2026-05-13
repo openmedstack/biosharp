@@ -9,8 +9,8 @@ using Xunit;
 public class BamReaderTests
 {
     [Theory]
-    [InlineData("GSM409307_UCSD.H3K4me1.bam", 8038656)]
-    [InlineData("mapt.NA12156.altex.bam", 326652)]
+     [InlineData("small_test_sorted.bam", 62000)]
+     [InlineData("mapt.NA12156.altex.bam", 326652)]
     public async Task CanRead(string filename, int expectedAlignments)
     {
         var reader = new BamReader(filename, NullLogger<BamReader>.Instance);

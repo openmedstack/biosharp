@@ -23,7 +23,7 @@ public record VariantAnnotation
     /// Combined HGVS notation string (e.g. "NM_001.1:c.100A>T").
     /// Convenience alias for HgvsCoding when set.
     /// </summary>
-    public string HgvsNotation { get; init; } = string.Empty;
+    public required string HgvsNotation { get; init; }
 
     /// <summary>
     /// Clinical significance (from ClinVar or manual annotation).
@@ -32,7 +32,7 @@ public record VariantAnnotation
     /// <summary>
     /// Gene or transcript identifier the annotation was made against.
     /// </summary>
-    public string AffectedGene { get; init; } = null!;
+    public string? AffectedGene { get; init; }
 
     /// <summary>
     /// Biological consequence category.

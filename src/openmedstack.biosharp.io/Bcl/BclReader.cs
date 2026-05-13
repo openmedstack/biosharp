@@ -78,7 +78,7 @@ public partial class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
         }
     }
 
-    private static readonly int HeaderSize = 4;
+    private const int HeaderSize = 4;
     private readonly TileIndexRecord _tileIndexRecord;
     private readonly int _queueSize;
 
@@ -151,8 +151,7 @@ public partial class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
         {
             await stream.DisposeAsync().ConfigureAwait(false);
             throw new IOException(
-                $"BCL file size mismatch: {bclFileInfo.FullName} has {fileSize} bytes, " +
-                $"expected {expectedSize} bytes for {reader.NumClustersPerCycle[0]} clusters over 1 cycle.");
+                $"BCL file size mismatch: {bclFileInfo.FullName} has {fileSize} bytes, expected {expectedSize} bytes for {reader.NumClustersPerCycle[0]} clusters over 1 cycle.");
         }
 
         reader.Streams[0] = stream;

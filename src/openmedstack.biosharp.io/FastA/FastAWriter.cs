@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using Model;
 
-public class FastAWriter
+public partial class FastAWriter
 {
     private readonly ILogger _logger;
 
@@ -42,8 +42,8 @@ public class FastAWriter
         foreach (var sequence in sequences)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            _logger.LogInformation("Writing {0} with length {1}", sequence.Id, sequence.Length);
-            await writer.WriteLineAsync('>' + sequence.Id).ConfigureAwait(false);
+            LogWritingIdWithLengthLength(sequence.Id, sequence.Length);
+            await writer.WriteLineAsync($">{sequence.Id}").ConfigureAwait(false);
 
             var letters = new char[sequence.Length];
             for (var i = 0; i < sequence.Length; i++)
@@ -58,6 +58,9 @@ public class FastAWriter
             }
         }
 
-        await writer.FlushAsync().ConfigureAwait(false);
+        await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
+
+    [LoggerMessage(LogLevel.Information, "Writing {Id} with length {Length}")]
+    partial void LogWritingIdWithLengthLength(string id, int length);
 }

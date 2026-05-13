@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using AsyncEnumerable = OpenMedStack.BioSharp.Calculations.Alignment.AsyncEnumerableExtensions;
-using DeBruijn = OpenMedStack.BioSharp.Calculations.DeBruijn;
-using Model = OpenMedStack.BioSharp.Model;
 using Xunit;
 
 namespace OpenMedStack.BioSharp.Calculations.Tests;
@@ -21,7 +19,7 @@ public class FullPipelineTests
     private static IAsyncEnumerable<Model.Sequence> MakeReads(IEnumerable<string> seqs, int kmer = 5)
     {
         return AsyncEnumerable.ToAsyncEnumerable(seqs.Select(s => new Model.Sequence(
-            "r_" + s.GetHashCode(), s.AsMemory(),
+            $"r_{s.GetHashCode()}", s.AsMemory(),
             new string('I', s.Length).AsMemory())));
     }
 
@@ -59,7 +57,7 @@ public class FullPipelineTests
         var altSeq = "ACGTACGTACGTACGTACGTACGTAGTACGT";
 
         // Build graph with both ref and alt reads
-        var sequences = MakeReads(new[] { refSeq, altSeq, refSeq.Substring(1), altSeq.Substring(1) });
+        var sequences = MakeReads([refSeq, altSeq, refSeq[1..], altSeq[1..]]);
         var graph = new DeBruijn.DeBruijnGraph(10, sequences);
 
         // Detect bubbles
@@ -96,12 +94,12 @@ public class FullPipelineTests
         var normalFilter = BuildBloomFilter(normalKmers);
 
         // Build tumor: ref + alt reads
-        var tumorSeqs = MakeReads(new[] { refSeq, altSeq, refSeq.Substring(1), altSeq.Substring(1) });
+        var tumorSeqs = MakeReads([refSeq, altSeq, refSeq[1..], altSeq[1..]]);
         var tumorGraph = new DeBruijn.DeBruijnGraph(10, tumorSeqs);
 
         // Detect somatic variants
-        var variants = await DeBruijn.SomaticVariantDetector.DetectSomaticVariantsAsync(
-            tumorGraph, normalFilter, refSeq, "chr1", 0);
+        var variants = await DeBruijn.SomaticVariantDetector.DetectSomaticVariants(
+            tumorGraph, normalFilter, refSeq, 0);
 
         Assert.NotNull(variants);
         // Variants may or may not be detected depending on graph topology
@@ -115,14 +113,14 @@ public class FullPipelineTests
     public async Task FullRepeatMaskPipeline_MaskedSequence_ValidGraph()
     {
         // Load repeat library
-        var repeatLibrary = await DeBruijn.RepeatMasker.LoadLibraryAsync(RepeatLibraryPath, 4);
+        var repeatLibrary = await DeBruijn.RepeatMasker.LoadLibrary(RepeatLibraryPath, 4);
         Assert.NotEmpty(repeatLibrary);
 
         // Sequence with known GATT tandem repeats (REP001 motif)
         var repeatSeq = "AAAAGATTGATTGATTTTTTTTTTTTTTTTT";
 
         // Mask the repeats
-        var maskedRegions = await DeBruijn.RepeatMasker.MaskRepeatsAsync(
+        var maskedRegions = await DeBruijn.RepeatMasker.MaskRepeats(
             repeatSeq, repeatLibrary, false);
 
         if (maskedRegions.Any())
@@ -131,13 +129,13 @@ public class FullPipelineTests
             var masked = repeatSeq;
             foreach (var region in maskedRegions.OrderByDescending(r => r.Start))
             {
-                masked = masked.Substring(0, region.Start) +
+                masked = masked[..region.Start] +
                     new string('N', region.Length) +
-                    masked.Substring(region.End);
+                    masked[region.End..];
             }
 
             // Build graph from masked sequence -- should produce a valid graph
-            var maskedSeqs = MakeReads(new[] { masked });
+            var maskedSeqs = MakeReads([masked]);
             var maskedGraph = new DeBruijn.DeBruijnGraph(10, maskedSeqs);
             Assert.NotNull(maskedGraph);
 
@@ -165,13 +163,13 @@ public class FullPipelineTests
 
         for (var i = 0; i < 3; i++)
         {
-            var reads = new[] { refSeq, altSeq, refSeq.Substring(1), altSeq.Substring(1) };
+            var reads = new[] { refSeq, altSeq, refSeq[1..], altSeq[1..] };
             var tumorSeqs = MakeReads(reads);
             tumorPairs.Add(($"tumor{i}", new DeBruijn.DeBruijnGraph(10, tumorSeqs)));
         }
 
         // Call cohort variants
-        var cohortVariants = await DeBruijn.CohortVariantCaller.CallCohortVariantsAsync(
+        var cohortVariants = await DeBruijn.CohortVariantCaller.CallCohortVariants(
             tumorPairs, normalFilter, refSeq, "chr1", 0, 0.15);
 
         Assert.NotNull(cohortVariants);
@@ -195,7 +193,7 @@ public class FullPipelineTests
         var altSeq = "ACGTACGTACGTACGTACGTACGTAGTACGT";
 
         // Build graph with both ref and alt reads
-        var sequences = MakeReads(new[] { refSeq, altSeq, refSeq.Substring(1), altSeq.Substring(1) });
+        var sequences = MakeReads([refSeq, altSeq, refSeq[1..], altSeq[1..]]);
         var graph = new DeBruijn.DeBruijnGraph(10, sequences);
         var bubbles = await DeBruijn.BubbleFinder.FindBubbles(graph, graph.K);
 
@@ -265,11 +263,10 @@ public class FullPipelineTests
     {
         // All reads are identical -- no bubbles expected
         var refSeq = "ACGTACGTACGTACGTACGTACGTACGTACGT";
-        var sequences = MakeReads(new[]
-        {
-            refSeq, refSeq.Substring(1),
-            refSeq.Substring(2), refSeq.Substring(3)
-        });
+        var sequences = MakeReads([
+            refSeq, refSeq[1..],
+            refSeq[2..], refSeq[3..]
+        ]);
         var graph = new DeBruijn.DeBruijnGraph(10, sequences);
 
         var bubbles = await DeBruijn.BubbleFinder.FindBubbles(graph, graph.K);
@@ -294,7 +291,7 @@ public class FullPipelineTests
         var filter3 = BuildBloomFilter(kmerSet3);
 
         // Union contains all unique k-mers
-        var union = DeBruijn.BloomFilter.Union(new[] { filter1, filter2, filter3 });
+        var union = DeBruijn.BloomFilter.Union([filter1, filter2, filter3]);
         Assert.True(union.Contains("ACGTAAAA"));
         Assert.True(union.Contains("CCCCAAAA"));
         Assert.True(union.Contains("TTTTCCCC"));
@@ -302,7 +299,7 @@ public class FullPipelineTests
         Assert.True(union.Contains("AACTGGGG"));
 
         // Intersection only contains shared k-mers
-        var intersection = DeBruijn.BloomFilter.Intersection(new[] { filter1, filter2, filter3 });
+        var intersection = DeBruijn.BloomFilter.Intersection([filter1, filter2, filter3]);
         Assert.True(intersection.Contains("ACGTAAAA"));
         Assert.True(intersection.Contains("CCCCAAAA"));
         Assert.True(intersection.Contains("TTTTCCCC"));
@@ -319,25 +316,25 @@ public class FullPipelineTests
     {
         // Null graph for somatic detection
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            DeBruijn.SomaticVariantDetector.DetectSomaticVariantsAsync(
-                null!, BuildBloomFilter(Array.Empty<string>()), "ACGT", "chr1", 0));
+            DeBruijn.SomaticVariantDetector.DetectSomaticVariants(
+                null!, BuildBloomFilter([]), "ACGT", 0));
 
         // Null BloomFilter
         var refSeq = "ACGTACGTACGTACGT";
-        var graphSeqs = MakeReads(new[] { refSeq });
+        var graphSeqs = MakeReads([refSeq]);
         var graph = new DeBruijn.DeBruijnGraph(4, graphSeqs);
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            DeBruijn.SomaticVariantDetector.DetectSomaticVariantsAsync(
-                graph, null!, "ACGT", "chr1", 0));
+            DeBruijn.SomaticVariantDetector.DetectSomaticVariants(
+                graph, null!, "ACGT", 0));
 
         // Null reference
         await Assert.ThrowsAsync<ArgumentNullException>(() =>
-            DeBruijn.SomaticVariantDetector.DetectSomaticVariantsAsync(
-                graph, BuildBloomFilter(Array.Empty<string>()), null!, "chr1", 0));
+            DeBruijn.SomaticVariantDetector.DetectSomaticVariants(
+                graph, BuildBloomFilter([]), null!, 0));
 
         // Empty cohort
-        var cohort = await DeBruijn.CohortVariantCaller.CallCohortVariantsAsync(
-            Array.Empty<(string, DeBruijn.DeBruijnGraph)>(),
+        var cohort = await DeBruijn.CohortVariantCaller.CallCohortVariants(
+            [],
             BuildBloomFilter(ExtractKmers("ACGTAC", 4)),
             "ACGT", "chr1", 0);
         Assert.Empty(cohort);
@@ -355,11 +352,10 @@ public class FullPipelineTests
         var altSeq = "ACGTACGTACGTACGTACGTACGTAGTACGT";
 
         // Build graph with ref + alt reads
-        var sequences = MakeReads(new[]
-        {
-            refSeq, altSeq, refSeq.Substring(1),
-            altSeq.Substring(1), refSeq.Substring(2), altSeq.Substring(2)
-        });
+        var sequences = MakeReads([
+            refSeq, altSeq, refSeq[1..],
+            altSeq[1..], refSeq[2..], altSeq[2..]
+        ]);
         var graph = new DeBruijn.DeBruijnGraph(10, sequences);
 
         // Find bubbles
@@ -398,19 +394,19 @@ public class FullPipelineTests
             {
                 Position = 100, SampleCount = 1, TotalSamples = 5,
                 AverageQuality = 30, AverageAlleleFraction = 0.2,
-                DetectedIn = new[] { "tumor1" }
+                DetectedIn = ["tumor1"]
             },
             new()
             {
                 Position = 200, SampleCount = 3, TotalSamples = 5,
                 AverageQuality = 40, AverageAlleleFraction = 0.6,
-                DetectedIn = new[] { "tumor1", "tumor2", "tumor3" }
+                DetectedIn = ["tumor1", "tumor2", "tumor3"]
             },
             new()
             {
                 Position = 300, SampleCount = 5, TotalSamples = 5,
                 AverageQuality = 50, AverageAlleleFraction = 1.0,
-                DetectedIn = new[] { "tumor1", "tumor2", "tumor3", "tumor4", "tumor5" }
+                DetectedIn = ["tumor1", "tumor2", "tumor3", "tumor4", "tumor5"]
             }
         };
 
@@ -444,7 +440,7 @@ public class FullPipelineTests
         var refSeq = "ACGTACGTACGTACGTACGTACGTACGTACGT";
         var altSeq = "ACGTACGTACGTACGTACGTACGTAGTACGT";
 
-        var sequences = MakeReads(new[] { refSeq, altSeq });
+        var sequences = MakeReads([refSeq, altSeq]);
         var graph = new DeBruijn.DeBruijnGraph(10, sequences);
 
         // Find bubbles
@@ -494,11 +490,10 @@ public class FullPipelineTests
         var refSeq = "ACGTACGTACGTACGTACGTACGTACGTACGT";
         var altSeq = "ACGTACGTACGTACGTACGTACGTAGTACGT";
 
-        var sequences = MakeReads(new[]
-        {
+        var sequences = MakeReads([
             refSeq, altSeq,
-            refSeq.Substring(1), altSeq.Substring(1)
-        });
+            refSeq[1..], altSeq[1..]
+        ]);
         var graph = new DeBruijn.DeBruijnGraph(10, sequences);
         var bubbles = await DeBruijn.BubbleFinder.FindBubbles(graph, graph.K);
 
@@ -516,7 +511,7 @@ public class FullPipelineTests
                 }
             }
 
-            _ = DeBruijn.RepetitivenessAnalyzer.AnalyzeBubble(bubble, (IReadOnlyDictionary<string, int>)counts);
+            _ = DeBruijn.RepetitivenessAnalyzer.AnalyzeBubble(bubble, counts);
 
             Assert.NotEqual(DeBruijn.BubbleConfidence.Low, bubble.Confidence);
         }

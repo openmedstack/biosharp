@@ -1,3 +1,5 @@
+using System.Linq;
+
 namespace OpenMedStack.BioSharp.Io.Vcf;
 
 using System;
@@ -48,7 +50,7 @@ public class BcfWriter : IAsyncDisposable
     /// Writes the BCF file header from a VCF-format header string.
     /// The header text should include all ##-prefixed meta-information lines and the #CHROM line.
     /// </summary>
-    public async Task WriteHeaderAsync(
+    public async Task WriteHeader(
         IEnumerable<string> contigs,
         string? extraHeaderText = null,
         CancellationToken cancellationToken = default)
@@ -95,7 +97,7 @@ public class BcfWriter : IAsyncDisposable
     /// <summary>
     /// Writes a single <see cref="VcfVariant"/> record to the BCF stream.
     /// </summary>
-    public async Task WriteVariantAsync(VcfVariant variant, CancellationToken cancellationToken = default)
+    public async Task WriteVariant(VcfVariant variant, CancellationToken cancellationToken = default)
     {
         if (!_headerWritten)
         {
@@ -114,14 +116,14 @@ public class BcfWriter : IAsyncDisposable
     /// <summary>
     /// Writes multiple variants.
     /// </summary>
-    public async Task WriteVariantsAsync(
+    public async Task WriteVariants(
         IEnumerable<VcfVariant> variants,
         CancellationToken cancellationToken = default)
     {
         foreach (var v in variants)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await WriteVariantAsync(v, cancellationToken).ConfigureAwait(false);
+            await WriteVariant(v, cancellationToken).ConfigureAwait(false);
         }
     }
 
@@ -146,7 +148,7 @@ public class BcfWriter : IAsyncDisposable
 
         // qual: float32 LE
         var qual = variant.ErrorProbabilities?.Length > 0
-            ? (float)variant.ErrorProbabilities[0]
+            ? variant.ErrorProbabilities[0]
             : MissingQual;
         var qualBytes = new byte[4];
         BinaryPrimitives.WriteSingleLittleEndian(qualBytes, qual);
@@ -182,15 +184,11 @@ public class BcfWriter : IAsyncDisposable
 
     private static List<string> BuildAlleleList(VcfVariant variant)
     {
-        var alleles = new List<string>();
-        alleles.Add(string.IsNullOrEmpty(variant.Reference) ? "." : variant.Reference);
+        var alleles = new List<string> { string.IsNullOrEmpty(variant.Reference) ? "." : variant.Reference };
 
         if (!string.IsNullOrEmpty(variant.Alternate) && variant.Alternate != ".")
         {
-            foreach (var alt in variant.Alternate.Split(','))
-            {
-                alleles.Add(alt.Trim());
-            }
+            alleles.AddRange(variant.Alternate.Split(',').Select(alt => alt.Trim()));
         }
         else
         {

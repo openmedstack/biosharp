@@ -1,3 +1,4 @@
 using BenchmarkDotNet.Running;
+using OpenMedStack.BioSharp.Benchmarks;
 
-BenchmarkSwitcher.FromAssembly(typeof(Program).Assembly).Run(args);
+BenchmarkSwitcher.FromAssembly(typeof(PipelineBenchmarks).Assembly).Run(args: args);

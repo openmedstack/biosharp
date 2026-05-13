@@ -33,26 +33,6 @@ public class AlignmentTag
         Value = value;
     }
 
-    private AlignmentTag(string key, char type, string value)
-    {
-        Key = key;
-        Type = type;
-        Value = type switch
-        {
-            'A' => value[0],
-            'i' => int.Parse(value),
-            'I' => uint.Parse(value),
-            'f' => float.Parse(value),
-            'Z' => value,
-            'H' => value[..2].ToCharArray(),
-            'c' => sbyte.Parse(value),
-            'C' => byte.Parse(value),
-            's' => short.Parse(value),
-            'S' => ushort.Parse(value),
-            _ => throw new InvalidDataException("Invalid tag value")
-        };
-    }
-
     public string Key { get; }
 
     public char Type { get; }

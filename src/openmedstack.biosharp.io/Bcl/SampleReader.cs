@@ -41,10 +41,11 @@ public class SampleReader : IAsyncDisposable
     {
         var positionalEnumerator = _positionReader.GetAsyncEnumerator(cancellationToken);
         await using var positionEnumerator = positionalEnumerator.ConfigureAwait(false);
-        var dataReader = (IAsyncEnumerable<ReadData[]>)_reader;
+        IAsyncEnumerable<ReadData[]> dataReader = _reader;
         using var filter = _filter.GetEnumerator();
 
-        await foreach (var data in dataReader.Where(x => qualityTrimmer.Trim(x)).ConfigureAwait(false))
+        await foreach (var data in dataReader.Where(x => qualityTrimmer.Trim(x)).WithCancellation(cancellationToken)
+            .ConfigureAwait(false))
         {
             if (!await positionalEnumerator.MoveNextAsync().ConfigureAwait(false))
             {

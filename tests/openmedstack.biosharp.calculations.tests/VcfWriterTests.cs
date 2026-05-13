@@ -10,7 +10,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests;
 
 public class VcfWriterTests
 {
-    private LocalVariantResult CreateVariant(
+    private static LocalVariantResult CreateVariant(
         string chrom,
         int pos,
         string refB,
@@ -39,7 +39,7 @@ public class VcfWriterTests
     {
         var variant = CreateVariant("chr1", 100, "A", "T", 50, 10);
         using var ms = new MemoryStream();
-        await VcfWriter.WriteAsync(ms, [variant], "chr1");
+        await VcfWriter.Write(ms, [variant], "chr1");
         var text = System.Text.Encoding.UTF8.GetString(ms.ToArray());
         Assert.Contains("##fileformat=VCFv4.2", text);
         Assert.Contains("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO", text);
@@ -50,7 +50,7 @@ public class VcfWriterTests
     {
         var variant = CreateVariant("chr1", 100, "A", "T", 50, 10);
         using var ms = new MemoryStream();
-        await VcfWriter.WriteAsync(ms, [variant], "chr1");
+        await VcfWriter.Write(ms, [variant], "chr1");
         var text = System.Text.Encoding.UTF8.GetString(ms.ToArray());
         Assert.Contains("chr1", text);
         Assert.Contains("100", text);
@@ -69,7 +69,7 @@ public class VcfWriterTests
     {
         var variant = CreateVariant("chr2", 50, "C", "G", 20, 1);
         using var ms = new MemoryStream();
-        await VcfWriter.WriteAsync(ms, [variant], "chr2");
+        await VcfWriter.Write(ms, [variant], "chr2");
         var text = System.Text.Encoding.UTF8.GetString(ms.ToArray());
         // Check variant line (not header) contains LOW_QUAL
         var variantLines = text.Split(['\n', '\r'], StringSplitOptions.RemoveEmptyEntries)
@@ -83,7 +83,7 @@ public class VcfWriterTests
     {
         var variant = CreateVariant("chr1", 100, "A", "T", 50, 10);
         using var ms = new MemoryStream();
-        await VcfWriter.WriteAsync(ms, [variant], "chr1", 1000);
+        await VcfWriter.Write(ms, [variant], "chr1", 1000);
         var text = System.Text.Encoding.UTF8.GetString(ms.ToArray());
         Assert.Contains("##contig=", text);
         Assert.Contains("chr1", text);
@@ -95,7 +95,7 @@ public class VcfWriterTests
         var variant = CreateVariant("chr1", 500, "ACGT", "A", 30, 20, SvType.Deletion, true)
             .WithStructuralVariant(SvType.Deletion, 503, coverage: 20, altPathCount: 1);
         using var ms = new MemoryStream();
-        await VcfWriter.WriteAsync(ms, [variant], "chr1");
+        await VcfWriter.Write(ms, [variant], "chr1");
         var text = System.Text.Encoding.UTF8.GetString(ms.ToArray());
         Assert.Contains("SVTYPE=DEL", text);
         Assert.Contains("END=503", text);
@@ -105,7 +105,7 @@ public class VcfWriterTests
     public async Task WriteAsync_EmptyVariants_StillProducesHeader()
     {
         using var ms = new MemoryStream();
-        await VcfWriter.WriteAsync(ms, [], "chr1");
+        await VcfWriter.Write(ms, [], "chr1");
         var text = System.Text.Encoding.UTF8.GetString(ms.ToArray());
         Assert.Contains("##fileformat=VCFv4.2", text);
         Assert.Contains("#CHROM\tPOS", text);

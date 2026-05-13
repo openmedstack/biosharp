@@ -1,2 +1,1 @@
-data/*.gz filter=lfs diff=lfs merge=lfs
 spec/*.pdf filter=lfs diff=lfs merge=lfs

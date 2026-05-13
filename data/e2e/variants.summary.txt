@@ -1,0 +1,12 @@
+DNA Analysis Summary
+ProcessedReads	6123726
+MappedReads	3414854
+SoftClipRealignedReads	3414854
+RawVariantCalls	4776091
+MergedVariantCalls	1077736
+StructuralVariants	1145
+
+VariantType	Count
+Deletion	83457
+Insertion	107911
+SNP	886368

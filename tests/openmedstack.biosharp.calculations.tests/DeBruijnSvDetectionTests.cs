@@ -18,7 +18,7 @@ public class DeBruijnSvDetectionTests
 {
     private static IAsyncEnumerable<Sequence> MakeReads(IEnumerable<string> seqs, int kmer = 5)
     {
-        return AsyncEnumerable.ToAsyncEnumerable(seqs.Select(s => new Sequence("r_" + s.GetHashCode(), s.AsMemory(),
+        return AsyncEnumerable.ToAsyncEnumerable(seqs.Select(s => new Sequence($"r_{s.GetHashCode()}", s.AsMemory(),
             new string('I', s.Length).AsMemory())));
     }
 
@@ -94,7 +94,7 @@ public class DeBruijnSvDetectionTests
     public async Task BubbleFinder_DetectsInsertionBubble()
     {
         var refSeq = "ACGTACACTAGC"; // 12 chars
-        var altSeq = "ACGTAC" + "CC" + refSeq[6..]; // 14 chars, insert CC at pos 6
+        var altSeq = $"ACGTACCC{refSeq[6..]}"; // 14 chars, insert CC at pos 6
 
         Assert.Equal(12, refSeq.Length); // verify ref
         Assert.Equal(14, altSeq.Length); // verify alt is 2bp longer
@@ -135,23 +135,23 @@ public class DeBruijnSvDetectionTests
     /// "ACGTAC" + "ACT" + "AGC" = 6+3+3 = 12.
     /// Alt = "ACGTAC" + "AGC" = 9.
     ///
-    /// Ref k=4: ACGT, CGTA, GTAC, TACA, ACA... 
+    /// Ref k=4: ACGT, CGTA, GTAC, TACA, ACA...
     ///   pos0: ACGT, pos1: CGTA, pos2: GTAC, pos3: TACA, pos4: ACAC, pos5: CACT... wait.
     ///   Let me spell ref: A-C-G-T-A-C-A-C-T-A-G-C (12 chars)
-    ///   k=4 k-mers: 
+    ///   k=4 k-mers:
     ///     pos0: ACGT, pos1: CGTA, pos2: GTAC, pos3: TACA, pos4: ACAC, pos5: CACT, pos6: ACTA, pos7: CTAG, pos8: TAGC
     /// Alt k=4 (9 chars: ACGTACAGC):
-    ///   k-mers: ACGT, CGTA, GTAC, TACA, ACA... 
+    ///   k-mers: ACGT, CGTA, GTAC, TACA, ACA...
     ///   pos0: ACGT, pos1: CGTA, pos2: GTAC, pos3: TACA, pos4: ACAG, pos5: CAGC
     ///
-    /// So at pos3: TACA (common). 
+    /// So at pos3: TACA (common).
     ///   ref TACA → ACAC (ref only)
     ///   alt TACA → ACAG (alt only)
     ///   This creates a branch at TACA!
-    ///   
+    ///
     /// Ref from ACAC: ACAC→CACT→ACTA→CTAG→TAGC
     /// Alt from ACAG: ACAG→CAGC...  CAGC is a dead-end (no outgoing edge, since alt ends with CAGC)
-    /// 
+    ///
     /// No reconvergence because alt terminates at CAGC (dead end, no convergence).
     /// This creates a TIP, not a bubble!
     ///
@@ -236,7 +236,7 @@ public class DeBruijnSvDetectionTests
     public async Task BubbleFinder_NoBubbles_ForUniformReads()
     {
         var uniform = "ACGTACACTAGCTA";
-        var reads = new[] { uniform, uniform[1..], uniform[2..], uniform[0..9] };
+        var reads = new[] { uniform, uniform[1..], uniform[2..], uniform[..9] };
 
         var bubbles = await FindBubbles(reads, 4);
         Assert.Empty(bubbles);
@@ -259,7 +259,7 @@ public class DeBruijnSvDetectionTests
     public async Task TipFinder_DetectsLongTip()
     {
         var refSeq = "ACGTACACTAGC"; // 12 chars
-        var altIns = "ACGTAC" + "CC" + refSeq[6..]; // 14, inserted CC
+        var altIns = $"ACGTACCC{refSeq[6..]}"; // 14, inserted CC
 
         Assert.Equal(12, refSeq.Length);
         Assert.Equal(14, altIns.Length);
@@ -281,12 +281,12 @@ public class DeBruijnSvDetectionTests
         // The alt-only tip: TAGC→(alt-only nodes ACCC→CCCA→CCAC)→converges at CACT? No, CCAC→CACT.
         // So alt-only path: GTAC→TACC→ACCC→CCCA→CCAC→CACT→ACTA→CTAG→TAGC
         // Dead-end: TAGC (shared with ref). This ISN'T an alt-only dead end.
-        // 
+        //
         // Hmm, let me reconsider. alt has k-mers: ACGT→CGTA→GTAC→TACC→ACCC→CCCA→CCAC→CACT→ACTA→CTAG→TAGC
-        // ref has: ACGT→CGTA→GTAC→TACA→ACAC→CACT... 
+        // ref has: ACGT→CGTA→GTAC→TACA→ACAC→CACT...
         // alt's CCAC→CACT is NOT an alt-only node — it's shared with ref.
         // So alt has NO dead-end, only a branch→converge bubble.
-        // 
+        //
         // To get a TIP, alt needs to END somewhere ref doesn't:
         // alt: ACGTACCCACTAGCX  (extra X at end) → dead-end TAGCX
         // or alt: XXXACGTACCCACTAGC → dead-end XXXA at start → traces back to GTAC branch.
@@ -318,7 +318,7 @@ public class DeBruijnSvDetectionTests
             uniform[..8]
         };
 
-        var tips = await FindTips(reads, 4, 10);
+        var tips = await FindTips(reads, 4);
         Assert.Empty(tips);
     }
 
@@ -354,7 +354,7 @@ public class DeBruijnSvDetectionTests
 
         var result = await StructuralVariantDetector.AnalyzeGraph(
             new DeBruijnGraph(k, reads.Select(s =>
-                    new Sequence("r_" + s.GetHashCode(), s.AsMemory(), new string('I', s.Length).AsMemory()))
+                    new Sequence($"r_{s.GetHashCode()}", s.AsMemory(), new string('I', s.Length).AsMemory()))
                 .ToAsyncEnumerable()),
             refSeq, "chr1", 0);
 
@@ -394,7 +394,7 @@ public class DeBruijnSvDetectionTests
 
         var result = await StructuralVariantDetector.AnalyzeGraph(
             new DeBruijnGraph(k, reads.Select(s =>
-                    new Sequence("r_" + s.GetHashCode(), s.AsMemory(), new string('I', s.Length).AsMemory()))
+                    new Sequence($"r_{s.GetHashCode()}", s.AsMemory(), new string('I', s.Length).AsMemory()))
                 .ToAsyncEnumerable()),
             refSeq, "chr1", 0);
 
@@ -432,7 +432,7 @@ public class DeBruijnSvDetectionTests
 
         var result = await StructuralVariantDetector.AnalyzeGraph(
             new DeBruijnGraph(k, reads.Select(s =>
-                    new Sequence("r_" + s.GetHashCode(), s.AsMemory(), new string('I', s.Length).AsMemory()))
+                    new Sequence($"r_{s.GetHashCode()}", s.AsMemory(), new string('I', s.Length).AsMemory()))
                 .ToAsyncEnumerable()),
             refSeq, "chr1", 0);
 
@@ -454,7 +454,7 @@ public class DeBruijnSvDetectionTests
 
         var result = await StructuralVariantDetector.AnalyzeGraph(
             new DeBruijnGraph(k, reads.Select(s =>
-                    new Sequence("r_" + s.GetHashCode(), s.AsMemory(), new string('I', s.Length).AsMemory()))
+                    new Sequence($"r_{s.GetHashCode()}", s.AsMemory(), new string('I', s.Length).AsMemory()))
                 .ToAsyncEnumerable()),
             refSeq, "chr1", 0);
 
@@ -484,7 +484,7 @@ public class DeBruijnSvDetectionTests
         };
 
         var graph = new DeBruijnGraph(k, reads.Select(s =>
-                new Sequence("r_" + s.GetHashCode(), s.AsMemory(), new string('I', s.Length).AsMemory()))
+                new Sequence($"r_{s.GetHashCode()}", s.AsMemory(), new string('I', s.Length).AsMemory()))
             .ToAsyncEnumerable());
 
         var result = await StructuralVariantDetector.AnalyzeGraph(
@@ -493,10 +493,8 @@ public class DeBruijnSvDetectionTests
         Assert.NotEmpty(result.Variants);
         var variant = result.Variants.First();
         Assert.NotNull(variant.BubbleConfidence);
-        Assert.True(variant.BubbleConfidence.Confidence == BubbleConfidence.High ||
-            variant.BubbleConfidence.Confidence == BubbleConfidence.Medium,
-            $"Expected High or Medium confidence but got {variant.BubbleConfidence.Confidence} " +
-            $"(score={variant.BubbleConfidence.ConfidenceScore})");
+        Assert.True(variant.BubbleConfidence.Confidence is BubbleConfidence.High or BubbleConfidence.Medium,
+            $"Expected High or Medium confidence but got {variant.BubbleConfidence.Confidence} (score={variant.BubbleConfidence.ConfidenceScore})");
     }
 
     /// <summary>

@@ -2,4 +2,4 @@
 
 using System;
 
-public record struct ReadData(int Tile, ReadType Type, Memory<char> Bases, Memory<char> Qualities, int ReadIndex);
+public record struct ReadData(int Tile, ReadType Type, ReadOnlyMemory<char> Bases, ReadOnlyMemory<char> Qualities, int ReadIndex);

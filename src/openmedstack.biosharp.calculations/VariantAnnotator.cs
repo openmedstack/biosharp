@@ -108,27 +108,16 @@ public static class VariantAnnotator
             char? altBase,
             AnnotationContext? context)
         {
-            if (string.IsNullOrWhiteSpace(transcriptId))
-            {
-                throw new ArgumentException("Transcript ID must be provided.", nameof(transcriptId));
-            }
-
-            if (codonChange == null)
-            {
-                throw new ArgumentNullException(nameof(codonChange));
-            }
-
-            if (transcriptSequence == null)
-            {
-                throw new ArgumentNullException(nameof(transcriptSequence));
-            }
+            ArgumentException.ThrowIfNullOrWhiteSpace(transcriptId);
+            ArgumentNullException.ThrowIfNull(codonChange);
+            ArgumentNullException.ThrowIfNull(transcriptSequence);
 
             // If refBase is provided, verify it matches the transcript at the given position.
             // A mismatch means the VCF record's reference allele doesn't agree with the
             // transcript reference, so the annotation is marked Uncertain.
-            if (refBase != null && TranscriptRefMismatch(refBase.Value, transcriptSequence, cPosition, codonChange))
+            if (refBase != null && TranscriptRefMismatch(refBase.Value, transcriptSequence, cPosition))
             {
-                var uncertainHgvsProtein = "p.?";
+                const string uncertainHgvsProtein = "p.?";
                 var uncertainHgvsCoding = BuildHgvsCoding(cPosition, codonChange, refBase, altBase);
                 return new VariantAnnotation
                 {
@@ -136,9 +125,10 @@ public static class VariantAnnotator
                     Consequence = VariantConsequence.Uncertain,
                     HgvsCoding = uncertainHgvsCoding,
                     HgvsProtein = uncertainHgvsProtein,
+                    HgvsNotation = $"{transcriptId}:{uncertainHgvsCoding}",
                     AffectedAminoAcid = null,
                     ResultingAminoAcid = null,
-                    CodonChange = codonChange.OriginalCodon + ">" + codonChange.MutatedCodon,
+                    CodonChange = $"{codonChange.OriginalCodon}>{codonChange.MutatedCodon}",
                     FrameshiftOffset = null
                 };
             }
@@ -164,7 +154,7 @@ public static class VariantAnnotator
             var (consequence, frameshiftOffset) = ClassifyConsequenceWithOffset(oldAa, newAa,
                 codonChange.NucleotideDelta,
                 transcriptSequence, codonChange, cPosition, context);
-            var hgvsProtein = BuildProteinHgvs(consequence, oldAa, newAa, cPosition, codonChange);
+            var hgvsProtein = BuildProteinHgvs(consequence, oldAa, newAa, cPosition);
             var hgvsCoding = BuildHgvsCoding(cPosition, codonChange, refBase, altBase);
 
             return new VariantAnnotation
@@ -173,9 +163,10 @@ public static class VariantAnnotator
                 Consequence = consequence,
                 HgvsCoding = hgvsCoding,
                 HgvsProtein = hgvsProtein,
+                HgvsNotation = $"{transcriptId}:{hgvsCoding}",
                 AffectedAminoAcid = oldAa,
                 ResultingAminoAcid = newAa,
-                CodonChange = codonChange.OriginalCodon + ">" + codonChange.MutatedCodon,
+                CodonChange = $"{codonChange.OriginalCodon}>{codonChange.MutatedCodon}",
                 FrameshiftOffset = frameshiftOffset
             };
         }
@@ -330,46 +321,42 @@ public static class VariantAnnotator
             ? refSeqStr[afterStart..]
             : "";
         var mutatedSeq = refSeqStr[..refStart] + codonChange.MutatedCodon + after;
-        return CountAminosUntilStop(startAa, mutatedSeq, pos);
+        return CountAminosUntilStop(mutatedSeq, pos);
     }
 
     private static string BuildProteinHgvs(
         VariantConsequence consequence,
         AminoAcid oldAa,
         AminoAcid? newAa,
-        int cPos,
-        CodonChange? codonChange)
+        int cPos)
     {
         var aaIndex = (cPos - 1) / 3 + 1;
 
         return consequence switch
         {
-            VariantConsequence.Synonymous => "p." + oldAa.Letter + aaIndex + "=",
+            VariantConsequence.Synonymous => $"p.{oldAa.Letter}{aaIndex}=",
             VariantConsequence.Missense =>
-                "p." + oldAa.Letter + aaIndex + (newAa != null ? newAa.Letter.ToString() : "?"),
+                $"p.{oldAa.Letter}{aaIndex}{(newAa != null ? newAa.Letter.ToString() : "?")}",
             VariantConsequence.Nonsense =>
-                "p." + oldAa.Letter + aaIndex + "*",
+                $"p.{oldAa.Letter}{aaIndex}*",
             VariantConsequence.StopRetained =>
-                "p." + oldAa.Letter + aaIndex + "*",
+                $"p.{oldAa.Letter}{aaIndex}*",
             VariantConsequence.Frameshift =>
-                "p." + oldAa.Letter + aaIndex
-              + (newAa != null ? newAa.Letter.ToString() : "?")
-              + "fs*",
+                $"p.{oldAa.Letter}{aaIndex}{(newAa != null ? newAa.Letter.ToString() : "?")}fs*",
             VariantConsequence.InframeDeletion =>
-                "p." + oldAa.Letter + aaIndex + "del",
+                $"p.{oldAa.Letter}{aaIndex}del",
             VariantConsequence.InframeInsertion =>
-                "p." + oldAa.Letter + aaIndex
-              + "ins" + (newAa != null ? newAa.Letter.ToString() : "?"),
+                $"p.{oldAa.Letter}{aaIndex}ins{(newAa != null ? newAa.Letter.ToString() : "?")}",
             VariantConsequence.Uncertain => "p.?",
             _ => "p.?"
         };
     }
 
-    private static string BuildHgvsCoding(int cPos, CodonChange codonChange, char? refBase, char? altBase)
+    private static string BuildHgvsCoding(int cPos, CodonChange? codonChange, char? refBase, char? altBase)
     {
         if (codonChange == null)
         {
-            return "c." + cPos + "?";
+            return $"c.{cPos}?";
         }
 
         var refSeq = refBase != null
@@ -383,30 +370,28 @@ public static class VariantAnnotator
         {
             if (refSeq.Length == 1)
             {
-                return "c." + cPos + refSeq + ">" + altSeq;
+                return $"c.{cPos}{refSeq}>{altSeq}";
             }
 
-            return "c." + cPos + "_" + (cPos + refSeq.Length - 1) + refSeq + ">" + altSeq;
+            return $"c.{cPos}_{cPos + refSeq.Length - 1}{refSeq}>{altSeq}";
         }
 
         if (codonChange.NucleotideDelta < 0)
         {
             var delLen = -codonChange.NucleotideDelta;
-            if (delLen == 1)
-            {
-                return "c." + cPos + "del";
-            }
-
-            return "c." + cPos + "_" + (cPos + delLen - 1) + "del" + refSeq[..delLen];
+            return delLen == 1
+                ? $"c.{cPos}del"
+                : $"c.{cPos}_{cPos + delLen - 1}del{refSeq[..(Math.Min(refSeq.Length, delLen))]}";
         }
 
         var insSeq = altSeq.Length > refSeq.Length
             ? altSeq[refSeq.Length..]
             : altSeq;
-        return "c." + cPos + "_" + cPos + "ins" + insSeq;
+        // HGVS requires the insertion to fall between two adjacent positions: c.N_N+1ins...
+        return $"c.{cPos}_{cPos + 1}ins{insSeq}";
     }
 
-    private static int CountAminosUntilStop(char startAa, string transcriptDna, int dnaStartPos)
+    private static int CountAminosUntilStop(string transcriptDna, int dnaStartPos)
     {
         var remaining = Math.Min(600, transcriptDna.Length - dnaStartPos + 1);
         if (remaining < 3)
@@ -537,26 +522,23 @@ public static class VariantAnnotator
     /// </summary>
     public static string CodonToRna(string dnaCodon)
     {
-        if (dnaCodon == null)
-        {
-            throw new ArgumentNullException(nameof(dnaCodon));
-        }
-
-        return new string(dnaCodon.ToUpper().Select(c => c == 'T' ? 'U' : c).ToArray());
+        return dnaCodon == null
+            ? throw new ArgumentNullException(nameof(dnaCodon))
+            : new string(dnaCodon.ToUpper().Select(c => c == 'T' ? 'U' : c).ToArray());
     }
 
     /// <summary>
     /// Translate an RNA codon (3 bases) to an AminoAcid. Returns null for invalid codons.
     /// </summary>
-    public static AminoAcid? TryTranslate(string rnaCodon)
+    public static AminoAcid? TryTranslate(string? rnaCodon)
     {
-        if (rnaCodon == null || rnaCodon.Length != 3)
+        if (rnaCodon is not { Length: 3 })
         {
             return null;
         }
 
         var codon = rnaCodon.ToUpper();
-        return CodonTable.TryGetValue(codon, out var aa) ? aa : (AminoAcid?)null;
+        return CodonTable.GetValueOrDefault(codon);
     }
 
     /// <summary>
@@ -631,21 +613,9 @@ public static class VariantAnnotator
         IReadOnlyList<int> positions,
         IReadOnlyList<char> altBases)
     {
-        if (string.IsNullOrEmpty(refCodons))
-        {
-            throw new ArgumentException("Reference codons must be provided.", nameof(refCodons));
-        }
-
-        if (positions == null)
-        {
-            throw new ArgumentNullException(nameof(positions));
-        }
-
-        if (altBases == null)
-        {
-            throw new ArgumentNullException(nameof(altBases));
-        }
-
+        ArgumentException.ThrowIfNullOrEmpty(refCodons);
+        ArgumentNullException.ThrowIfNull(positions);
+        ArgumentNullException.ThrowIfNull(altBases);
         if (positions.Count != altBases.Count)
         {
             throw new ArgumentException("positions and altBases must have the same count.", nameof(positions));
@@ -731,9 +701,8 @@ public static class VariantAnnotator
     /// </summary>
     private static bool TranscriptRefMismatch(
         char expectedRef,
-        Sequence transcript,
-        int position,
-        CodonChange codonChange)
+        Sequence? transcript,
+        int position)
     {
         if (transcript == null || position < 1)
         {

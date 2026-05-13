@@ -9,8 +9,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Calculations.Alignment;
 using Calculations.DeBruijn;
-using Io.Sam;
-using Model;
 using Reqnroll;
 using Xunit;
 
@@ -45,7 +43,7 @@ public class VariantCallingStepDefinitions
         var variants = (LocalVariantResult[])_ctx["gvcfVariants"];
         var depths = (int[])_ctx["gvcfDepths"];
         var stream = new MemoryStream();
-        await GvcfWriter.WriteAsync(stream, variants, refSeq.AsMemory(), "chr1", depths);
+        await GvcfWriter.Write(stream, variants, refSeq.AsMemory(), "chr1", depths);
         stream.Position = 0;
         _ctx["gvcfContent"] = Encoding.UTF8.GetString(stream.ToArray());
     }
@@ -104,7 +102,7 @@ public class VariantCallingStepDefinitions
         var variant = (LocalVariantResult)_ctx["rightAlignedVariant"];
         var refSeq = (string)_ctx["normRefSeq"];
         var normalized = VcfNormalizer.Normalize(
-            new[] { variant },
+            [variant],
             refSeq.AsSpan()).ToList();
         _ctx["normalizedVariants"] = normalized;
     }
@@ -131,7 +129,7 @@ public class VariantCallingStepDefinitions
         };
         variant.AddAltAllele("T"); // makes it multi-allelic
         _ctx["multiAllelicVariant"] = variant;
-        _ctx["normRefSeq"] = "ACGTACGT" + new string('N', 200);
+        _ctx["normRefSeq"] = $"ACGTACGT{new string('N', 200)}";
     }
 
     [When("I normalize the variant")]
@@ -140,7 +138,7 @@ public class VariantCallingStepDefinitions
         var variant = (LocalVariantResult)_ctx["multiAllelicVariant"];
         var refSeq = (string)_ctx["normRefSeq"];
         var normalized = VcfNormalizer.Normalize(
-            new[] { variant },
+            [variant],
             refSeq.AsSpan()).ToList();
         _ctx["normalizedVariants"] = normalized;
     }
@@ -173,7 +171,7 @@ public class VariantCallingStepDefinitions
     {
         var variant = (LocalVariantResult)_ctx["alreadyNormalized"];
         var refSeq = (string)_ctx["normRefSeq"];
-        var first = VcfNormalizer.Normalize(new[] { variant }, refSeq.AsSpan()).ToList();
+        var first = VcfNormalizer.Normalize([variant], refSeq.AsSpan()).ToList();
         var second = VcfNormalizer.Normalize(first, refSeq.AsSpan()).ToList();
         _ctx["firstNorm"] = first;
         _ctx["secondNorm"] = second;
@@ -195,7 +193,7 @@ public class VariantCallingStepDefinitions
 
     // ── VC-3: CNV Calling ────────────────────────────────────────────────────
 
-    [Given("I have a depth profile with a (\\d+)-window region at (\\d+) percent of baseline depth")]
+    [Given(@"I have a depth profile with a (\d+)-window region at (\d+) percent of baseline depth")]
     public void GivenDepthProfileWithLowRegion(int lowWindowCount, int percentBaseline)
     {
         const int windowSize = 100;
@@ -212,7 +210,7 @@ public class VariantCallingStepDefinitions
         for (var i = 0; i < refLen; i++)
         {
             var windowIdx = i / windowSize;
-            depths[i] = (windowIdx >= startWindow && windowIdx < startWindow + lowWindowCount)
+            depths[i] = windowIdx >= startWindow && windowIdx < startWindow + lowWindowCount
                 ? lowDepth
                 : baselineDepth;
         }
@@ -238,7 +236,7 @@ public class VariantCallingStepDefinitions
     {
         var calls = (List<LocalVariantResult>)_ctx["cnvCalls"];
         Assert.Contains(calls, v =>
-            v.IsStructuralVariant && v.SvType == SvType.Deletion);
+            v is { IsStructuralVariant: true, SvType: SvType.Deletion });
     }
 
     [When("I run the copy number caller with a duplication threshold of (.+)")]
@@ -257,7 +255,7 @@ public class VariantCallingStepDefinitions
     {
         var calls = (List<LocalVariantResult>)_ctx["cnvCalls"];
         Assert.Contains(calls, v =>
-            v.IsStructuralVariant && v.SvType == SvType.CopyNumber);
+            v is { IsStructuralVariant: true, SvType: SvType.CopyNumber });
     }
 
     // ── VC-4: Haplotype Phasing ───────────────────────────────────────────────
@@ -355,9 +353,8 @@ public class VariantCallingStepDefinitions
         var variant = (LocalVariantResult)_ctx["popVariant"];
         var stream = (MemoryStream)_ctx["popVcfStream"];
         stream.Position = 0;
-        var annotator = new PopulationFrequencyAnnotator();
         var results = new List<PopulationFrequencyAnnotation>();
-        await foreach (var ann in annotator.AnnotateAsync(new[] { variant }, stream, CancellationToken.None))
+        await foreach (var ann in PopulationFrequencyAnnotator.Annotate([variant], stream, CancellationToken.None))
         {
             results.Add(ann);
         }

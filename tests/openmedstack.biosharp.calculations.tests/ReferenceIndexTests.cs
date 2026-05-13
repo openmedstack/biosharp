@@ -1,5 +1,8 @@
+using System;
+
 namespace OpenMedStack.BioSharp.Calculations.Tests;
 
+using System.IO;
 using System.Linq;
 using Alignment;
 using Model;
@@ -15,9 +18,9 @@ public class ReferenceIndexTests
         var suffix = new string('C', 200);
         var reference = new Sequence(
             "chr1",
-            (prefix + target + suffix).ToCharArray(),
-            new string('I', prefix.Length + target.Length + suffix.Length).ToCharArray());
-        var read = new Sequence("read1", target.ToCharArray(), new string('I', target.Length).ToCharArray());
+            (prefix + target + suffix).AsMemory(),
+            new string('I', prefix.Length + target.Length + suffix.Length).AsMemory());
+        var read = new Sequence("read1", target.AsMemory(), new string('I', target.Length).AsMemory());
 
         var index = new ReferenceIndex(reference, new ReferenceIndex.IndexOptions
         {
@@ -38,8 +41,8 @@ public class ReferenceIndexTests
     [Fact]
     public void FindCandidateWindows_RepetitiveSeedFallsBackOnlyForSmallReference()
     {
-        var reference = new Sequence("chr1", new string('A', 5000).ToCharArray(), new string('I', 5000).ToCharArray());
-        var read = new Sequence("read1", new string('A', 30).ToCharArray(), new string('I', 30).ToCharArray());
+        var reference = new Sequence("chr1", new string('A', 5000).AsMemory(), new string('I', 5000).AsMemory());
+        var read = new Sequence("read1", new string('A', 30).AsMemory(), new string('I', 30).AsMemory());
 
         var index = new ReferenceIndex(reference, new ReferenceIndex.IndexOptions
         {
@@ -68,8 +71,8 @@ public class ReferenceIndexTests
         target.CopyTo(0, refChars, 100, target.Length);
         target.CopyTo(0, refChars, 600, target.Length);
 
-        var reference = new Sequence("chr1", refChars, new string('I', 1000).ToCharArray());
-        var read = new Sequence("read1", target.ToCharArray(), new string('I', target.Length).ToCharArray());
+        var reference = new Sequence("chr1", refChars, new string('I', 1000).AsMemory());
+        var read = new Sequence("read1", target.AsMemory(), new string('I', target.Length).AsMemory());
 
         var index = new ReferenceIndex(reference, new ReferenceIndex.IndexOptions
         {
@@ -98,8 +101,8 @@ public class ReferenceIndexTests
     public void FindCandidateWindows_UnmappedRead_ReturnsEmpty()
     {
         // Reference is all-A; read is all-T with no shared 6-mers.
-        var reference = new Sequence("chr1", new string('A', 2000).ToCharArray(), new string('I', 2000).ToCharArray());
-        var read = new Sequence("read1", new string('T', 30).ToCharArray(), new string('I', 30).ToCharArray());
+        var reference = new Sequence("chr1", new string('A', 2000).AsMemory(), new string('I', 2000).AsMemory());
+        var read = new Sequence("read1", new string('T', 30).AsMemory(), new string('I', 30).AsMemory());
 
         var index = new ReferenceIndex(reference, new ReferenceIndex.IndexOptions
         {
@@ -111,5 +114,37 @@ public class ReferenceIndexTests
         var windows = index.FindCandidateWindows(read);
 
         Assert.Empty(windows);
+    }
+
+    [Fact]
+    public void SaveLoad_RoundTripsSerializedIndex()
+    {
+        const string referenceBases = "TTTTTACGTGATTACAGGTTCCCCCC";
+        var reference = new Sequence(
+            "chr1",
+            referenceBases.AsMemory(),
+            new string('I', referenceBases.Length).AsMemory());
+        const string readBases = "ACGTGATTACAGGTT";
+        var read = new Sequence("read1", readBases.AsMemory(), new string('I', readBases.Length).AsMemory());
+        var options = new ReferenceIndex.IndexOptions
+        {
+            SeedSize = 6,
+            WindowPadding = 8,
+            MaxCandidateWindowsPerRead = 4,
+            MaxSeedHitsPerKmer = 8
+        };
+
+        var original = new ReferenceIndex(reference, options);
+        using var stream = new MemoryStream();
+        original.Save(stream);
+        stream.Position = 0;
+
+        var restored = ReferenceIndex.Load(reference, stream, options);
+
+        Assert.Equal(original.Key, restored.Key);
+        Assert.Equal(original.ReferenceFingerprint, restored.ReferenceFingerprint);
+        Assert.Equal(
+            original.FindCandidateWindows(read).ToList(),
+            restored.FindCandidateWindows(read).ToList());
     }
 }

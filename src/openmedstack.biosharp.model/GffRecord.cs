@@ -49,10 +49,3 @@ public record GffRecord
     /// <summary>The dialect in which this record was parsed.</summary>
     public GffDialect Dialect { get; init; }
 }
-
-/// <summary>Identifies the GFF dialect of a parsed record.</summary>
-public enum GffDialect
-{
-    Gff3,
-    Gtf
-}

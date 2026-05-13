@@ -4,7 +4,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
-using System.Threading.Tasks;
 using Alignment;
 using Io.Sam;
 using Model;
@@ -37,7 +36,7 @@ public class AlignmentReadProcessingTests
             rname: "chr1",
             position: position,
             mapq: mapq,
-            cigar: cigar ?? new (uint, CigarOp)[] { ((uint)sequence.Length, CigarOp.Match) },
+            cigar: cigar ?? [((uint)sequence.Length, CigarOp.Match)],
             rnext: rnext,
             pnext: pnext,
             templatelength: tlen,
@@ -163,7 +162,7 @@ public class AlignmentReadProcessingTests
         var a1 = MakeAlignment("Instr:1:FC:1:1101:1000:1000", 100, "ACGT", "IIII", mapq: 60);
         var a2 = MakeAlignment("Instr:1:FC:1:1101:1050:1050", 100, "ACGT", "5555", mapq: 30);
 
-        var (marked, metrics) = DuplicateMarker.MarkDuplicates([a1, a2], opticalDuplicatePixelDistance: 100);
+        var (_, metrics) = DuplicateMarker.MarkDuplicates([a1, a2], opticalDuplicatePixelDistance: 100);
 
         Assert.Equal(1, metrics.OpticalDuplicateReads);
         Assert.Equal(1, metrics.DuplicateReads);
@@ -175,7 +174,7 @@ public class AlignmentReadProcessingTests
         var a1 = MakeAlignment("Instr:1:FC:1:1101:1000:1000", 100, "ACGT", "IIII", mapq: 60);
         var a2 = MakeAlignment("Instr:1:FC:1:1101:5000:5000", 100, "ACGT", "5555", mapq: 30);
 
-        var (marked, metrics) = DuplicateMarker.MarkDuplicates([a1, a2], opticalDuplicatePixelDistance: 100);
+        var (_, metrics) = DuplicateMarker.MarkDuplicates([a1, a2], opticalDuplicatePixelDistance: 100);
 
         // Still a PCR duplicate (same position) but NOT optical
         Assert.Equal(1, metrics.DuplicateReads);
@@ -189,7 +188,7 @@ public class AlignmentReadProcessingTests
             .Select(i => MakeAlignment($"r{i}", 100, "ACGTACGT", new string((char)(40 + i), 8), mapq: (byte)(60 - i)))
             .ToList();
 
-        var (marked, metrics) = DuplicateMarker.MarkDuplicates(reads);
+        var (_, metrics) = DuplicateMarker.MarkDuplicates(reads);
 
         Assert.Equal(10, metrics.TotalReads);
         Assert.Equal(9, metrics.DuplicateReads);
@@ -203,35 +202,35 @@ public class AlignmentReadProcessingTests
     [Fact]
     public void MapqCalculator_UniqueAlignment_Returns60()
     {
-        var mapq = MapqCalculator.Calculate(bestScore: 100, secondBestScore: 0, readLength: 50, matchScore: 2);
+        var mapq = MapqCalculator.Calculate(bestScore: 100, secondBestScore: 0);
         Assert.Equal(60, mapq);
     }
 
     [Fact]
     public void MapqCalculator_EqualAlignments_Returns0()
     {
-        var mapq = MapqCalculator.Calculate(bestScore: 100, secondBestScore: 100, readLength: 50, matchScore: 2);
+        var mapq = MapqCalculator.Calculate(bestScore: 100, secondBestScore: 100);
         Assert.Equal(0, mapq);
     }
 
     [Fact]
     public void MapqCalculator_BestBetterThanSecond_ReturnsIntermediateValue()
     {
-        var mapq = MapqCalculator.Calculate(bestScore: 100, secondBestScore: 50, readLength: 50, matchScore: 2);
+        var mapq = MapqCalculator.Calculate(bestScore: 100, secondBestScore: 50);
         Assert.InRange(mapq, 1, 59);
     }
 
     [Fact]
     public void MapqCalculator_SlightlyBetter_ReturnsLowMapq()
     {
-        var mapq = MapqCalculator.Calculate(bestScore: 100, secondBestScore: 98, readLength: 50, matchScore: 2);
+        var mapq = MapqCalculator.Calculate(bestScore: 100, secondBestScore: 98);
         Assert.InRange(mapq, 0, 10);
     }
 
     [Fact]
     public void MapqCalculator_LargeGap_ReturnsHighMapq()
     {
-        var mapq = MapqCalculator.Calculate(bestScore: 100, secondBestScore: 10, readLength: 50, matchScore: 2);
+        var mapq = MapqCalculator.Calculate(bestScore: 100, secondBestScore: 10);
         Assert.InRange(mapq, 50, 60);
     }
 
@@ -239,7 +238,7 @@ public class AlignmentReadProcessingTests
     public void MapqCalculator_NoSecondBest_Returns60()
     {
         // No second-best alignment (secondBestScore = -1 sentinel)
-        var mapq = MapqCalculator.Calculate(bestScore: 80, secondBestScore: -1, readLength: 40, matchScore: 2);
+        var mapq = MapqCalculator.Calculate(bestScore: 80, secondBestScore: -1);
         Assert.Equal(60, mapq);
     }
 
@@ -248,7 +247,7 @@ public class AlignmentReadProcessingTests
     {
         // BWA-MEM style: MAPQ = 60 * (1 - secondBest/best), capped at 60
         // For best=100, second=60: fraction remaining = 0.4 → MAPQ ≈ 24 (≥1)
-        var mapq = MapqCalculator.Calculate(bestScore: 100, secondBestScore: 60, readLength: 50, matchScore: 2);
+        var mapq = MapqCalculator.Calculate(bestScore: 100, secondBestScore: 60);
         Assert.InRange(mapq, 1, 59);
     }
 
@@ -264,8 +263,8 @@ public class AlignmentReadProcessingTests
     public void Bqsr_CollectCovariates_ProducesNonEmptyTable()
     {
         // Create alignments where some bases match reference, some don't
-        var refSeq = new Sequence("chr1", "ACGTACGTACGTACGTACGT".ToCharArray(),
-            new string('I', 20).ToCharArray());
+        var refSeq = new Sequence("chr1", "ACGTACGTACGTACGTACGT".AsMemory(),
+            new string('I', 20).AsMemory());
 
         var alignments = new[]
         {
@@ -274,8 +273,7 @@ public class AlignmentReadProcessingTests
             MakeAlignmentWithQuality("r3", 5, "ACGTACGT", new string('I', 8))
         };
 
-        var recalibrator = new BaseQualityRecalibrator();
-        var table = recalibrator.CollectCovariates(alignments, refSeq);
+        var table = BaseQualityRecalibrator.CollectCovariates(alignments, refSeq);
 
         Assert.NotNull(table);
         Assert.NotEmpty(table.Entries);
@@ -285,8 +283,8 @@ public class AlignmentReadProcessingTests
     public void Bqsr_ApplyRecalibration_ModifiesQualitiesAtHighErrorSites()
     {
         // Build a reference
-        var refChars = new string('A', 50).ToCharArray(); // all As
-        var refSeq = new Sequence("chr1", refChars, new string('I', 50).ToCharArray());
+        var refChars = new string('A', 50).AsMemory(); // all As
+        var refSeq = new Sequence("chr1", refChars, new string('I', 50).AsMemory());
 
         // Create reads where position 5 always has an error (empirical error rate = 1.0)
         // Reference quality claimed = 40 ('I'), but all mismatch → should be recalibrated down
@@ -295,12 +293,11 @@ public class AlignmentReadProcessingTests
                 "AAAATAAAAAAAAAAAAAAAA", // T at position 5 (1-based ref position 5)
                 new string('I', 21))).ToArray();
 
-        var recalibrator = new BaseQualityRecalibrator();
-        var table = recalibrator.CollectCovariates(alignments, refSeq);
+        var table = BaseQualityRecalibrator.CollectCovariates(alignments, refSeq);
 
         // Apply recalibration
         var original = MakeAlignmentWithQuality("test", 1, "AAAATAAAAAAAAAAAAAAAA", new string('I', 21));
-        var recalibrated = recalibrator.ApplyRecalibration([original], table);
+        var recalibrated = BaseQualityRecalibrator.ApplyRecalibration([original], table);
 
         Assert.Single(recalibrated);
         var recalQuality = recalibrated[0].Quality;
@@ -314,8 +311,8 @@ public class AlignmentReadProcessingTests
     [Fact]
     public void Bqsr_ApplyRecalibration_PerfectMatchSitesPreserveOrImproveQuality()
     {
-        var refChars = new string('A', 30).ToCharArray();
-        var refSeq = new Sequence("chr1", refChars, new string('I', 30).ToCharArray());
+        var refChars = new string('A', 30).AsMemory();
+        var refSeq = new Sequence("chr1", refChars, new string('I', 30).AsMemory());
 
         // All reads perfectly match reference
         var alignments = Enumerable.Range(0, 20).Select(i =>
@@ -323,16 +320,14 @@ public class AlignmentReadProcessingTests
                 new string('A', 20),
                 new string('I', 20))).ToArray();
 
-        var recalibrator = new BaseQualityRecalibrator();
-        var table = recalibrator.CollectCovariates(alignments, refSeq);
+        var table = BaseQualityRecalibrator.CollectCovariates(alignments, refSeq);
 
         var original = MakeAlignmentWithQuality("test", 1, new string('A', 20), new string('I', 20));
-        var recalibrated = recalibrator.ApplyRecalibration([original], table);
+        var recalibrated = BaseQualityRecalibrator.ApplyRecalibration([original], table);
 
         // Qualities should not increase beyond the original (capped at max Phred)
-        for (var i = 0; i < recalibrated[0].Quality.Length; i++)
+        foreach (var q in recalibrated[0].Quality.Select(t => t - 33))
         {
-            var q = recalibrated[0].Quality[i] - 33;
             Assert.InRange(q, 0, 40);
         }
     }
@@ -340,14 +335,13 @@ public class AlignmentReadProcessingTests
     [Fact]
     public void Bqsr_RecalibrationTable_IsSerializableToJson()
     {
-        var refSeq = new Sequence("chr1", "ACGTACGT".ToCharArray(), new string('I', 8).ToCharArray());
+        var refSeq = new Sequence("chr1", "ACGTACGT".AsMemory(), new string('I', 8).AsMemory());
         var alignments = new[]
         {
             MakeAlignmentWithQuality("r1", 1, "ACGTACGT", new string('I', 8))
         };
 
-        var recalibrator = new BaseQualityRecalibrator();
-        var table = recalibrator.CollectCovariates(alignments, refSeq);
+        var table = BaseQualityRecalibrator.CollectCovariates(alignments, refSeq);
 
 #pragma warning disable IL2026
         var json = JsonSerializer.Serialize(table);
@@ -361,8 +355,8 @@ public class AlignmentReadProcessingTests
     public void Bqsr_CycleBias_CorrectedIndependently()
     {
         // First cycles have artificially high error rates
-        var refChars = new string('A', 30).ToCharArray();
-        var refSeq = new Sequence("chr1", refChars, new string('I', 30).ToCharArray());
+        var refChars = new string('A', 30).AsMemory();
+        var refSeq = new Sequence("chr1", refChars, new string('I', 30).AsMemory());
 
         // Reads where first 3 bases always mismatch (cycle bias)
         var alignments = Enumerable.Range(0, 30).Select(i =>
@@ -370,10 +364,9 @@ public class AlignmentReadProcessingTests
                 "TTTAAAAAAAAAAAAAA", // TTT at cycles 1-3
                 new string('I', 17))).ToArray();
 
-        var recalibrator = new BaseQualityRecalibrator();
-        var table = recalibrator.CollectCovariates(alignments, refSeq);
+        var table = BaseQualityRecalibrator.CollectCovariates(alignments, refSeq);
         var original = MakeAlignmentWithQuality("test", 1, "TTTAAAAAAAAAAAAAA", new string('I', 17));
-        var recalibrated = recalibrator.ApplyRecalibration([original], table);
+        var recalibrated = BaseQualityRecalibrator.ApplyRecalibration([original], table);
 
         // Early cycle positions should be downgraded
         for (var i = 0; i < 3; i++)
@@ -391,7 +384,7 @@ public class AlignmentReadProcessingTests
     [Fact]
     public void AdapterTrimmer_NoAdapter_ReturnUnchanged()
     {
-        var seq = new Sequence("r1", "ACGTACGTACGT".ToCharArray(), new string('I', 12).ToCharArray());
+        var seq = new Sequence("r1", "ACGTACGTACGT".AsMemory(), new string('I', 12).AsMemory());
         var trimmer = new AdapterTrimmer(AdapterTrimmer.Presets.TruSeqR1, maxMismatches: 2);
 
         var (trimmed, stats) = trimmer.Trim(seq);
@@ -406,7 +399,7 @@ public class AlignmentReadProcessingTests
     {
         // Sequence is pure adapter
         var adapter = AdapterTrimmer.Presets.TruSeqR1;
-        var seq = new Sequence("r1", adapter.ToCharArray(), new string('I', adapter.Length).ToCharArray());
+        var seq = new Sequence("r1", adapter.AsMemory(), new string('I', adapter.Length).AsMemory());
         var trimmer = new AdapterTrimmer(adapter, maxMismatches: 0, minLength: 1);
 
         var (trimmed, stats) = trimmer.Trim(seq);
@@ -423,7 +416,7 @@ public class AlignmentReadProcessingTests
         var insert = "ACGTACGTACGTACGTACGT"; // 20 bp
         var partialAdapter = adapter[..15];
         var readSeq = insert + partialAdapter;
-        var seq = new Sequence("r1", readSeq.ToCharArray(), new string('I', readSeq.Length).ToCharArray());
+        var seq = new Sequence("r1", readSeq.AsMemory(), new string('I', readSeq.Length).AsMemory());
         var trimmer = new AdapterTrimmer(adapter, maxMismatches: 0, minLength: 1);
 
         var (trimmed, stats) = trimmer.Trim(seq);
@@ -441,9 +434,9 @@ public class AlignmentReadProcessingTests
         var adapter = AdapterTrimmer.Presets.NexTera;
         var insert = "GCTAGCTAGCTAGCTA"; // 16 bp
         // Adapter with 2 mismatches (first and last base changed)
-        var mutatedAdapter = "X" + adapter[1..^1] + "X";
+        var mutatedAdapter = $"X{adapter[1..^1]}X";
         var readSeq = insert + mutatedAdapter;
-        var seq = new Sequence("r1", readSeq.ToCharArray(), new string('I', readSeq.Length).ToCharArray());
+        var seq = new Sequence("r1", readSeq.AsMemory(), new string('I', readSeq.Length).AsMemory());
         var trimmer = new AdapterTrimmer(adapter, maxMismatches: 2, minLength: 1);
 
         var (trimmed, stats) = trimmer.Trim(seq);
@@ -460,7 +453,7 @@ public class AlignmentReadProcessingTests
         // Only 5bp insert before adapter — below default minLength of 20
         var insert = "ACGTA";
         var readSeq = insert + adapter;
-        var seq = new Sequence("r1", readSeq.ToCharArray(), new string('I', readSeq.Length).ToCharArray());
+        var seq = new Sequence("r1", readSeq.AsMemory(), new string('I', readSeq.Length).AsMemory());
         var trimmer = new AdapterTrimmer(adapter, maxMismatches: 0, minLength: 20);
 
         var (trimmed, stats) = trimmer.Trim(seq);
@@ -476,11 +469,11 @@ public class AlignmentReadProcessingTests
         var insert = "ACGTACGTACGTACGTACGTACGT"; // 24 bp (above minLength=20)
         var reads = new[]
         {
-            new Sequence("r1", (insert + adapter).ToCharArray(),
-                new string('I', insert.Length + adapter.Length).ToCharArray()),
-            new Sequence("r2", "ACGTACGT".ToCharArray(), new string('I', 8).ToCharArray()),    // no adapter
-            new Sequence("r3", ("ACGTA" + adapter).ToCharArray(),
-                new string('I', 5 + adapter.Length).ToCharArray()), // below min length after trim
+            new Sequence("r1", (insert + adapter).AsMemory(),
+                new string('I', insert.Length + adapter.Length).AsMemory()),
+            new Sequence("r2", "ACGTACGT".AsMemory(), new string('I', 8).AsMemory()),    // no adapter
+            new Sequence("r3", ("ACGTA" + adapter).AsMemory(),
+                new string('I', 5 + adapter.Length).AsMemory()), // below min length after trim
         };
         var trimmer = new AdapterTrimmer(adapter, maxMismatches: 0, minLength: 20);
 
@@ -528,7 +521,7 @@ public class AlignmentReadProcessingTests
         // 100 pairs with known insert sizes: 200, 210, 220, ..., 200+99*10 = 1190
         // mean ≈ 695, median ≈ 695
         var alignments = Enumerable.Range(0, 100)
-            .Select(i => MakePairedAlignment($"pair{i}", 100, 100 + (200 + i * 10),
+            .Select(i => MakePairedAlignment($"pair{i}", 100, 100 + 200 + i * 10,
                 200 + i * 10))
             .ToList();
 
@@ -548,7 +541,7 @@ public class AlignmentReadProcessingTests
     public void InsertSizeEstimator_Percentiles_OrderedCorrectly()
     {
         var alignments = Enumerable.Range(0, 200)
-            .Select(i => MakePairedAlignment($"pair{i}", 1, 1 + (100 + i),
+            .Select(i => MakePairedAlignment($"pair{i}", 1, 1 + 100 + i,
                 100 + i))
             .ToList();
 

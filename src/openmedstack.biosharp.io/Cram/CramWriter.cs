@@ -5,7 +5,6 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Collections.Generic;
 using System.IO;
-using System.IO.Compression;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -43,9 +42,9 @@ public sealed class CramWriter : IAsyncDisposable
 
     /// <summary>
     /// Writes the CRAM file definition and SAM header container.
-    /// Must be called before <see cref="WriteAlignmentAsync"/>.
+    /// Must be called before <see cref="WriteAlignment"/>.
     /// </summary>
-    public async Task WriteHeaderAsync(
+    public async Task WriteHeader(
         string samHeaderText,
         CancellationToken cancellationToken = default)
     {
@@ -87,7 +86,7 @@ public sealed class CramWriter : IAsyncDisposable
     }
 
     /// <summary>Queues an alignment record for writing. Records are flushed per container.</summary>
-    public async Task WriteAlignmentAsync(
+    public async Task WriteAlignment(
         AlignmentSection alignment,
         CancellationToken cancellationToken = default)
     {
@@ -100,12 +99,12 @@ public sealed class CramWriter : IAsyncDisposable
 
         if (_pendingRecords.Count >= RecordsPerContainer)
         {
-            await FlushContainerAsync(cancellationToken).ConfigureAwait(false);
+            await FlushContainer(cancellationToken).ConfigureAwait(false);
         }
     }
 
     /// <summary>Flushes any pending records and writes the CRAM EOF container.</summary>
-    public async Task FinalizeAsync(CancellationToken cancellationToken = default)
+    public async Task Finalize(CancellationToken cancellationToken = default)
     {
         if (!_headerWritten)
         {
@@ -114,7 +113,7 @@ public sealed class CramWriter : IAsyncDisposable
 
         if (_pendingRecords.Count > 0)
         {
-            await FlushContainerAsync(cancellationToken).ConfigureAwait(false);
+            await FlushContainer(cancellationToken).ConfigureAwait(false);
         }
 
         // EOF container
@@ -123,7 +122,7 @@ public sealed class CramWriter : IAsyncDisposable
         await _output.FlushAsync(cancellationToken).ConfigureAwait(false);
     }
 
-    private async Task FlushContainerAsync(CancellationToken ct)
+    private async Task FlushContainer(CancellationToken ct)
     {
         if (_pendingRecords.Count == 0)
         {
@@ -313,7 +312,7 @@ public sealed class CramWriter : IAsyncDisposable
         int nRecords,
         long recordCounter,
         long bases,
-        IList<CramBlock> blocks)
+        List<CramBlock> blocks)
     {
         // Serialize all blocks to bytes first
         using var blocksMs = new MemoryStream();
@@ -338,12 +337,12 @@ public sealed class CramWriter : IAsyncDisposable
         // Landmarks: one landmark per block (byte offset from start of all blocks)
         CramEncoding.WriteItf8(headerMs, blocks.Count); // l_landmarks count
         var offset = 0;
-        for (var i = 0; i < blocks.Count; i++)
+        foreach (var t in blocks)
         {
             CramEncoding.WriteItf8(headerMs, offset);
             // Calculate block size
             using var tempMs = new MemoryStream();
-            blocks[i].WriteTo(tempMs);
+            t.WriteTo(tempMs);
             offset += (int)tempMs.Length;
         }
 
@@ -387,7 +386,7 @@ public sealed class CramWriter : IAsyncDisposable
         {
             if (_headerWritten)
             {
-                await FinalizeAsync().ConfigureAwait(false);
+                await Finalize().ConfigureAwait(false);
             }
         }
         finally

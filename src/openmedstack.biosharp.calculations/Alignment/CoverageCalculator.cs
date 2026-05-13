@@ -1,51 +1,11 @@
+using System.Linq;
+
 namespace OpenMedStack.BioSharp.Calculations.Alignment;
 
 using System;
 using System.Collections.Generic;
 using Io.Sam;
 using Model;
-
-/// <summary>
-/// Result of a coverage computation.
-/// </summary>
-public sealed class CoverageReport
-{
-    /// <summary>Per-position depth array (0-based index = 0-based position).</summary>
-    public int[] PerPositionDepth { get; init; } = [];
-
-    /// <summary>Mean depth across covered positions (or target region if supplied).</summary>
-    public double MeanDepth { get; init; }
-
-    /// <summary>Median depth.</summary>
-    public double MedianDepth { get; init; }
-
-    /// <summary>Minimum depth across the target region.</summary>
-    public double MinDepth { get; init; }
-
-    /// <summary>Maximum depth across the target region.</summary>
-    public double MaxDepth { get; init; }
-
-    /// <summary>Fraction of target bases with depth ≥ 10.</summary>
-    public double FractionAt10x { get; init; }
-
-    /// <summary>Fraction of target bases with depth ≥ 20.</summary>
-    public double FractionAt20x { get; init; }
-
-    /// <summary>Fraction of target bases with depth ≥ 30.</summary>
-    public double FractionAt30x { get; init; }
-
-    /// <summary>Fraction of target bases with depth ≥ 100.</summary>
-    public double FractionAt100x { get; init; }
-
-    /// <summary>Fraction of target bases with depth ≥ 500.</summary>
-    public double FractionAt500x { get; init; }
-
-    /// <summary>Coefficient of variation (stddev / mean) of depth across the target region.</summary>
-    public double CoefficientOfVariation { get; init; }
-
-    /// <summary>Number of bases in the target region (or reference if no target supplied).</summary>
-    public int TargetBasesCovered { get; init; }
-}
 
 /// <summary>
 /// Computes per-position read depth and coverage uniformity metrics from aligned reads.
@@ -62,15 +22,12 @@ public sealed class CoverageCalculator
     /// Optional BED intervals; if supplied only positions within these intervals are used for
     /// summary statistics. Per-position depth is still computed for all positions.
     /// </param>
-    public CoverageReport Compute(
+    public static CoverageReport Compute(
         IReadOnlyList<AlignmentSection> alignments,
         int referenceLength,
         IReadOnlyList<BedInterval>? targetIntervals = null)
     {
-        if (referenceLength <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(referenceLength));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(referenceLength);
 
         var depth = new int[referenceLength];
 
@@ -123,11 +80,8 @@ public sealed class CoverageCalculator
         int[] targetPositions;
         if (targetIntervals is { Count: > 0 })
         {
-            var totalCount = 0;
-            foreach (var interval in targetIntervals)
-            {
-                totalCount += Math.Max(0, Math.Min(interval.End, referenceLength) - interval.Start);
-            }
+            var totalCount = targetIntervals.Sum(interval =>
+                Math.Max(0, Math.Min(interval.End, referenceLength) - interval.Start));
 
             targetPositions = new int[totalCount];
             var idx = 0;
@@ -191,20 +145,6 @@ public sealed class CoverageCalculator
             ? targetDepths[n / 2]
             : (targetDepths[n / 2 - 1] + targetDepths[n / 2]) / 2.0;
 
-        int CountAtLeast(int threshold)
-        {
-            var cnt = 0;
-            foreach (var d in targetDepths)
-            {
-                if (d >= threshold)
-                {
-                    cnt++;
-                }
-            }
-
-            return cnt;
-        }
-
         return new CoverageReport
         {
             PerPositionDepth = depth,
@@ -220,5 +160,10 @@ public sealed class CoverageCalculator
             CoefficientOfVariation = cv,
             TargetBasesCovered = n
         };
+
+        int CountAtLeast(int threshold)
+        {
+            return targetDepths.Count(d => d >= threshold);
+        }
     }
 }

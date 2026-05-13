@@ -75,7 +75,7 @@ public class VariantAnnotationEngineTests : IDisposable
         await engine.LoadTranscriptsAsync(_fastaPath);
         
         var annotations = new List<VariantAnnotation>();
-        await foreach (var ann in engine.AnnotateVcfAsync(_vcfPath, null, 5.0f))
+        await foreach (var ann in engine.AnnotateVcf(_vcfPath, null, 5.0f))
         {
             annotations.Add(ann);
         }
@@ -94,7 +94,7 @@ public class VariantAnnotationEngineTests : IDisposable
         
         var annotations = new List<VariantAnnotation>();
         // The FASTA header is ">NM_001".
-        await foreach (var ann in engine.AnnotateVcfAsync(_vcfPath, "NM_001", 5.0f))
+        await foreach (var ann in engine.AnnotateVcf(_vcfPath, "NM_001", 5.0f))
         {
             annotations.Add(ann);
         }
@@ -121,7 +121,7 @@ public class VariantAnnotationEngineTests : IDisposable
         await engine.LoadTranscriptsAsync(_fastaPath);
         
         var annotations = new List<VariantAnnotation>();
-        await foreach (var ann in engine.AnnotateVcfAsync(vcfWithLowQual, null, 5.0f))
+        await foreach (var ann in engine.AnnotateVcf(vcfWithLowQual, null, 5.0f))
         {
             annotations.Add(ann);
         }
@@ -146,7 +146,7 @@ public class VariantAnnotationEngineTests : IDisposable
             FailedFilter = Array.Empty<string>()
         };
 
-        var anns = engine.AnnotateVariantAsync(variant);
+        var anns = engine.AnnotateVariant(variant);
 
         Assert.NotNull(anns);
         Assert.Equal(2, anns.Length); // One for NM_001, one for NM_002

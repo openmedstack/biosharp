@@ -1,3 +1,5 @@
+using System;
+
 namespace OpenMedStack.BioSharp.Io.Tests;
 
 using System.IO;
@@ -14,7 +16,7 @@ public class FastAWriterTests
     [Fact]
     public async Task CanWriteSingleLineSequence()
     {
-        var sequence = new Sequence("test", "GAC".ToCharArray(), new char[3]);
+        var sequence = new Sequence("test", "GAC".AsMemory(), new char[3]);
         var writer = new FastAWriter(new NullLogger<FastAWriter>());
         var ms = new MemoryStream();
         await using var _ = ms;

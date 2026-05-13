@@ -3,7 +3,6 @@ namespace OpenMedStack.BioSharp.Calculations.Alignment;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text.Json.Serialization;
 using Io.Sam;
 
 /// <summary>
@@ -23,10 +22,7 @@ public sealed class InsertSizeEstimator
     /// <param name="binSize">Histogram bin width in base pairs (default: 10).</param>
     public InsertSizeEstimator(int binSize = 10)
     {
-        if (binSize <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(binSize));
-        }
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(binSize);
 
         _binSize = binSize;
     }
@@ -136,7 +132,7 @@ public sealed class InsertSizeEstimator
             return 0;
         }
 
-        var index = (pct / 100.0) * (sorted.Count - 1);
+        var index = pct / 100.0 * (sorted.Count - 1);
         var lower = (int)index;
         var upper = Math.Min(lower + 1, sorted.Count - 1);
         var fraction = index - lower;
@@ -146,47 +142,11 @@ public sealed class InsertSizeEstimator
     private static SortedDictionary<int, int> BuildHistogram(List<double> sizes, int binSize)
     {
         var hist = new SortedDictionary<int, int>();
-        foreach (var size in sizes)
+        foreach (var bin in sizes.Select(size => (int)(Math.Floor(size / binSize) * binSize)))
         {
-            var bin = (int)(Math.Floor(size / binSize) * binSize);
             hist[bin] = hist.TryGetValue(bin, out var count) ? count + 1 : 1;
         }
+
         return hist;
     }
-}
-
-/// <summary>
-/// Summary of the insert-size distribution computed by <see cref="InsertSizeEstimator"/>.
-/// Serialisable to JSON.
-/// </summary>
-public sealed class InsertSizeReport
-{
-    /// <summary>Mean insert size in base pairs.</summary>
-    public double Mean { get; init; }
-
-    /// <summary>Median insert size in base pairs.</summary>
-    public double Median { get; init; }
-
-    /// <summary>Sample standard deviation of insert sizes.</summary>
-    public double StandardDeviation { get; init; }
-
-    /// <summary>10th percentile insert size.</summary>
-    public double Percentile10 { get; init; }
-
-    /// <summary>90th percentile insert size.</summary>
-    public double Percentile90 { get; init; }
-
-    /// <summary>
-    /// Histogram of insert sizes. Keys are the lower bound of each bin;
-    /// values are read counts in that bin.
-    /// </summary>
-    public SortedDictionary<int, int> Histogram { get; init; } = new();
-
-    /// <summary>Number of properly paired reads with a valid TLEN.</summary>
-    public int ProperlyPairedReads { get; init; }
-
-    /// <summary>
-    /// Number of paired reads whose mate maps to a different reference or has TLEN = 0.
-    /// </summary>
-    public int DiscordantPairs { get; init; }
 }

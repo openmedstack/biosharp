@@ -2,7 +2,6 @@ namespace OpenMedStack.BioSharp.Calculations.Alignment;
 
 using System;
 using System.Collections.Generic;
-using System.Text.Json.Serialization;
 
 /// <summary>
 /// A recalibration table produced by <see cref="BaseQualityRecalibrator.CollectCovariates"/>.
@@ -50,14 +49,4 @@ public sealed class RecalibrationTable
 
     private static string BuildKey(int quality, int cycle, string dinuc) =>
         $"{quality}:{cycle}:{dinuc}";
-}
-
-/// <summary>Mutable recalibration entry for a single covariate combination.</summary>
-public sealed class RecalibrationEntry
-{
-    /// <summary>Total bases observed at this covariate combination.</summary>
-    public long Observations { get; set; }
-
-    /// <summary>Base mismatches (errors) observed at this covariate combination.</summary>
-    public long Errors { get; set; }
 }

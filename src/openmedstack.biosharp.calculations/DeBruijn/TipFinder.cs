@@ -150,16 +150,18 @@ public static class TipFinder
         var count = 0;
         foreach (var pair in nodes)
         {
-            if (pair.Value.OutboundEdges.Contains(node.Id))
+            if (!pair.Value.OutboundEdges.Contains(node.Id))
             {
-                count++;
-                if (count > 1)
-                {
-                    return true;
-                }
+                continue;
+            }
+
+            count++;
+            if (count > 1)
+            {
+                return true;
             }
         }
 
-        return count > 1;
+        return false;
     }
 }

@@ -1,3 +1,5 @@
+using Microsoft.Extensions.Logging;
+
 namespace OpenMedStack.BioSharp.Io.FastA;
 
 using System;
@@ -10,19 +12,27 @@ using System.Threading;
 using System.Threading.Tasks;
 using Model;
 
-public class FastAReader
+public partial class FastAReader
 {
+    private readonly ILogger<FastAReader> _logger;
+
+    public FastAReader(ILogger<FastAReader> logger)
+    {
+        _logger = logger;
+    }
+
     public async IAsyncEnumerable<Sequence> Read(
         string path,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        LogStartReadingFromPath(path);
         var file = File.Open(
             path,
             new FileStreamOptions
             {
                 Access = FileAccess.Read,
                 Mode = FileMode.Open,
-                Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                //Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
                 Share = FileShare.Read
             });
         await using var _ = file.ConfigureAwait(false);
@@ -36,6 +46,7 @@ public class FastAReader
         Stream file,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        LogStartReadingFromPath("Stream");
         var encoding = Encoding.ASCII;
         using var reader = new StreamReader(file, encoding);
 
@@ -50,8 +61,6 @@ public class FastAReader
             {
                 break;
             }
-
-            line = "";
 
             var letters = new StringBuilder();
             while (true)
@@ -74,7 +83,7 @@ public class FastAReader
             const char defaultQuality = (char)255;
             Array.Fill(qualities, defaultQuality);
             var readOnlyMemory = letters.ToString().AsMemory();
-            yield return new Sequence(id[1..], readOnlyMemory, qualities);
+            yield return new Sequence(id.Length > 1 ? id[1..] : "", readOnlyMemory, qualities);
         }
     }
 
@@ -89,7 +98,7 @@ public class FastAReader
             {
                 Access = FileAccess.Read,
                 Mode = FileMode.Open,
-//                    Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
+                //Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
                 Share = FileShare.Read
             });
         if (compressedFile)
@@ -130,4 +139,7 @@ public class FastAReader
             }
         }
     }
+
+    [LoggerMessage(LogLevel.Debug, "Start reading from {Path}")]
+    partial void LogStartReadingFromPath(string path);
 }

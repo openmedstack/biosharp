@@ -3,21 +3,6 @@ namespace OpenMedStack.BioSharp.Calculations.DeBruijn;
 using System;
 
 /// <summary>
-/// Genotype type for diploid organisms as represented in VCF GT fields.
-/// </summary>
-public enum GenotypeType
-{
-    /// <summary>Homozygous reference — allele 0/0.</summary>
-    HomozygousRef,
-
-    /// <summary>Heterozygous — allele 0/1.</summary>
-    Heterozygous,
-
-    /// <summary>Homozygous alternate — allele 1/1.</summary>
-    HomozygousAlt
-}
-
-/// <summary>
 /// Genotype call for a bubble variant, including caller name, zygosity,
 /// and genotype quality derived from a binomial test on coverage ratios.
 /// </summary>
@@ -110,18 +95,16 @@ public class Genotype
             return 0;
         }
 
-        var successes = altCoverage;
-        var n = total;
-        var p = 0.5;
+        const double p = 0.5;
 
         // Two-sided binomial CDF P-value:
         // P = P(X <= min(successes, n-successes)) + P(X >= max(successes, n-successes))
         // but capped at 1.0
-        var lower = Math.Min(successes, n - successes);
-        var upper = Math.Max(successes, n - successes);
+        var lower = Math.Min(altCoverage, total - altCoverage);
+        var upper = Math.Max(altCoverage, total - altCoverage);
 
-        var pLower = BinomialCdf(lower, n, p);
-        var pUpper = 1.0 - BinomialCdf(upper - 1, n, p);
+        var pLower = BinomialCdf(lower, total, p);
+        var pUpper = 1.0 - BinomialCdf(upper - 1, total, p);
 
         var pValue = Math.Min(pLower + pUpper, 1.0);
 

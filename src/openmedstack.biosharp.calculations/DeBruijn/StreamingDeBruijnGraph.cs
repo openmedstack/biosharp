@@ -3,32 +3,10 @@ namespace OpenMedStack.BioSharp.Calculations.DeBruijn;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Model;
-
-/// <summary>
-/// Statistics reported after ingesting reads into the streaming De Bruijn graph.
-/// </summary>
-public sealed class StreamingGraphStats
-{
-    /// <summary>Current number of distinct k-mer nodes in the graph.</summary>
-    public int NodeCount { get; init; }
-
-    /// <summary>Total number of k-mers ingested.</summary>
-    public long KmersIngested { get; init; }
-
-    /// <summary>Number of nodes pruned due to low coverage during the build.</summary>
-    public int PrunedNodes { get; init; }
-
-    /// <summary>
-    /// True when the graph buffers all reads (legacy mode).
-    /// Always false for this streaming implementation.
-    /// </summary>
-    public bool AllReadsBuffered => false;
-}
 
 /// <summary>
 /// A streaming De Bruijn graph implementation that ingests reads one at a time
@@ -73,7 +51,7 @@ public sealed class StreamingDeBruijnGraph
     /// <summary>
     /// Streams reads into the graph, processing each read exactly once.
     /// </summary>
-    public async Task IngestAsync(
+    public async Task Ingest(
         IAsyncEnumerable<Sequence> reads,
         CancellationToken cancellationToken = default)
     {
@@ -160,7 +138,7 @@ public sealed class StreamingDeBruijnGraph
     /// <summary>
     /// Assembles contigs from the graph using a greedy highest-coverage walk.
     /// </summary>
-    public async Task<IReadOnlyList<string>> AssembleContigsAsync(
+    public async Task<IReadOnlyList<string>> AssembleContigs(
         CancellationToken cancellationToken = default)
     {
         var contigs = new List<string>();
@@ -168,7 +146,7 @@ public sealed class StreamingDeBruijnGraph
 
         // Find start nodes (in-degree == 0 or no better option)
         var startNodes = _graph.Values
-            .Where(n => n.InboundEdges == 0 && n.OutDegree > 0)
+            .Where(n => n is { InboundEdges: 0, OutDegree: > 0 })
             .ToList();
 
         if (startNodes.Count == 0)

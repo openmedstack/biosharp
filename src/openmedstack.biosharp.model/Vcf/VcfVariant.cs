@@ -56,16 +56,24 @@ public record VcfVariant
             var span = line.AsSpan();
             Span<Range> ranges = stackalloc Range[8];
             var count = span.Split(ranges, '\t');
+            var chromosome = new string(span[ranges[0]]);
+            var position = int.Parse(span[ranges[1]]);
+            var markerIdentifiers = new string(span[ranges[2]]);
+            var reference = new string(span[ranges[3]]);
+            var alternate = new string(span[ranges[4]]);
+            var errorProbabilities = GetProbabilities(span[ranges[5]]);
+            string[] failedFilter = count > 6 ? [new string(span[ranges[6]])] : [];
+            var additionalInformation = count > 7 ? new string(span[ranges[7]]) : "";
             return new VcfVariant
             {
-                Chromosome = new string(span[ranges[0]]),
-                Position = int.Parse(span[ranges[1]]),
-                MarkerIdentifiers = new string(span[ranges[2]]),
-                Reference = new string(span[ranges[3]]),
-                Alternate = new string(span[ranges[4]]),
-                ErrorProbabilities = GetProbabilities(span[ranges[5]]),
-                FailedFilter = count > 6 ? [new string(span[ranges[6]])] : [],
-                AdditionalInformation = count > 7 ? new string(span[ranges[7]]) : ""
+                Chromosome = chromosome,
+                Position = position,
+                MarkerIdentifiers = markerIdentifiers,
+                Reference = reference,
+                Alternate = alternate,
+                ErrorProbabilities = errorProbabilities,
+                FailedFilter = failedFilter,
+                AdditionalInformation = additionalInformation
             };
         }
         catch (Exception)

@@ -1,6 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
-
-namespace OpenMedStack.BioSharp.Io.Bcl;
+﻿namespace OpenMedStack.BioSharp.Io.Bcl;
 
 using System;
 using System.Collections.Generic;
@@ -10,17 +8,16 @@ using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Xml.Serialization;
+using System.Xml.Linq;
 using Microsoft.Extensions.Logging;
 using Model.Bcl;
 
-public class IlluminaDataReader
+public partial class IlluminaDataReader
 {
+    private const int LaneReaderPrefetchCount = 4;
     private readonly ILoggerFactory _loggerFactory;
     private readonly ILogger<IlluminaDataReader> _logger;
     private readonly ReadStructure? _readStructure;
-    private static readonly Regex LaneFolderMatch = new("L(?<lane>\\d{3})", RegexOptions.Compiled);
-    private static readonly Regex TileNumberMatch = new("((?<lane>(\\d+))_)?(?<tile>\\d+)", RegexOptions.Compiled);
 
     private readonly FileInfo? _runInfo;
 
@@ -39,11 +36,10 @@ public class IlluminaDataReader
         var intensitiesDir = dataDir.EnumerateDirectories("Intensities", SearchOption.TopDirectoryOnly).Single();
         var baseCallDir = intensitiesDir.EnumerateDirectories("BaseCalls", SearchOption.TopDirectoryOnly).Single();
         //_sampleSheetInfo = _baseCallDir.EnumerateFiles("SampleSheet.csv", SearchOption.TopDirectoryOnly).SingleOrDefault();
-        _baseCallLaneDirs = baseCallDir.EnumerateDirectories().Where(x => LaneFolderMatch.IsMatch(x.Name)).ToArray();
-        _laneDirs = intensitiesDir.EnumerateDirectories().Where(x => LaneFolderMatch.IsMatch(x.Name)).ToArray();
+        _baseCallLaneDirs = baseCallDir.EnumerateDirectories().Where(x => LaneFolderRegex().IsMatch(x.Name)).ToArray();
+        _laneDirs = intensitiesDir.EnumerateDirectories().Where(x => LaneFolderRegex().IsMatch(x.Name)).ToArray();
     }
 
-    [RequiresUnreferencedCode("Requires reference to RunInfo.")]
     public Run RunInfo()
     {
         if (_run != null)
@@ -53,7 +49,7 @@ public class IlluminaDataReader
 
         if (_runInfo == null)
         {
-            _logger.LogInformation("Creating run info because no RunInfo.xml file was provided");
+            LogCreatingRunInfoBecauseNoRuninfoXmlFileWasProvided();
             _run = new Run
             {
                 Id = Guid.NewGuid().ToString("N"),
@@ -73,8 +69,7 @@ public class IlluminaDataReader
             return _run;
         }
 
-        _logger.LogInformation("Deserializing RunInfo.xml");
-        var serializer = new XmlSerializer(typeof(RunInfo), [typeof(Run)]);
+        LogDeserializingRuninfoXml();
         using var runFile = File.Open(
             _runInfo.FullName,
             new FileStreamOptions
@@ -84,12 +79,11 @@ public class IlluminaDataReader
                 Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
                 Share = FileShare.Read
             });
-        var info = serializer.Deserialize(runFile) as RunInfo;
-
-        _run = info?.Run ?? throw new Exception("Could not read " + _runInfo.FullName);
+        var document = XDocument.Load(runFile);
+        _run = ParseRunInfo(document, _runInfo.FullName);
         if (_readStructure?.Reads != null)
         {
-            _logger.LogInformation("Substituting read structures with manual overrides: {Structure}", _readStructure);
+            LogSubstitutingReadStructuresWithManualOverridesStructure(_readStructure);
             _run.Reads.Read = _readStructure!.Reads;
         }
         else if (_run.Reads.Read?.All(x => x.Type == ReadType.S) == true)
@@ -110,6 +104,178 @@ public class IlluminaDataReader
         return _run;
     }
 
+    private static Run ParseRunInfo(XDocument document, string path)
+    {
+        var root = document.Root ?? throw new Exception($"Could not read {path}");
+        var runElement = GetRequiredElement(root, "Run", path);
+
+        return new Run
+        {
+            Id = GetRequiredAttribute(runElement, "Id", path),
+            Number = ParseRequiredIntAttribute(runElement, "Number", path),
+            Flowcell = GetRequiredElementValue(runElement, "Flowcell", path),
+            Instrument = GetRequiredElementValue(runElement, "Instrument", path),
+            Date = GetRequiredElementValue(runElement, "Date", path),
+            Reads = ParseReads(GetRequiredElement(runElement, "Reads", path), path),
+            FlowcellLayout = ParseFlowcellLayout(GetRequiredElement(runElement, "FlowcellLayout", path), path),
+            AlignToPhiX = ParseAlignToPhiX(runElement.Element("AlignToPhiX")),
+            ImageDimensions = ParseImageDimensions(runElement.Element("ImageDimensions"), path),
+            ImageChannels = ParseImageChannels(runElement.Element("ImageChannels"))
+        };
+    }
+
+    private static Reads ParseReads(XElement element, string path)
+    {
+        return new Reads
+        {
+            Read = element.Elements("Read").Select(readElement => ParseRead(readElement, path)).ToList()
+        };
+    }
+
+    private static Read ParseRead(XElement element, string path)
+    {
+        return new Read
+        {
+            Number = ParseRequiredIntAttribute(element, "Number", path),
+            NumCycles = ParseRequiredIntAttribute(element, "NumCycles", path),
+            IsIndexedRead = GetOptionalAttribute(element, "IsIndexedRead") ?? "N"
+        };
+    }
+
+    private static FlowcellLayout ParseFlowcellLayout(XElement element, string path)
+    {
+        return new FlowcellLayout
+        {
+            LaneCount = ParseRequiredSByteAttribute(element, "LaneCount", path),
+            SurfaceCount = ParseOptionalSByteAttribute(element, "SurfaceCount") ?? 0,
+            SwathCount = ParseOptionalSByteAttribute(element, "SwathCount") ?? 0,
+            TileCount = ParseOptionalIntAttribute(element, "TileCount") ?? 0,
+            FlowcellSide = GetOptionalAttribute(element, "FlowcellSide"),
+            TileSet = ParseTileSet(element.Element("TileSet"))
+        };
+    }
+
+    private static TileSet? ParseTileSet(XElement? element)
+    {
+        if (element is null)
+        {
+            return null;
+        }
+
+        return new TileSet
+        {
+            TileNamingConvention = GetOptionalAttribute(element, "TileNamingConvention"),
+            Tiles = ParseTiles(element.Element("Tiles"))
+        };
+    }
+
+    private static Tiles? ParseTiles(XElement? element)
+    {
+        if (element is null)
+        {
+            return null;
+        }
+
+        return new Tiles
+        {
+            Tile = element.Elements("Tile").Select(tile => tile.Value).Where(value => !string.IsNullOrWhiteSpace(value))
+                .ToList()
+        };
+    }
+
+    private static AlignToPhiX? ParseAlignToPhiX(XElement? element)
+    {
+        if (element is null)
+        {
+            return null;
+        }
+
+        return new AlignToPhiX
+        {
+            Lane = element.Element("Lane")?.Value
+        };
+    }
+
+    private static ImageDimensions? ParseImageDimensions(XElement? element, string path)
+    {
+        if (element is null)
+        {
+            return null;
+        }
+
+        return new ImageDimensions
+        {
+            Width = ParseRequiredIntAttribute(element, "Width", path),
+            Height = ParseRequiredIntAttribute(element, "Height", path)
+        };
+    }
+
+    private static ImageChannels? ParseImageChannels(XElement? element)
+    {
+        if (element is null)
+        {
+            return null;
+        }
+
+        return new ImageChannels
+        {
+            Name = element.Elements("Name").Select(name => name.Value).Where(value => !string.IsNullOrWhiteSpace(value))
+                .ToList()
+        };
+    }
+
+    private static XElement GetRequiredElement(XElement parent, string name, string path)
+    {
+        return parent.Element(name) ?? throw new Exception($"Could not read {path}: missing <{name}>");
+    }
+
+    private static string GetRequiredElementValue(XElement parent, string name, string path)
+    {
+        var value = parent.Element(name)?.Value;
+        return !string.IsNullOrWhiteSpace(value)
+            ? value
+            : throw new Exception($"Could not read {path}: missing <{name}> value");
+    }
+
+    private static string GetRequiredAttribute(XElement element, string name, string path)
+    {
+        var value = GetOptionalAttribute(element, name);
+        return !string.IsNullOrWhiteSpace(value)
+            ? value
+            : throw new Exception($"Could not read {path}: missing {name} attribute");
+    }
+
+    private static string? GetOptionalAttribute(XElement element, string name)
+    {
+        return element.Attribute(name)?.Value;
+    }
+
+    private static int ParseRequiredIntAttribute(XElement element, string name, string path)
+    {
+        return int.TryParse(GetRequiredAttribute(element, name, path), out var value)
+            ? value
+            : throw new Exception($"Could not read {path}: invalid {name} attribute");
+    }
+
+    private static int? ParseOptionalIntAttribute(XElement element, string name)
+    {
+        var value = GetOptionalAttribute(element, name);
+        return int.TryParse(value, out var parsed) ? parsed : null;
+    }
+
+    private static sbyte ParseRequiredSByteAttribute(XElement element, string name, string path)
+    {
+        return sbyte.TryParse(GetRequiredAttribute(element, name, path), out var value)
+            ? value
+            : throw new Exception($"Could not read {path}: invalid {name} attribute");
+    }
+
+    private static sbyte? ParseOptionalSByteAttribute(XElement element, string name)
+    {
+        var value = GetOptionalAttribute(element, name);
+        return sbyte.TryParse(value, out var parsed) ? parsed : null;
+    }
+
     private static List<string> GetTileSet(DirectoryInfo dir)
     {
         return dir.GetDirectories("C*", SearchOption.TopDirectoryOnly)
@@ -120,24 +286,38 @@ public class IlluminaDataReader
 
     public int[] GetAllLanes()
     {
-        return _laneDirs.Select(d => LaneFolderMatch.Match(d.Name).Groups["lane"].Value)
+        return _laneDirs.Select(d => LaneFolderRegex().Match(d.Name).Groups["lane"].Value)
             .Select(int.Parse)
             .ToArray();
     }
 
-    [RequiresUnreferencedCode("Requires reference to RunInfo.")]
     public async IAsyncEnumerable<SampleReader> ReadClusterData(
         int lane,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var runInfo = RunInfo();
-        await foreach (var reader in CreateLaneReaders(lane, runInfo, cancellationToken).ConfigureAwait(false))
+        var pendingReaders = new Queue<Task<SampleReader>>(LaneReaderPrefetchCount);
+        await using var readerTasks = CreateLaneReaders(lane, runInfo, cancellationToken)
+            .GetAsyncEnumerator(cancellationToken);
+
+        while (pendingReaders.Count < LaneReaderPrefetchCount &&
+               await readerTasks.MoveNextAsync().ConfigureAwait(false))
         {
-            yield return await reader.ConfigureAwait(false);
+            pendingReaders.Enqueue(readerTasks.Current);
+        }
+
+        while (pendingReaders.Count > 0)
+        {
+            while (pendingReaders.Count < LaneReaderPrefetchCount &&
+                   await readerTasks.MoveNextAsync().ConfigureAwait(false))
+            {
+                pendingReaders.Enqueue(readerTasks.Current);
+            }
+
+            yield return await pendingReaders.Dequeue().ConfigureAwait(false);
         }
     }
 
-    [RequiresUnreferencedCode("Requires reference to RunInfo.")]
     private async IAsyncEnumerable<Task<SampleReader>> CreateLaneReaders(
         int lane,
         Run runInfo,
@@ -145,11 +325,11 @@ public class IlluminaDataReader
     {
         var laneName = lane.ToString();
         var dir =
-            _baseCallLaneDirs.Single(d => LaneFolderMatch.Match(d.Name).Groups["lane"].Value.Trim('0') == laneName);
+            _baseCallLaneDirs.Single(d => LaneFolderRegex().Match(d.Name).Groups["lane"].Value.Trim('0') == laneName);
 
         var tileIndexFileName = new FileInfo(Path.Combine(dir.FullName, $"s_{lane}.bci"));
         var tileNames = (from t in runInfo.FlowcellLayout.TileSet?.Tiles?.Tile ?? GetTileSet(dir)
-                         let tileMatch = TileNumberMatch.Match(t)
+                         let tileMatch = TileNumberRegex().Match(t)
                          where tileMatch.Success
                          where tileMatch.Groups["lane"].Value == laneName
                          select tileMatch.Groups["tile"].Value).ToList();
@@ -157,9 +337,9 @@ public class IlluminaDataReader
             ? new TileIndex(tileIndexFileName)
             : new FileStuctureTileIndex(tileNames.Select(int.Parse));
         var files = GetLaneFileInfos(dir, tileNames);
-        var indexReaders = files.Where(f => File.Exists(f.FullName + "bci"))
+        var indexReaders = files.Where(f => File.Exists($"{f.FullName}bci"))
             .ToDictionary(f => f.FullName, f => (IBclIndexReader)new BclIndexReader(f));
-        await foreach (var tileRecord in tiles.ConfigureAwait(false))
+        await foreach (var tileRecord in tiles.ConfigureAwait(false).WithCancellation(cancellationToken))
         {
             cancellationToken.ThrowIfCancellationRequested();
             yield return CreateSampleReader(
@@ -218,9 +398,9 @@ public class IlluminaDataReader
             ? $"s_{lane}_{tileRecord}.filter"
             : $"s_{lane}.filter";
         var filterFilePath = Path.Combine(dir.FullName, filterFileName);
-        var filterReader = File.Exists(filterFilePath)
+        IEnumerable<bool> filterReader = File.Exists(filterFilePath)
             ? await FilterFileReader.Create(new FileInfo(filterFilePath)).ConfigureAwait(false)
-            : (IEnumerable<bool>)new PassThroughFilter();
+            : new PassThroughFilter();
         return filterReader;
     }
 
@@ -262,4 +442,18 @@ public class IlluminaDataReader
                 $"Unsupported file extension {Path.GetExtension(positionFile.Name)}")
         };
     }
+
+    [GeneratedRegex("L(?<lane>\\d{3})", RegexOptions.Compiled)]
+    private static partial Regex LaneFolderRegex();
+    [GeneratedRegex(@"((?<lane>(\d+))_)?(?<tile>\d+)", RegexOptions.Compiled)]
+    private static partial Regex TileNumberRegex();
+
+    [LoggerMessage(LogLevel.Information, "Creating run info because no RunInfo.xml file was provided")]
+    partial void LogCreatingRunInfoBecauseNoRuninfoXmlFileWasProvided();
+
+    [LoggerMessage(LogLevel.Information, "Deserializing RunInfo.xml")]
+    partial void LogDeserializingRuninfoXml();
+
+    [LoggerMessage(LogLevel.Information, "Substituting read structures with manual overrides: {Structure}")]
+    partial void LogSubstitutingReadStructuresWithManualOverridesStructure(ReadStructure structure);
 }

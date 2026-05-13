@@ -2,7 +2,6 @@ namespace OpenMedStack.BioSharp.Calculations;
 
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -29,7 +28,7 @@ public sealed class ClinVarAnnotator
     /// Loads the ClinVar VCF database from a stream into memory.
     /// Can be called multiple times; each call replaces the previous database.
     /// </summary>
-    public async Task LoadAsync(Stream stream, CancellationToken cancellationToken = default)
+    public async Task Load(Stream stream, CancellationToken cancellationToken = default)
     {
         _db.Clear();
 
@@ -64,7 +63,7 @@ public sealed class ClinVarAnnotator
     public ClinVarAnnotation? Annotate(VcfVariant variant)
     {
         var key = MakeKey(variant.Chromosome, variant.Position, variant.Reference, variant.Alternate);
-        return _db.TryGetValue(key, out var ann) ? ann : null;
+        return _db.GetValueOrDefault(key);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────

@@ -19,61 +19,57 @@ internal static class EnumerableExtensions
         return coldTasks.ExecuteParallel(degreeOfParallelism, cancellationToken).SelectMany(selector);
     }
 
-    public static IAsyncEnumerable<TOut> SelectParallel<TInput, TOut>(
-        this IAsyncEnumerable<Task<TInput>> coldTasks,
-        int degreeOfParallelism,
-        Func<TInput, TOut> selector,
-        CancellationToken cancellationToken = default)
+    extension<TInput>(IAsyncEnumerable<Task<TInput>> coldTasks)
     {
-        return coldTasks.ExecuteParallel(degreeOfParallelism, cancellationToken).Select(selector);
-    }
-
-    public static async IAsyncEnumerable<TResult> ExecuteParallel<TResult>(
-        this IAsyncEnumerable<Task<TResult>> coldTasks,
-        int degreeOfParallelism,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        if (degreeOfParallelism < 1)
+        public IAsyncEnumerable<TOut> SelectParallel<TOut>(
+            int degreeOfParallelism,
+            Func<TInput, TOut> selector,
+            CancellationToken cancellationToken = default)
         {
-            throw new ArgumentOutOfRangeException(nameof(degreeOfParallelism));
+            return coldTasks.ExecuteParallel(degreeOfParallelism, cancellationToken).Select(selector);
         }
 
-        if (coldTasks is ICollection<Task<TResult>>)
+        private async IAsyncEnumerable<TInput> ExecuteParallel(
+            int degreeOfParallelism,
+            [EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            throw new ArgumentException("The enumerable should not be materialized.", nameof(coldTasks));
-        }
-
-        var semaphore = new SemaphoreSlim(1);
-        var queue = new ConcurrentQueue<Task<TResult>>();
-
-        var enumerator = coldTasks.GetAsyncEnumerator(cancellationToken);
-        await using var _ = enumerator.ConfigureAwait(false);
-
-        for (var index = 0; index < degreeOfParallelism && await EnqueueNextTask().ConfigureAwait(false); index++)
-        {
-            ;
-        }
-
-        while (queue.TryDequeue(out var nextTask)) yield return await nextTask.ConfigureAwait(false);
-
-        async Task<bool> EnqueueNextTask()
-        {
-            await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-            if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
+            if (degreeOfParallelism < 1)
             {
-                return false;
+                throw new ArgumentOutOfRangeException(nameof(degreeOfParallelism));
             }
 
-            var nextTask = enumerator.Current.ContinueWith(
-                async t =>
+            var semaphore = new SemaphoreSlim(1);
+            var queue = new ConcurrentQueue<Task<TInput>>();
+
+            var enumerator = coldTasks.GetAsyncEnumerator(cancellationToken);
+            await using var _ = enumerator.ConfigureAwait(false);
+
+            for (var index = 0; index < degreeOfParallelism && await EnqueueNextTask().ConfigureAwait(false); index++)
+            {
+            }
+
+            while (queue.TryDequeue(out var nextTask)) yield return await nextTask.ConfigureAwait(false);
+            yield break;
+
+            async Task<bool> EnqueueNextTask()
+            {
+                await semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+                if (!await enumerator.MoveNextAsync().ConfigureAwait(false))
                 {
-                    await EnqueueNextTask();
-                    return await t.ConfigureAwait(false);
-                },
-                cancellationToken);
-            queue.Enqueue(nextTask.Unwrap());
-            semaphore.Release();
-            return true;
+                    return false;
+                }
+
+                var nextTask = enumerator.Current.ContinueWith(
+                    async t =>
+                    {
+                        await EnqueueNextTask();
+                        return await t.ConfigureAwait(false);
+                    },
+                    cancellationToken);
+                queue.Enqueue(nextTask.Unwrap());
+                semaphore.Release();
+                return true;
+            }
         }
     }
 

@@ -20,10 +20,7 @@ public static class VariantCaller
         AlignmentResult alignment,
         int minQuality = 30)
     {
-        if (reference == null)
-        {
-            throw new ArgumentNullException(nameof(reference));
-        }
+        ArgumentNullException.ThrowIfNull(reference);
 
         var refSeq = reference.GetData().Span;
         var events = ParseAlignmentEvents(alignment);
@@ -146,13 +143,8 @@ public static class VariantCaller
             return true;
         }
 
-        if ((a == EventType.Insertion || a == EventType.Deletion) &&
-            (b == EventType.Insertion || b == EventType.Deletion))
-        {
-            return true;
-        }
-
-        return false;
+        return a is EventType.Insertion or EventType.Deletion &&
+            b is EventType.Insertion or EventType.Deletion;
     }
 
     /// <summary>
@@ -355,13 +347,11 @@ public static class VariantCaller
         // Check if any event occurs in a homopolymer region of the reference
         foreach (var evt in group.Events)
         {
-            if (evt.EventType == EventType.Insertion || evt.EventType == EventType.Deletion)
+            if (evt.EventType is EventType.Insertion or EventType.Deletion
                 // Check the ref context: are we within a run of 4+ identical bases?
+             && evt.HomopolymerRun >= 4)
             {
-                if (evt.HomopolymerRun >= 4)
-                {
-                    return true;
-                }
+                return true;
             }
         }
 

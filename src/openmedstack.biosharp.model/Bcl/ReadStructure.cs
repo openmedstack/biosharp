@@ -5,10 +5,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-public class ReadStructure
+public partial class ReadStructure
 {
-    private static readonly Regex ReadPattern = new("(?<read>\\d{1,}[TBSM])", RegexOptions.Compiled);
-
     public ReadStructure(params Read[] reads)
     {
         Reads = reads.ToList();
@@ -16,7 +14,7 @@ public class ReadStructure
 
     public static ReadStructure Parse(string input)
     {
-        var matches = ReadPattern.Matches(input).Select((m, i) =>
+        var matches = ReadPattern().Matches(input).Select((m, i) =>
         {
             var value = m.Groups["read"].Value;
             return new Read
@@ -37,4 +35,7 @@ public class ReadStructure
     {
         return string.Join("", Reads.Select(r => $"{r.NumCycles}{r.Type}"));
     }
+
+    [GeneratedRegex("(?<read>\\d{1,}[TBSM])", RegexOptions.Compiled)]
+    private static partial Regex ReadPattern();
 }

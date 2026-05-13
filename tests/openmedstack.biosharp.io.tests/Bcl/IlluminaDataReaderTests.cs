@@ -3,7 +3,6 @@
 namespace OpenMedStack.BioSharp.Io.Tests.Bcl;
 
 using System;
-using System.Diagnostics.CodeAnalysis;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -39,7 +38,6 @@ public class IlluminaDataReaderTests : IAsyncLifetime
     }
 
     [Fact]
-    [RequiresUnreferencedCode("The test data is not annotated for trimming")]
     public async Task CanRead()
     {
         var sequences = _reader!.ReadClusterData(1, TestContext.Current.CancellationToken);
@@ -55,7 +53,6 @@ public class IlluminaDataReaderTests : IAsyncLifetime
     }
 
     [Fact]
-    [RequiresUnreferencedCode("The test data is not annotated for trimming")]
     public async Task CanGroup()
     {
         var sequences = await _reader!.ReadClusterData(1, TestContext.Current.CancellationToken)

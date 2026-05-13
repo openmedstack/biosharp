@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using DeBruijn = OpenMedStack.BioSharp.Calculations.DeBruijn;
 using Xunit;
 
 namespace OpenMedStack.BioSharp.Calculations.Tests;
@@ -51,7 +49,7 @@ public class RepetitivenessAnalyzerTests
     public void Analyze_BasicBubble_ReturnsScore()
     {
         // Arrange
-        var bubble = CreateBubble(new[] { "ACGT", "ACGC", "ACGT" });
+        var bubble = CreateBubble(["ACGT", "ACGC", "ACGT"]);
         var kmerCounts = BuildKmerCounts(
             ("ACGT", 10),
             ("ACGC", 8),
@@ -71,7 +69,7 @@ public class RepetitivenessAnalyzerTests
     public void Analyze_NoKmerCounts_ThrowsArgumentNullException()
     {
         // Arrange
-        var bubble = CreateBubble(new[] { "ACGT", "ACGC" });
+        var bubble = CreateBubble(["ACGT", "ACGC"]);
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => DeBruijn.RepetitivenessAnalyzer.Analyze(bubble, null!));
@@ -91,7 +89,7 @@ public class RepetitivenessAnalyzerTests
     public void Analyze_EmptyBubblePaths_ThrowsArgumentException()
     {
         // Arrange
-        var bubble = new DeBruijn.Bubble("start", "end", Array.Empty<DeBruijn.SequencePath>());
+        var bubble = new DeBruijn.Bubble("start", "end", []);
         var kmerCounts = BuildKmerCounts(("ACGT", 10));
 
         // Act & Assert
@@ -106,7 +104,7 @@ public class RepetitivenessAnalyzerTests
             ("ACGTACGC", 55), // repeat
             ("ACGTACGC", 55) // duplicate, so effective repeat count = 1
         );
-        var bubble = CreateBubble(new[] { "ACGTACGC", "ACGTACGC" });
+        var bubble = CreateBubble(["ACGTACGC", "ACGTACGC"]);
 
         // Act
         var score = DeBruijn.RepetitivenessAnalyzer.Analyze(bubble, kmerCounts);
@@ -123,7 +121,7 @@ public class RepetitivenessAnalyzerTests
             ("ACGTACGT", 100),
             ("ACGTACGT", 100)
         );
-        var bubble = CreateBubble(new[] { "ACGTACGT", "ACGTACGT" });
+        var bubble = CreateBubble(["ACGTACGT", "ACGTACGT"]);
 
         // Act
         var score = DeBruijn.RepetitivenessAnalyzer.Analyze(bubble, kmerCounts);
@@ -141,7 +139,7 @@ public class RepetitivenessAnalyzerTests
             ("ACGT", 30),
             ("ACGC", 25)
         );
-        var bubble = CreateBubble(new[] { "ACGT", "ACGC" });
+        var bubble = CreateBubble(["ACGT", "ACGC"]);
 
         // Act
         var score = DeBruijn.RepetitivenessAnalyzer.Analyze(bubble, kmerCounts);
@@ -165,7 +163,7 @@ public class RepetitivenessAnalyzerTests
             ("ACGC", 3)
         );
 
-        var bubble = CreateBubble(new[] { "ACGT", "ACGC" });
+        var bubble = CreateBubble(["ACGT", "ACGC"]);
 
         // Act
         var highScore = DeBruijn.RepetitivenessAnalyzer.Analyze(bubble, highRepeat);
@@ -190,7 +188,7 @@ public class RepetitivenessAnalyzerTests
             ("ACGT", 5),
             ("ACGC", 4)
         );
-        var bubble = CreateBubble(new[] { "ACGT", "ACGC" });
+        var bubble = CreateBubble(["ACGT", "ACGC"]);
 
         // Act
         var threshold100 = DeBruijn.RepetitivenessAnalyzer.Analyze(bubble, kmerCounts, 100);
@@ -206,7 +204,7 @@ public class RepetitivenessAnalyzerTests
     {
         // Arrange - empty dictionary (no k-mers defined)
         var kmerCounts = new Dictionary<string, int>();
-        var bubble = CreateBubble(new[] { "ACGT", "ACGC" });
+        var bubble = CreateBubble(["ACGT", "ACGC"]);
 
         // Act - should not throw, just treat all as zero copy
         var score = DeBruijn.RepetitivenessAnalyzer.Analyze(bubble, kmerCounts);
@@ -222,7 +220,7 @@ public class RepetitivenessAnalyzerTests
     {
         // Arrange - bubble with k-mers that aren't in the counts dictionary
         var kmerCounts = BuildKmerCounts(); // empty
-        var bubble = CreateBubble(new[] { "ACGT", "ACGC" });
+        var bubble = CreateBubble(["ACGT", "ACGC"]);
 
         // Act - should not throw, just treat all as zero copy
         var score = DeBruijn.RepetitivenessAnalyzer.Analyze(bubble, kmerCounts);
@@ -241,7 +239,7 @@ public class RepetitivenessAnalyzerTests
             ("CGTA", 20),
             ("GTAC", 30)
         );
-        var bubble = CreateBubble(new[] { "ACGTACGTAC" });
+        var bubble = CreateBubble(["ACGTACGTAC"]);
 
         // Act
         var score = DeBruijn.RepetitivenessAnalyzer.Analyze(bubble, kmerCounts);
@@ -254,7 +252,7 @@ public class RepetitivenessAnalyzerTests
     public void Analyze_NullPathInArray_SkipsNullPath()
     {
         // Arrange
-        var bubble = new DeBruijn.Bubble("start", "end", new[] { null!, new DeBruijn.SequencePath("ACGT") });
+        var bubble = new DeBruijn.Bubble("start", "end", [null!, new DeBruijn.SequencePath("ACGT")]);
         var kmerCounts = BuildKmerCounts(("ACGT", 10));
 
         // Act - should not throw, null path is skipped
@@ -271,7 +269,7 @@ public class RepetitivenessAnalyzerTests
     {
         // Arrange
         var kmerCounts = BuildKmerCounts(("ACGT", 10));
-        var bubble = CreateBubble(new[] { "", "ACGT" });
+        var bubble = CreateBubble(["", "ACGT"]);
 
         // Act - empty sequence is skipped (string.IsNullOrEmpty check in Analyze)
         var score = DeBruijn.RepetitivenessAnalyzer.Analyze(bubble, kmerCounts);

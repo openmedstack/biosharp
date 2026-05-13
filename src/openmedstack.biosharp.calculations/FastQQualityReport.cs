@@ -1,123 +1,12 @@
+using System.Linq;
+
 namespace OpenMedStack.BioSharp.Calculations;
 
 using System;
 using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using System.Text.Json.Serialization;
 using System.Threading;
 using System.Threading.Tasks;
 using Model;
-
-/// <summary>
-/// Statistics for a single read cycle's quality scores.
-/// </summary>
-public sealed class CycleQualityStats
-{
-    /// <summary>Mean Phred quality score.</summary>
-    public double Mean { get; init; }
-
-    /// <summary>Median Phred quality score.</summary>
-    public double Median { get; init; }
-
-    /// <summary>Lower quartile (Q1) Phred quality score.</summary>
-    public double LowerQuartile { get; init; }
-
-    /// <summary>Upper quartile (Q3) Phred quality score.</summary>
-    public double UpperQuartile { get; init; }
-
-    /// <summary>Minimum Phred quality score.</summary>
-    public double Min { get; init; }
-
-    /// <summary>Maximum Phred quality score.</summary>
-    public double Max { get; init; }
-}
-
-/// <summary>
-/// Per-base nucleotide composition (% A/C/G/T/N) at a given cycle.
-/// </summary>
-public sealed class CycleComposition
-{
-    public double A { get; init; }
-    public double C { get; init; }
-    public double G { get; init; }
-    public double T { get; init; }
-    public double N { get; init; }
-
-    /// <summary>Creates a lookup by character (A/C/G/T/N → percentage).</summary>
-    public IReadOnlyDictionary<char, double> AsDict()
-        => new Dictionary<char, double>
-        {
-            ['A'] = A, ['C'] = C, ['G'] = G, ['T'] = T, ['N'] = N
-        };
-}
-
-/// <summary>
-/// FastQC-equivalent quality report for a FASTQ file.
-/// </summary>
-public sealed class FastQReport
-{
-    /// <summary>
-    /// Per-base quality score statistics keyed by 0-based cycle index.
-    /// </summary>
-    public SortedDictionary<int, CycleQualityStats> PerBaseQuality { get; init; } = new();
-
-    /// <summary>
-    /// Per-sequence quality score histogram: Phred score → read count.
-    /// </summary>
-    public SortedDictionary<int, int> PerSequenceQualityHistogram { get; init; } = new();
-
-    /// <summary>
-    /// Per-base sequence composition keyed by 0-based cycle index.
-    /// </summary>
-    public Dictionary<int, CycleComposition> PerBaseCompositionRaw { get; init; } = new();
-
-    /// <summary>
-    /// Per-base sequence composition as a lookup dict (cycle → base → %).
-    /// Computed from <see cref="PerBaseCompositionRaw"/> on access.
-    /// </summary>
-    [JsonIgnore]
-    public IReadOnlyDictionary<int, IReadOnlyDictionary<char, double>> PerBaseComposition
-    {
-        get
-        {
-            var result = new Dictionary<int, IReadOnlyDictionary<char, double>>(PerBaseCompositionRaw.Count);
-            foreach (var kv in PerBaseCompositionRaw)
-            {
-                result[kv.Key] = kv.Value.AsDict();
-            }
-
-            return result;
-        }
-    }
-
-    /// <summary>
-    /// GC content histogram: integer GC% → read count.
-    /// </summary>
-    public SortedDictionary<int, int> GcContentHistogram { get; init; } = new();
-
-    /// <summary>
-    /// Estimated duplication level: fraction of reads that are duplicates.
-    /// Estimated from the first <see cref="DuplicationEstimateSampleSize"/> reads.
-    /// </summary>
-    public double DuplicationLevelEstimate { get; init; }
-
-    /// <summary>
-    /// Number of reads sampled for duplication estimation.
-    /// </summary>
-    public int DuplicationEstimateSampleSize { get; init; }
-
-    /// <summary>
-    /// Adapter content by position: 0-based cycle index → fraction of reads with adapter at that position.
-    /// Only populated when an adapter sequence is supplied.
-    /// </summary>
-    public SortedDictionary<int, double> AdapterContentByPosition { get; init; } = new();
-
-    /// <summary>Total number of reads processed.</summary>
-    public long TotalReads { get; init; }
-
-    /// <summary>Total bases processed.</summary>
-    public long TotalBases { get; init; }
-}
 
 /// <summary>
 /// Computes FastQC-equivalent quality metrics from a stream of <see cref="Sequence"/> records.
@@ -132,7 +21,7 @@ public static class FastQQualityReport
     /// <param name="reads">Input reads (FASTQ records).</param>
     /// <param name="adapterSequence">Optional adapter sequence to scan for at each cycle.</param>
     /// <param name="cancellationToken">Cancellation token.</param>
-    public static async Task<FastQReport> ComputeAsync(
+    public static async Task<FastQReport> Compute(
         IAsyncEnumerable<Sequence> reads,
         string? adapterSequence = null,
         CancellationToken cancellationToken = default)
@@ -199,7 +88,7 @@ public static class FastQQualityReport
             // Adapter content
             if (adapterSpan.Length > 0)
             {
-                AccumulateAdapterContent(data.Span, adapterSpan.Span, adapterCounts, len);
+                AccumulateAdapterContent(data.Span, adapterSpan.Span, adapterCounts);
             }
 
             // Duplication estimation (sample first N reads)
@@ -224,7 +113,6 @@ public static class FastQQualityReport
         foreach (var (cycle, count) in qualCounts)
         {
             var mean = qualSums[cycle] / count;
-            var variance = qualSumSq[cycle] / count - mean * mean;
             var hist = qualHistByCycle[cycle];
             var (q1, median, q3) = ComputeQuartiles(hist);
             perBaseQuality[cycle] = new CycleQualityStats
@@ -357,9 +245,9 @@ public static class FastQQualityReport
         }
 
         double sum = 0;
-        for (var i = 0; i < quality.Length; i++)
+        foreach (var t in quality)
         {
-            sum += quality[i] - 33;
+            sum += t - 33;
         }
 
         return sum / quality.Length;
@@ -373,9 +261,8 @@ public static class FastQQualityReport
         }
 
         var gc = 0;
-        for (var i = 0; i < data.Length; i++)
+        foreach (var c in data)
         {
-            var c = data[i];
             if (c is 'G' or 'g' or 'C' or 'c')
             {
                 gc++;
@@ -387,8 +274,7 @@ public static class FastQQualityReport
     private static void AccumulateAdapterContent(
         ReadOnlySpan<char> data,
         ReadOnlySpan<char> adapter,
-        Dictionary<int, int> counts,
-        int readLen)
+        Dictionary<int, int> counts)
     {
         // Scan all positions for an adapter match (full or partial overlap)
         var minOverlap = Math.Max(1, adapter.Length / 2);
@@ -421,11 +307,7 @@ public static class FastQQualityReport
     private static (double q1, double median, double q3) ComputeQuartiles(int[] hist)
     {
         // hist[i] = count of values equal to i
-        var total = 0;
-        foreach (var v in hist)
-        {
-            total += v;
-        }
+        var total = hist.Sum();
 
         if (total == 0)
         {

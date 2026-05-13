@@ -9,7 +9,6 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using Model;
 using Model.Vcf;
 
 /// <summary>
@@ -47,7 +46,7 @@ public class BcfReader : IAsyncDisposable
     /// Reads the BCF header and returns the raw VCF header text.
     /// Must be called before iterating records.
     /// </summary>
-    public async Task<string> ReadHeaderAsync(CancellationToken cancellationToken = default)
+    public async Task<string> ReadHeader(CancellationToken cancellationToken = default)
     {
         // Verify magic
         var magic = new byte[5];
@@ -62,7 +61,7 @@ public class BcfReader : IAsyncDisposable
         await _stream.ReadExactlyAsync(lenBuf, cancellationToken).ConfigureAwait(false);
         var headerLen = BinaryPrimitives.ReadInt32LittleEndian(lenBuf);
 
-        if (headerLen < 0 || headerLen > 64 * 1024 * 1024)
+        if (headerLen is < 0 or > 64 * 1024 * 1024)
         {
             throw new InvalidDataException($"BCF header length out of range: {headerLen}.");
         }
@@ -86,14 +85,14 @@ public class BcfReader : IAsyncDisposable
 
     /// <summary>
     /// Reads all variant records from the BCF stream.
-    /// <see cref="ReadHeaderAsync"/> must be called first.
+    /// <see cref="ReadHeader"/> must be called first.
     /// </summary>
-    public async IAsyncEnumerable<VcfVariant> ReadVariantsAsync(
+    public async IAsyncEnumerable<VcfVariant> ReadVariants(
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         if (_contigNames == null)
         {
-            throw new InvalidOperationException("Call ReadHeaderAsync before reading variants.");
+            throw new InvalidOperationException("Call ReadHeader before reading variants.");
         }
 
         var lenBuf = new byte[8];
@@ -103,15 +102,13 @@ public class BcfReader : IAsyncDisposable
             cancellationToken.ThrowIfCancellationRequested();
 
             // Try to read l_shared + l_indiv (8 bytes)
-            var bytesRead = await TryReadExactlyAsync(_stream, lenBuf, cancellationToken).ConfigureAwait(false);
-            if (bytesRead == 0)
+            var bytesRead = await TryReadExactly(_stream, lenBuf, cancellationToken).ConfigureAwait(false);
+            switch (bytesRead)
             {
-                yield break;
-            }
-
-            if (bytesRead < 8)
-            {
-                throw new InvalidDataException("Truncated BCF record lengths.");
+                case 0:
+                    yield break;
+                case < 8:
+                    throw new InvalidDataException("Truncated BCF record lengths.");
             }
 
             var lShared = BinaryPrimitives.ReadUInt32LittleEndian(lenBuf.AsSpan(0, 4));
@@ -149,7 +146,7 @@ public class BcfReader : IAsyncDisposable
             : $"chr{chromIdx}";
 
         var pos1Based = pos0Based + 1;
-        float qualValue = float.IsNaN(qualBits) ? 0 : qualBits;
+        var qualValue = float.IsNaN(qualBits) ? 0 : qualBits;
         var qualInt = (int)Math.Round(qualValue);
 
         // Read ID, REF, ALT typed strings starting at offset 24
@@ -176,7 +173,7 @@ public class BcfReader : IAsyncDisposable
             Alternate = alternate,
             ErrorProbabilities = [qualInt],
             FailedFilter = ["PASS"],
-            AdditionalInformation = BuildInfoString(shared, ref offset, (int)nInfo)
+            AdditionalInformation = BuildInfoString(shared, ref offset, nInfo)
         };
     }
 
@@ -192,15 +189,8 @@ public class BcfReader : IAsyncDisposable
         var ntype = (typeByte >> 4) & 0x0F;
 
         int count;
-        if (ntype == 15)
-        {
-            // Count follows as typed integer
-            count = ReadTypedInt(data, ref offset);
-        }
-        else
-        {
-            count = ntype;
-        }
+        // Count follows as typed integer
+        count = ntype == 15 ? ReadTypedInt(data, ref offset) : ntype;
 
         if (typeId != 7) // Not a char/string type — skip and return null
         {
@@ -239,7 +229,7 @@ public class BcfReader : IAsyncDisposable
         return typeId switch
         {
             1 when offset < data.Length => (sbyte)data[offset++],
-            2 when offset + 1 < data.Length => (short)BinaryPrimitives.ReadInt16LittleEndian(
+            2 when offset + 1 < data.Length => BinaryPrimitives.ReadInt16LittleEndian(
                 data.Slice(offset, 2)) is var v && (offset += 2) > 0 ? v : 0,
             3 when offset + 3 < data.Length => BinaryPrimitives.ReadInt32LittleEndian(
                 data.Slice(offset, 4)) is var v && (offset += 4) > 0 ? v : 0,
@@ -282,7 +272,7 @@ public class BcfReader : IAsyncDisposable
         return [.. names];
     }
 
-    private static async Task<int> TryReadExactlyAsync(
+    private static async Task<int> TryReadExactly(
         Stream stream,
         byte[] buffer,
         CancellationToken ct)
@@ -310,5 +300,6 @@ public class BcfReader : IAsyncDisposable
         {
             await _stream.DisposeAsync().ConfigureAwait(false);
         }
+        GC.SuppressFinalize(this);
     }
 }

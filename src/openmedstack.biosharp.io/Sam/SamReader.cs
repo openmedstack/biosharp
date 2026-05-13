@@ -43,7 +43,7 @@ public class SamReader
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var line = await reader.ReadLineAsync().ConfigureAwait(false);
+            var line = await reader.ReadLineAsync(cancellationToken).ConfigureAwait(false);
             if (line == null)
             {
                 break;

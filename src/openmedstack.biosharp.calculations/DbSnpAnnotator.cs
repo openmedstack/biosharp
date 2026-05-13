@@ -28,7 +28,7 @@ public sealed class DbSnpAnnotator
     /// Loads the dbSNP VCF database from a stream into memory.
     /// Can be called multiple times; each call replaces the previous database.
     /// </summary>
-    public async Task LoadAsync(Stream stream, CancellationToken cancellationToken = default)
+    public async Task Load(Stream stream, CancellationToken cancellationToken = default)
     {
         _db.Clear();
 
@@ -63,7 +63,7 @@ public sealed class DbSnpAnnotator
     public DbSnpAnnotation? Annotate(VcfVariant variant)
     {
         var key = MakeKey(variant.Chromosome, variant.Position, variant.Reference, variant.Alternate);
-        return _db.TryGetValue(key, out var ann) ? ann : null;
+        return _db.GetValueOrDefault(key);
     }
 
     // ── Private helpers ───────────────────────────────────────────────────────
@@ -131,13 +131,9 @@ public sealed class DbSnpAnnotator
 
             var val = field[3..];
             // Prepend "rs" if it's a numeric ID
-            if (long.TryParse(val, out _))
-            {
-                return "rs" + new string(val);
-            }
-
-            return new string(val);
+            return long.TryParse(val, out _) ? $"rs{new string(val)}" : new string(val);
         }
+
         return string.Empty;
     }
 
