@@ -49,10 +49,10 @@ Example download:
 mkdir -p data/ensembl
 cd data/ensembl
 
-curl -O https://ftp.ensembl.org/pub/current_gtf/homo_sapiens/Homo_sapiens.GRCh38.114.gtf.gz
+curl -O https://ftp.ensembl.org/pub/current_gtf/homo_sapiens/Homo_sapiens.GRCh38.115.gtf.gz
 curl -O https://ftp.ensembl.org/pub/current_fasta/homo_sapiens/cdna/Homo_sapiens.GRCh38.cdna.all.fa.gz
 
-gunzip -k Homo_sapiens.GRCh38.114.gtf.gz
+gunzip -k Homo_sapiens.GRCh38.115.gtf.gz
 gunzip -k Homo_sapiens.GRCh38.cdna.all.fa.gz
 ```
 
@@ -93,8 +93,11 @@ RefSeq human annotation data is published by NCBI from the genomes FTP site. One
 
 Choose the current assembly directory, then download:
 
-- the genomic annotation GFF3
-- the RNA FASTA set
+- the genomic annotation GFF3 (`*_genomic.gff.gz`)
+- the **RNA** FASTA (`*_rna.fna.gz`) — this file contains individual transcript sequences
+  whose IDs (`NM_*`, `NR_*`, etc.) match the `rna-*` identifiers in the GFF3.
+  Do **not** use `*_genomic.fna.gz`; that file contains full chromosome sequences
+  (keyed `NC_*`) which do not match any transcript ID.
 
 Example:
 
@@ -102,17 +105,17 @@ Example:
 mkdir -p data/refseq
 cd data/refseq
 
-curl -O https://ftp.ncbi.nlm.nih.gov/genomes/refseq/vertebrate_mammalian/Homo_sapiens/latest_assembly_versions/GCF_000001405.40-RS_2024_08/GCF_000001405.40-RS_2024_08_genomic.gff.gz
-curl -O https://ftp.ncbi.nlm.nih.gov/genomes/refseq/vertebrate_mammalian/Homo_sapiens/latest_assembly_versions/GCF_000001405.40-RS_2024_08/GCF_000001405.40-RS_2024_08_rna.fna.gz
+curl -O https://ftp.ncbi.nlm.nih.gov/genomes/refseq/vertebrate_mammalian/Homo_sapiens/latest_assembly_versions/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_genomic.gff.gz
+curl -O https://ftp.ncbi.nlm.nih.gov/genomes/refseq/vertebrate_mammalian/Homo_sapiens/latest_assembly_versions/GCF_000001405.40_GRCh38.p14/GCF_000001405.40_GRCh38.p14_rna.fna.gz
 
-gunzip -k GCF_000001405.40-RS_2024_08_genomic.gff.gz
-gunzip -k GCF_000001405.40-RS_2024_08_rna.fna.gz
+gunzip -k GCF_000001405.40_GRCh38.p14_genomic.gff.gz
+gunzip -k GCF_000001405.40_GRCh38.p14_rna.fna.gz
 ```
 
 Use the decompressed files:
 
-- `GCF_000001405.40-RS_2024_08_genomic.gff`
-- `GCF_000001405.40-RS_2024_08_rna.fna`
+- `GCF_000001405.40_GRCh38.p14_genomic.gff`
+- `GCF_000001405.40_GRCh38.p14_rna.fna`
 
 ## Configuring the database provider
 
@@ -144,10 +147,10 @@ var options = new DbContextOptionsBuilder<TranscriptAnnotationDbContext>()
 
 ## Applying migrations
 
-`TranscriptAnnotationDatabase.InitializeAsync()` calls `Database.MigrateAsync()`, so it applies pending migrations automatically for the configured provider.
+`TranscriptAnnotationDatabase.Initialize()` calls `Database.Migrate()`, so it applies pending migrations automatically for the configured provider.
 
 ```csharp
-await database.InitializeAsync();
+await database.Initialize();
 ```
 
 This project includes an initial migration in `Migrations/`.
@@ -171,9 +174,9 @@ var options = new DbContextOptionsBuilder<TranscriptAnnotationDbContext>()
 await using var context = new TranscriptAnnotationDbContext(options);
 var database = new TranscriptAnnotationDatabase(context);
 
-await database.InitializeAsync();
+await database.Initialize(cancellationToken);
 
-var result = await database.ImportAsync(
+var result = await database.Import(
     new EnsemblTranscriptDatabaseImporter(),
     new TranscriptImportRequest(
         AnnotationPath: "data/ensembl/Homo_sapiens.GRCh38.114.gtf",
@@ -187,7 +190,7 @@ Console.WriteLine($"Imported {result.TranscriptCount} transcripts from {result.S
 ### GENCODE import
 
 ```csharp
-var result = await database.ImportAsync(
+var result = await database.Import(
     new GencodeTranscriptDatabaseImporter(),
     new TranscriptImportRequest(
         AnnotationPath: "data/gencode/gencode.v48.annotation.gtf",
@@ -199,13 +202,13 @@ var result = await database.ImportAsync(
 ### RefSeq import
 
 ```csharp
-var result = await database.ImportAsync(
+var result = await database.Import(
     new RefSeqTranscriptDatabaseImporter(),
     new TranscriptImportRequest(
-        AnnotationPath: "data/refseq/GCF_000001405.40-RS_2024_08_genomic.gff",
-        SequencePath: "data/refseq/GCF_000001405.40-RS_2024_08_rna.fna",
+        AnnotationPath: "data/refseq/GCF_000001405.40_GRCh38.p14_genomic.gff",
+        SequencePath: "data/refseq/GCF_000001405.40_GRCh38.p14_rna.fna",
         Assembly: "GRCh38",
-        SourceVersion: "GCF_000001405.40-RS_2024_08"));
+        SourceVersion: "GCF_000001405.40_GRCh38.p14_genomic"));
 ```
 
 ## Annotating from the database
@@ -217,7 +220,7 @@ using OpenMedStack.BioSharp.Model.Vcf;
 
 var engine = new DatabaseVariantAnnotationEngine(database);
 
-var annotations = await engine.AnnotateVariantAsync(
+var annotations = await engine.AnnotateVariant(
     new VcfVariant
     {
         Chromosome = "chr1",
@@ -233,7 +236,7 @@ var annotations = await engine.AnnotateVariantAsync(
 To annotate a VCF file:
 
 ```csharp
-await foreach (var annotation in engine.AnnotateVcfAsync("variants.vcf"))
+await foreach (var annotation in engine.AnnotateVcf("variants.vcf"))
 {
     Console.WriteLine($"{annotation.AffectedGene}: {annotation.HgvsCoding} {annotation.Consequence}");
 }

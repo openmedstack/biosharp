@@ -217,6 +217,8 @@ public class GffReader
     private static void ParseGtfAttributes(string attrString, Dictionary<string, string> attributes)
     {
         // GTF format: key "value"; key2 "value2";
+        // GTF allows repeated keys (e.g. multiple "tag" entries).  We concatenate them with
+        // a comma so callers can detect all values (e.g. "Ensembl_canonical" inside "tag").
         var attrSpan = attrString.AsSpan();
         foreach (var semiRange in attrSpan.Split(';'))
         {
@@ -241,7 +243,15 @@ public class GffReader
                 rawValue = rawValue[1..^1];
             }
 
-            attributes[key] = new string(rawValue);
+            var value = new string(rawValue);
+            if (attributes.TryGetValue(key, out var existing))
+            {
+                attributes[key] = existing + "," + value;
+            }
+            else
+            {
+                attributes[key] = value;
+            }
         }
     }
 }

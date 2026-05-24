@@ -7,7 +7,34 @@
   overload of a non-async method, or when implementing/overriding an interface/base-class
   member that already has the suffix.
 
-## Completed Tasks
+## Active Tasks
+
+### 4. Fix importer zero-transcript bug — DONE (all importers working)
+
+**Root causes found and fixed:**
+
+1. **Ensembl version mismatch** (`TranscriptImportParser.cs`): Ensembl GTF has unversioned
+   `transcript_id` (`ENST00000511072`) but FASTA has versioned header (`ENST00000511072.5`).
+   Added `StripEnsemblVersion` helper; applied to both FASTA keys (in `NormalizeSequenceId`)
+   and GTF transcript_ids (in `ImportEnsemblStyle`).
+
+2. **GTF duplicate `tag` attribute** (`GffReader.cs`): `ParseGtfAttributes` was silently
+   overwriting repeated keys (e.g. `tag "foo"; tag "Ensembl_canonical";` → only last kept).
+   Fixed to concatenate with comma so `tag.Contains("Ensembl_canonical")` still works.
+
+3. **RefSeq missing RNA FASTA** (`Program.cs`): `_rna.fna` file not present; importer would
+   throw `FileNotFoundException`. Wrapped RefSeq import in file-existence check and skip
+   gracefully with helpful URL message.
+
+4. **GENCODE import** also now wrapped in file-existence guard (was unconditional).
+
+**Tests**: 2 new tests in `EnsemblVersionNormalizationTests.cs` prove both Ensembl
+(unversioned GTF + versioned FASTA) and GENCODE (versioned on both sides) work correctly.
+All 8 annotationdb tests pass.
+
+**Full importer**: Running in background (PID 2413) – WAL growing from 1.2→1.4GB confirms
+Ensembl transcripts are being committed. GENCODE + RefSeq follow after Ensembl finishes.
+
 
 ### 3. Refactor `e2e` command: read FASTA/FASTQ, annotate variants in memory — DONE
 

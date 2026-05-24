@@ -21,3 +21,4 @@ output
 .DS_Store
 benchmark-*
 .firecrawl
+src/openmedstack.biosharp.importer/data

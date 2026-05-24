@@ -1,5 +1,64 @@
 # Lessons Learned
 
+## Ensembl / GENCODE Transcript ID Version Mismatch
+
+**Context**: Ensembl GTF files store unversioned transcript IDs (`ENST00000511072`) while
+the corresponding cDNA FASTA files use versioned headers (`>ENST00000511072.5 cdna …`).
+GENCODE GTF files, on the other hand, carry versioned IDs (`ENST00000832824.1`) that match
+the versioned FASTA headers.
+
+**Lesson**: When building a lookup dictionary from FASTA sequences and then matching them
+against GTF transcript IDs, you must normalize both sides to a common form.  The safest
+approach is to **strip the `.N` version suffix from `ENS*` identifiers** everywhere: in
+`NormalizeSequenceId` (applied to FASTA keys) and when extracting `transcript_id` from the
+GTF (applied to both Ensembl and GENCODE).  This way both sources → `ENST00000511072`.
+
+```csharp
+// Strip .N version from Ensembl/GENCODE IDs (e.g. ENST00000511072.5 → ENST00000511072)
+private static string StripEnsemblVersion(string id)
+{
+    if (id.Length > 3 && id.StartsWith("ENS", StringComparison.OrdinalIgnoreCase))
+    {
+        var dotIdx = id.LastIndexOf('.');
+        if (dotIdx > 0 && dotIdx < id.Length - 1)
+        {
+            var suffix = id.AsSpan(dotIdx + 1);
+            if (suffix.IndexOfAnyExceptInRange('0', '9') < 0)
+                return id[..dotIdx];
+        }
+    }
+    return id;
+}
+```
+
+Apply in `NormalizeSequenceId` (for FASTA) AND when reading `transcript_id` from the GTF.
+
+---
+
+## GTF Duplicate Attribute Keys (e.g. `tag`)
+
+**Context**: GTF format allows the same key to appear multiple times on one line:
+`tag "gencode_basic"; tag "Ensembl_canonical";`
+
+**Lesson**: A simple `Dictionary<string, string>` will silently drop all but the last value
+for repeated keys.  The `IsEnsemblCanonical` heuristic checks `tag.Contains("Ensembl_canonical")`,
+so if `tag "Ensembl_canonical"` is overwritten by a subsequent `tag "foo"` the canonical flag
+is missed.
+
+**Fix**: When a key already exists in the attributes dictionary, **concatenate with a comma**
+rather than overwrite:
+
+```csharp
+if (attributes.TryGetValue(key, out var existing))
+    attributes[key] = existing + "," + value;
+else
+    attributes[key] = value;
+```
+
+This makes all `.Contains(...)` checks on the combined value work correctly.
+
+---
+
 ## HGVS Parsing — Reference vs Version Separator
 
 **Context**: `HgvsVariant.Parse` must extract the reference sequence accession number and its
