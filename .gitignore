@@ -22,3 +22,9 @@ output
 benchmark-*
 .firecrawl
 src/openmedstack.biosharp.importer/data
+BenchmarkDotNet.Artifacts
+tools
+refseq
+gencode
+ensembl
+transcripts.db

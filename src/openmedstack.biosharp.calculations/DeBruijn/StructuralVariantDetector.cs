@@ -1,10 +1,12 @@
+using OpenMedStack.BioSharp.Model;
+using OpenMedStack.BioSharp.Model.Alignment;
+
 namespace OpenMedStack.BioSharp.Calculations.DeBruijn;
 
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Alignment;
 
 /// <summary>
 /// Orchestrates structural variant detection by combining bubble analysis and tip analysis.

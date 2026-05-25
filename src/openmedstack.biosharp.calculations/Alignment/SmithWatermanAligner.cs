@@ -1,7 +1,11 @@
+using OpenMedStack.BioSharp.Model.Alignment;
+
 namespace OpenMedStack.BioSharp.Calculations.Alignment;
 
 using System;
 using System.Buffers;
+using System.Numerics;
+using System.Runtime.InteropServices;
 using Model;
 
 /// <summary>
@@ -71,6 +75,22 @@ public static class SmithWatermanAligner
         if ((long)readLen * matchScore < minScore)
         {
             return null;
+        }
+
+        if (TryVectorizedUngappedAlign(
+                refSeq,
+                readSeq,
+                matchScore,
+                mismatchPenalty,
+                gapOpenPenalty,
+                gapExtendPenalty,
+                minScore,
+                bandWidth,
+                xDrop,
+                maxCellCount,
+                out var ungappedAlignment))
+        {
+            return ungappedAlignment;
         }
 
         // In banded mode the effective cell count is proportional to read length × band width,
@@ -324,6 +344,217 @@ public static class SmithWatermanAligner
             pool.Return(prevY, clearArray: false);
             pool.Return(currY, clearArray: false);
         }
+    }
+
+    private static bool TryVectorizedUngappedAlign(
+        ReadOnlySpan<char> refSeq,
+        ReadOnlySpan<char> readSeq,
+        int matchScore,
+        int mismatchPenalty,
+        int gapOpenPenalty,
+        int gapExtendPenalty,
+        int minScore,
+        int bandWidth,
+        int xDrop,
+        int maxCellCount,
+        out AlignmentResult? alignment)
+    {
+        alignment = null;
+        if (bandWidth >= 0 || xDrop > 0 || maxCellCount > 0 || refSeq.Length < readSeq.Length)
+        {
+            return false;
+        }
+
+        if (gapOpenPenalty > mismatchPenalty || gapExtendPenalty > 0)
+        {
+            return false;
+        }
+
+        var exactOffset = refSeq.IndexOf(readSeq, StringComparison.OrdinalIgnoreCase);
+        if (exactOffset >= 0)
+        {
+            alignment = CreateUngappedAlignment(
+                refSeq.Slice(exactOffset, readSeq.Length),
+                readSeq,
+                exactOffset,
+                readSeq.Length * matchScore,
+                refSeq.Length - exactOffset - readSeq.Length);
+            return alignment.Score >= minScore;
+        }
+
+        const int maxFastMismatches = 2;
+        var bestOffset = -1;
+        var bestMismatches = maxFastMismatches + 1;
+        if (TryFindAnchoredNearExactHit(refSeq, readSeq, maxFastMismatches, out bestOffset, out bestMismatches))
+        {
+            var anchoredScore = (readSeq.Length - bestMismatches) * matchScore + bestMismatches * mismatchPenalty;
+            if (anchoredScore >= minScore)
+            {
+                alignment = CreateUngappedAlignment(
+                    refSeq.Slice(bestOffset, readSeq.Length),
+                    readSeq,
+                    bestOffset,
+                    anchoredScore,
+                    refSeq.Length - bestOffset - readSeq.Length);
+                return true;
+            }
+        }
+
+        var maxOffset = refSeq.Length - readSeq.Length;
+        for (var offset = 0; offset <= maxOffset; offset++)
+        {
+            var mismatches = CountMismatchesUpTo(refSeq.Slice(offset, readSeq.Length), readSeq, bestMismatches - 1);
+            if (mismatches < bestMismatches)
+            {
+                bestMismatches = mismatches;
+                bestOffset = offset;
+                if (bestMismatches == 0)
+                {
+                    break;
+                }
+            }
+        }
+
+        if (bestOffset < 0 || bestMismatches > maxFastMismatches)
+        {
+            return false;
+        }
+
+        var score = (readSeq.Length - bestMismatches) * matchScore + bestMismatches * mismatchPenalty;
+        if (score < minScore)
+        {
+            return false;
+        }
+
+        alignment = CreateUngappedAlignment(
+            refSeq.Slice(bestOffset, readSeq.Length),
+            readSeq,
+            bestOffset,
+            score,
+            refSeq.Length - bestOffset - readSeq.Length);
+        return true;
+    }
+
+    private static bool TryFindAnchoredNearExactHit(
+        ReadOnlySpan<char> refSeq,
+        ReadOnlySpan<char> readSeq,
+        int maxMismatches,
+        out int bestOffset,
+        out int bestMismatches)
+    {
+        const int anchorLength = 16;
+        bestOffset = -1;
+        bestMismatches = maxMismatches + 1;
+        if (readSeq.Length < anchorLength || refSeq.Length < readSeq.Length)
+        {
+            return false;
+        }
+
+        Span<int> anchorPositions = stackalloc int[3]
+        {
+            0,
+            Math.Max(0, (readSeq.Length - anchorLength) / 2),
+            readSeq.Length - anchorLength
+        };
+
+        for (var anchorIndex = 0; anchorIndex < anchorPositions.Length; anchorIndex++)
+        {
+            var readAnchorStart = anchorPositions[anchorIndex];
+            var anchor = readSeq.Slice(readAnchorStart, anchorLength);
+            var searchStart = 0;
+            while (searchStart <= refSeq.Length - anchorLength)
+            {
+                var hit = refSeq.Slice(searchStart).IndexOf(anchor, StringComparison.OrdinalIgnoreCase);
+                if (hit < 0)
+                {
+                    break;
+                }
+
+                var candidateOffset = searchStart + hit - readAnchorStart;
+                searchStart += hit + 1;
+                if (candidateOffset < 0 || candidateOffset > refSeq.Length - readSeq.Length)
+                {
+                    continue;
+                }
+
+                var mismatches = CountMismatchesUpTo(refSeq.Slice(candidateOffset, readSeq.Length), readSeq, bestMismatches - 1);
+                if (mismatches < bestMismatches)
+                {
+                    bestMismatches = mismatches;
+                    bestOffset = candidateOffset;
+                    if (bestMismatches == 0)
+                    {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        return bestOffset >= 0 && bestMismatches <= maxMismatches;
+    }
+
+    private static int CountMismatchesUpTo(ReadOnlySpan<char> reference, ReadOnlySpan<char> read, int maxMismatches)
+    {
+        var mismatches = 0;
+        var index = 0;
+        if (Vector.IsHardwareAccelerated)
+        {
+            var vectorWidth = Vector<ushort>.Count;
+            var referenceU16 = MemoryMarshal.Cast<char, ushort>(reference);
+            var readU16 = MemoryMarshal.Cast<char, ushort>(read);
+            for (; index <= read.Length - vectorWidth; index += vectorWidth)
+            {
+                var referenceVector = new Vector<ushort>(referenceU16.Slice(index, vectorWidth));
+                var readVector = new Vector<ushort>(readU16.Slice(index, vectorWidth));
+                if (Vector.EqualsAll(referenceVector, readVector))
+                {
+                    continue;
+                }
+
+                for (var local = 0; local < vectorWidth; local++)
+                {
+                    if (!DnaEncoding.AreEqual(reference[index + local], read[index + local]) && ++mismatches > maxMismatches)
+                    {
+                        return mismatches;
+                    }
+                }
+            }
+        }
+
+        for (; index < read.Length; index++)
+        {
+            if (!DnaEncoding.AreEqual(reference[index], read[index]) && ++mismatches > maxMismatches)
+            {
+                return mismatches;
+            }
+        }
+
+        return mismatches;
+    }
+
+    private static AlignmentResult CreateUngappedAlignment(
+        ReadOnlySpan<char> reference,
+        ReadOnlySpan<char> read,
+        int referenceStart,
+        int score,
+        int rightSoftClip)
+    {
+        var alignedReference = new string(reference);
+        var alignedRead = new string(read);
+        var visual = new char[read.Length];
+        for (var index = 0; index < read.Length; index++)
+        {
+            visual[index] = DnaEncoding.AreEqual(reference[index], read[index]) ? '|' : 'X';
+        }
+
+        return new AlignmentResult(
+            alignedReference,
+            alignedRead,
+            new string(visual),
+            score,
+            referenceStart,
+            0,
+            rightSoftClip);
     }
 
     /// <summary>

@@ -1,3 +1,6 @@
+using OpenMedStack.BioSharp.Model;
+using OpenMedStack.BioSharp.Model.Alignment;
+
 namespace OpenMedStack.BioSharp.AcceptanceTests.StepDefinitions;
 
 using System;

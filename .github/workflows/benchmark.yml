@@ -1,0 +1,208 @@
+name: Benchmark
+
+# Run whenever a version tag is pushed (e.g. v1.2.3) or a GitHub Release is published.
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+
+jobs:
+  benchmark:
+    name: Run benchmark suite
+    runs-on: ubuntu-latest
+    # Benchmarks are thorough — allow up to 6 hours before GitHub kills the job.
+    timeout-minutes: 360
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Sources (include LFS for large genomics data fixtures in data/)
+      # -----------------------------------------------------------------------
+      - name: Checkout repository (with LFS)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          lfs: true
+
+      # -----------------------------------------------------------------------
+      # 2. .NET 10 SDK
+      # -----------------------------------------------------------------------
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      # -----------------------------------------------------------------------
+      # 3. Bioinformatics tools via micromamba / bioconda
+      #    Mirrors the tools installed in Dockerfile.benchmark stage 2.
+      #    mamba-org/setup-micromamba creates a shell wrapper so subsequent
+      #    steps that use  shell: micromamba-shell {0}  have the conda env
+      #    activated and all tools on PATH.
+      # -----------------------------------------------------------------------
+      - name: Install bioinformatics tools (micromamba)
+        uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: bio
+          create-args: >-
+            bwa
+            bwa-mem2
+            samtools
+            bcftools
+            freebayes
+            htslib
+            sambamba
+            seqtk
+            fastqc
+            fastp
+            cutadapt
+            trf
+            picard
+          channels: conda-forge,bioconda
+          channel-priority: strict
+          generate-run-shell: true
+          # Cache the environment so repeated runs on the same tag are fast.
+          cache-environment: true
+
+      # -----------------------------------------------------------------------
+      # 4. Publish benchmark project with maximum performance optimizations
+      #    Mirrors the  dotnet publish  command in Dockerfile.benchmark stage 1.
+      # -----------------------------------------------------------------------
+      - name: Publish benchmark project
+        run: |
+          dotnet publish \
+            benchmarks/openmedstack.biosharp.benchmarks/openmedstack.biosharp.benchmarks.csproj \
+            -c Release \
+            -r linux-x64 \
+            --self-contained true \
+            -p:PublishReadyToRun=true \
+            -p:OptimizationPreference=Speed \
+            -p:DebugType=None \
+            -p:DebugSymbols=false \
+            -p:Optimize=true \
+            -p:PublishTrimmed=false \
+            -o app/benchmarks
+
+      # -----------------------------------------------------------------------
+      # 5. Create output directories
+      # -----------------------------------------------------------------------
+      - name: Prepare output directories
+        run: mkdir -p reports benchmark-results/logs benchmark-results/work
+
+      # -----------------------------------------------------------------------
+      # 6. Record installed tool versions
+      #    Runs inside the micromamba environment so all tools are on PATH.
+      # -----------------------------------------------------------------------
+      - name: Record tool versions
+        shell: micromamba-shell {0}
+        run: |
+          {
+            echo "bwa: $(bwa 2>&1 | head -n 2 | tr '\n' ' ' | sed 's/[[:space:]]\+/ /g')"
+            echo "bwa-mem2: $(bwa-mem2 version 2>&1 | head -n 1 || echo 'not available')"
+            echo "samtools: $(samtools --version | head -n 1)"
+            echo "bcftools: $(bcftools --version | head -n 1)"
+            echo "sambamba: $(sambamba 2>&1 | head -n 1 || echo 'not available')"
+            echo "freebayes: $(freebayes --version 2>&1 | head -n 1)"
+            echo "bgzip: $(bgzip --version 2>&1 | head -n 1)"
+            echo "tabix: $(tabix --version 2>&1 | head -n 1)"
+            echo "seqtk: $(seqtk 2>&1 | head -n 1 || echo 'not available')"
+            echo "fastqc: $(fastqc --version 2>&1 | head -n 1)"
+            echo "fastp: $(fastp --version 2>&1 | head -n 1)"
+            echo "cutadapt: $(cutadapt --version 2>&1 | head -n 1)"
+            echo "trf: $(trf 2>&1 | head -n 1 || echo 'not available')"
+            echo "picard: $(picard MarkDuplicates --version 2>&1 | head -n 1 || echo 'not available')"
+            echo "bcl-convert: not available"
+            echo "bcl2fastq: not available"
+          } | tee benchmark-results/tool-versions-linux.txt
+
+      # -----------------------------------------------------------------------
+      # 7. Warmup iteration (single pass, not collected as a result)
+      # -----------------------------------------------------------------------
+      - name: Warmup iteration
+        shell: micromamba-shell {0}
+        run: |
+          ./app/benchmarks/openmedstack.biosharp.benchmarks warm-report \
+            --warmups 1 \
+            --iterations 1 \
+            --output benchmark-results/csharp-warmup-linux.csv 2>&1 || true
+
+      # -----------------------------------------------------------------------
+      # 8. Full benchmark suite — 3 iterations per section
+      #    Each section uses  || true  to mirror run-benchmarks.sh behaviour:
+      #    partial failures produce output files and report a warning but do
+      #    not abort subsequent sections or the artifact upload.
+      # -----------------------------------------------------------------------
+      - name: Benchmark — Alignment
+        shell: micromamba-shell {0}
+        run: |
+          ./app/benchmarks/openmedstack.biosharp.benchmarks warm-report \
+            --filter AlignmentHeadToHeadBenchmarks \
+            --warmups 1 --iterations 3 \
+            --output benchmark-results/csharp-linux-alignment.csv || true
+
+      - name: Benchmark — Variant Calling
+        shell: micromamba-shell {0}
+        run: |
+          ./app/benchmarks/openmedstack.biosharp.benchmarks warm-report \
+            --filter VariantCallingHeadToHeadBenchmarks \
+            --warmups 1 --iterations 3 \
+            --output benchmark-results/csharp-linux-variant-calling.csv || true
+
+      - name: Benchmark — BCL Conversion
+        shell: micromamba-shell {0}
+        run: |
+          ./app/benchmarks/openmedstack.biosharp.benchmarks warm-report \
+            --filter BclHeadToHeadBenchmarks \
+            --warmups 1 --iterations 3 \
+            --output benchmark-results/csharp-linux-bcl.csv || true
+
+      - name: Benchmark — FASTQ Processing
+        shell: micromamba-shell {0}
+        run: |
+          ./app/benchmarks/openmedstack.biosharp.benchmarks warm-report \
+            --filter FastqProcessingHeadToHeadBenchmarks \
+            --warmups 1 --iterations 3 \
+            --output benchmark-results/csharp-linux-fastq.csv || true
+
+      - name: Benchmark — Coverage and Duplicate Marking
+        shell: micromamba-shell {0}
+        run: |
+          ./app/benchmarks/openmedstack.biosharp.benchmarks warm-report \
+            --filter CoverageAndDuplicateHeadToHeadBenchmarks \
+            --warmups 1 --iterations 3 \
+            --output benchmark-results/csharp-linux-coverage-dup.csv || true
+
+      - name: Benchmark — Repeat Masking
+        shell: micromamba-shell {0}
+        run: |
+          ./app/benchmarks/openmedstack.biosharp.benchmarks warm-report \
+            --filter RepeatMaskingHeadToHeadBenchmarks \
+            --warmups 1 --iterations 3 \
+            --output benchmark-results/csharp-linux-repeatmask.csv || true
+
+      # -----------------------------------------------------------------------
+      # 9. Generate the markdown report from all collected CSV files
+      # -----------------------------------------------------------------------
+      - name: Generate markdown report
+        run: |
+          ./app/benchmarks/openmedstack.biosharp.benchmarks linux-report \
+            --results-dir benchmark-results \
+            --tool-versions benchmark-results/tool-versions-linux.txt \
+            --output reports/benchmark-results-linux.md
+
+      # -----------------------------------------------------------------------
+      # 10. Upload all output as a build artifact
+      #     if: always() ensures partial results are still uploaded when one or
+      #     more benchmark sections exited non-zero.
+      # -----------------------------------------------------------------------
+      - name: Upload benchmark artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-report-${{ github.ref_name }}
+          path: |
+            reports/benchmark-results-linux.md
+            benchmark-results/*.csv
+            benchmark-results/tool-versions-linux.txt
+          retention-days: 90
+          if-no-files-found: warn

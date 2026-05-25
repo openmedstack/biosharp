@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using OpenMedStack.BioSharp.Model.Alignment;
 
 namespace OpenMedStack.BioSharp.AcceptanceTests.StepDefinitions;
 

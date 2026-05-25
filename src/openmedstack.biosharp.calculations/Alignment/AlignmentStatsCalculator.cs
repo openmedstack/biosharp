@@ -1,4 +1,5 @@
 using System.Linq;
+using OpenMedStack.BioSharp.Model.Alignment;
 
 namespace OpenMedStack.BioSharp.Calculations.Alignment;
 

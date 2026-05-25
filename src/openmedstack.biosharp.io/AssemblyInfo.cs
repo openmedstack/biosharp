@@ -4,3 +4,4 @@
 [assembly: InternalsVisibleTo("openmedstack.biosharp.calculations")]
 [assembly: InternalsVisibleTo("openmedstack.biosharp.calculations.tests")]
 [assembly: InternalsVisibleTo("openmedstack.biosharp.acceptancetests")]
+[assembly: InternalsVisibleTo("openmedstack.biosharp.benchmarks")]

@@ -2,6 +2,7 @@ using System;
 using System.Linq;
 using System.Text;
 using OpenMedStack.BioSharp.Calculations.DeBruijn;
+using OpenMedStack.BioSharp.Model;
 using Xunit;
 
 namespace OpenMedStack.BioSharp.Calculations.Tests;

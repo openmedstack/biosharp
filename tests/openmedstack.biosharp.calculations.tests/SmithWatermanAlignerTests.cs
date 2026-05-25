@@ -22,6 +22,21 @@ public class SmithWatermanAlignerTests
     }
 
     [Fact]
+    public void Align_NearExactUngappedSeedHit_ReturnsMismatchAlignment()
+    {
+        var reference = new Sequence("ref", "TTTTACGTACGTAAAA".AsMemory(), new string('I', 16).AsMemory());
+        var read = new Sequence("read", "ACGTTCGT".AsMemory(), new string('I', 8).AsMemory());
+
+        var alignment = SmithWatermanAligner.Align(reference, read, minScore: 4);
+
+        Assert.NotNull(alignment);
+        Assert.Equal(4, alignment.ReferenceStartPosition);
+        Assert.Equal("ACGTACGT", alignment.AlignedReference);
+        Assert.Equal("ACGTTCGT", alignment.AlignedRead);
+        Assert.Equal("||||X|||", alignment.VisualString);
+    }
+
+    [Fact]
     public void Align_WhenCellBudgetExceeded_Throws()
     {
         var reference = new Sequence("ref", new string('A', 64).AsMemory(), new string('I', 64).AsMemory());

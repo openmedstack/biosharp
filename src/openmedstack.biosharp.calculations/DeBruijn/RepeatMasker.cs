@@ -147,7 +147,7 @@ public static class RepeatMasker
         var currentStart = start;
         for (var i = start; i <= end; i++)
         {
-            if (!maskMap.ContainsKey(i) && i > currentStart)
+            if (!maskMap.ContainsKey(i) && i > currentStart && maskMap.ContainsKey(currentStart))
             {
                 // Gap found, close current region and start a new one
                 regions.Add(new MaskedRegion
@@ -157,12 +157,18 @@ public static class RepeatMasker
                     Repeat = maskMap[currentStart].repeat,
                     MaskedSequence = new string('N', i - currentStart)
                 });
-                currentStart = i + 1;
+                // Find the next valid start
+                var next = i + 1;
+                while (next <= end && !maskMap.ContainsKey(next))
+                {
+                    next++;
+                }
+                currentStart = next;
             }
         }
 
-        // Close final region
-        if (currentStart < end)
+        // Close final region if valid
+        if (currentStart < end && maskMap.ContainsKey(currentStart))
         {
             regions.Add(new MaskedRegion
             {

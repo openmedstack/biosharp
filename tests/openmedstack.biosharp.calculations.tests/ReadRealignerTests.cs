@@ -1,6 +1,7 @@
 using System;
 using OpenMedStack.BioSharp.Calculations.Alignment;
 using OpenMedStack.BioSharp.Model;
+using OpenMedStack.BioSharp.Model.Alignment;
 using Xunit;
 
 namespace OpenMedStack.BioSharp.Calculations.Tests;

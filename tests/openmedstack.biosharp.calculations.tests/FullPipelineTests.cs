@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using OpenMedStack.BioSharp.Model;
 using AsyncEnumerable = OpenMedStack.BioSharp.Calculations.Alignment.AsyncEnumerableExtensions;
 using Xunit;
 
@@ -378,7 +379,7 @@ public class FullPipelineTests
             Assert.NotNull(genotype);
 
             // Bubble confidence should be set
-            Assert.True(bubble.Confidence >= DeBruijn.BubbleConfidence.Low);
+            Assert.True(bubble.Confidence >= BubbleConfidence.Low);
         }
     }
 
@@ -462,22 +463,22 @@ public class FullPipelineTests
     {
         // Homozygous alt: alt/ref >= 0.8
         var homoAlt = DeBruijn.GenotypeCaller.Call(1, 10);
-        Assert.Equal(DeBruijn.GenotypeType.HomozygousAlt, homoAlt.Type);
+        Assert.Equal(GenotypeType.HomozygousAlt, homoAlt.Type);
         Assert.Equal("1/1", homoAlt.ToVcfGenotype());
 
         // Heterozygous: alt/ref in [0.4, 0.8)
         var het = DeBruijn.GenotypeCaller.Call(10, 6);
-        Assert.Equal(DeBruijn.GenotypeType.Heterozygous, het.Type);
+        Assert.Equal(GenotypeType.Heterozygous, het.Type);
         Assert.Equal("0/1", het.ToVcfGenotype());
 
         // Homozygous ref: alt/ref < 0.2
         var homoRef = DeBruijn.GenotypeCaller.Call(10, 1);
-        Assert.Equal(DeBruijn.GenotypeType.HomozygousRef, homoRef.Type);
+        Assert.Equal(GenotypeType.HomozygousRef, homoRef.Type);
         Assert.Equal("0/0", homoRef.ToVcfGenotype());
 
         // Zero coverage: homo ref
         var zero = DeBruijn.GenotypeCaller.Call(0, 0);
-        Assert.Equal(DeBruijn.GenotypeType.HomozygousRef, zero.Type);
+        Assert.Equal(GenotypeType.HomozygousRef, zero.Type);
         Assert.Equal("0/0", zero.ToVcfGenotype());
     }
 
@@ -513,7 +514,7 @@ public class FullPipelineTests
 
             _ = DeBruijn.RepetitivenessAnalyzer.AnalyzeBubble(bubble, counts);
 
-            Assert.NotEqual(DeBruijn.BubbleConfidence.Low, bubble.Confidence);
+            Assert.NotEqual(BubbleConfidence.Low, bubble.Confidence);
         }
     }
 }

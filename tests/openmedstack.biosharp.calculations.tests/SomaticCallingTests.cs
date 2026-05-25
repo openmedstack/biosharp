@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using OpenMedStack.BioSharp.Model;
 using AsyncEnumerable = OpenMedStack.BioSharp.Calculations.Alignment.AsyncEnumerableExtensions;
 using Sequence = OpenMedStack.BioSharp.Model.Sequence;
 using Xunit;
@@ -15,7 +16,7 @@ namespace OpenMedStack.BioSharp.Calculations.Tests;
 /// </summary>
 public class SomaticCallingTests
 {
-    private static IAsyncEnumerable<Sequence> MakeReads(IEnumerable<string> seqs, int kmer = 7)
+    private static IAsyncEnumerable<Sequence> MakeReads(IEnumerable<string> seqs)
     {
         return AsyncEnumerable.ToAsyncEnumerable(
             seqs.Select(s => new Sequence(
@@ -26,7 +27,7 @@ public class SomaticCallingTests
 
     private static DeBruijn.DeBruijnGraph BuildGraph(IEnumerable<string> reads, int k = 7)
     {
-        return new DeBruijn.DeBruijnGraph(k, MakeReads(reads, k));
+        return new DeBruijn.DeBruijnGraph(k, MakeReads(reads));
     }
 
     private static DeBruijn.BloomFilter BuildFilter(IEnumerable<string> kmers)
@@ -199,20 +200,20 @@ public class SomaticCallingTests
         Assert.NotNull(method);
 
         // High: total >= 8, maf in [0.25, 0.75]
-        var highConf = (DeBruijn.BubbleConfidence)method.Invoke(null, [0.5, 4, 4])!;
-        Assert.Equal(DeBruijn.BubbleConfidence.High, highConf);
+        var highConf = (BubbleConfidence)method.Invoke(null, [0.5, 4, 4])!;
+        Assert.Equal(BubbleConfidence.High, highConf);
 
         // Low: total < 5
-        var lowConf = (DeBruijn.BubbleConfidence)method.Invoke(null, [0.5, 2, 1])!;
-        Assert.Equal(DeBruijn.BubbleConfidence.Low, lowConf);
+        var lowConf = (BubbleConfidence)method.Invoke(null, [0.5, 2, 1])!;
+        Assert.Equal(BubbleConfidence.Low, lowConf);
 
         // Low: maf < 0.2
-        var lowConf2 = (DeBruijn.BubbleConfidence)method.Invoke(null, [0.1, 6, 6])!;
-        Assert.Equal(DeBruijn.BubbleConfidence.Low, lowConf2);
+        var lowConf2 = (BubbleConfidence)method.Invoke(null, [0.1, 6, 6])!;
+        Assert.Equal(BubbleConfidence.Low, lowConf2);
 
         // Medium: in between
-        var medConf = (DeBruijn.BubbleConfidence)method.Invoke(null, [0.5, 3, 3])!;
-        Assert.Equal(DeBruijn.BubbleConfidence.Medium, medConf);
+        var medConf = (BubbleConfidence)method.Invoke(null, [0.5, 3, 3])!;
+        Assert.Equal(BubbleConfidence.Medium, medConf);
     }
 
     /// <summary>

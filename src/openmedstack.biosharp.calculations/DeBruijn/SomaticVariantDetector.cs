@@ -1,3 +1,5 @@
+using OpenMedStack.BioSharp.Model;
+
 namespace OpenMedStack.BioSharp.Calculations.DeBruijn;
 
 using System;
@@ -90,7 +92,7 @@ public static class SomaticVariantDetector
             }
 
             var refPath = scoredPaths[0].Path;
-            var altPaths = scoredPaths.Skip(1).Where(x => x.Path != null).ToList();
+            var altPaths = scoredPaths.Skip(1).ToList();
 
             if (altPaths.Count == 0)
             {

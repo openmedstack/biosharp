@@ -11,7 +11,7 @@ using Model;
 /// Lightweight seed index over a reference sequence.
 /// Uses exact k-mer matches to identify candidate alignment windows for a read.
 /// </summary>
-public sealed class ReferenceIndex
+public sealed class ReferenceIndex : IReferenceSeeder
 {
     private const uint FormatMagic = 0x31595342; // BSY1
     private const int MaxEncodableSeedSize = 64;

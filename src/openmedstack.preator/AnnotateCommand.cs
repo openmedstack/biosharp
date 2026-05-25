@@ -1,3 +1,5 @@
+using OpenMedStack.BioSharp.Model.Report;
+
 namespace OpenMedStack.Preator;
 
 using System;
@@ -10,7 +12,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.EntityFrameworkCore;
 using OpenMedStack.BioSharp.AnnotationDb;
-using OpenMedStack.BioSharp.Calculations.Report;
 using OpenMedStack.BioSharp.Io.Vcf;
 using OpenMedStack.BioSharp.Model;
 using OpenMedStack.BioSharp.Model.Vcf;

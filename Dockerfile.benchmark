@@ -1,0 +1,145 @@
+# BioSharp Benchmark Dockerfile
+# This builds the benchmark project with maximum performance optimizations and
+# installs all available external bioinformatics tools for head-to-head comparison.
+#
+# NOTE: We cannot use the chiseled image for benchmarking because external tools
+# (bwa, samtools, freebayes, etc.) require a shell and package manager. The chiseled
+# image is rootless and minimalist. We use runtime-deps:10.0-noble instead.
+#
+# Build: podman build -f Dockerfile.benchmark -t biosharp-benchmark .
+# Run:   podman run -v $(pwd)/benchmark-results:/app/benchmark-results -v $(pwd)/reports:/app/reports -v $(pwd)/data:/app/data:ro biosharp-benchmark
+
+# =============================================================================
+# Stage 1: Build BioSharp with maximum performance optimizations
+# =============================================================================
+FROM --platform=linux/amd64  mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
+
+WORKDIR /src
+
+# Copy solution and project files first for better layer caching
+COPY global.json ./
+COPY shared.proj ./
+COPY openmedstack-biosharp.sln ./
+
+# Copy all project files
+COPY src/openmedstack.biosharp.model/openmedstack.biosharp.model.csproj src/openmedstack.biosharp.model/
+COPY src/openmedstack.biosharp.io/openmedstack.biosharp.io.csproj src/openmedstack.biosharp.io/
+COPY src/openmedstack.biosharp.calculations/openmedstack.biosharp.calculations.csproj src/openmedstack.biosharp.calculations/
+COPY src/openmedstack.biosharp.annotationdb/openmedstack.biosharp.annotationdb.csproj src/openmedstack.biosharp.annotationdb/
+COPY src/openmedstack.preator/openmedstack.preator.csproj src/openmedstack.preator/
+COPY benchmarks/openmedstack.biosharp.benchmarks/openmedstack.biosharp.benchmarks.csproj benchmarks/openmedstack.biosharp.benchmarks/
+
+# Restore dependencies (benchmark project only, not full solution)
+RUN dotnet restore benchmarks/openmedstack.biosharp.benchmarks/openmedstack.biosharp.benchmarks.csproj
+
+# Copy all source code
+COPY src/ src/
+COPY benchmarks/ benchmarks/
+
+# Build benchmarks with maximum performance optimizations
+# PublishReadyToRun: AOT-compiles methods for faster startup
+# OptimizationPreference: Size vs Speed - we choose Speed
+# ServerGarbageCollection: Better throughput for server workloads
+# SelfContained: Bundle .NET runtime for deployment without .NET installed
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then RID="linux-x64"; \
+    elif [ "$ARCH" = "aarch64" ]; then RID="linux-arm64"; \
+    else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
+    dotnet publish benchmarks/openmedstack.biosharp.benchmarks/openmedstack.biosharp.benchmarks.csproj \
+      -c Release \
+      -r "$RID" \
+      --self-contained true \
+      -p:PublishReadyToRun=true \
+      -p:OptimizationPreference=Speed \
+      -p:DebugType=None \
+      -p:DebugSymbols=false \
+      -p:Optimize=true \
+      -p:PublishTrimmed=false \
+      -o /app/benchmarks
+
+# =============================================================================
+# Stage 2: Runtime environment with all bioinformatics tools
+# =============================================================================
+FROM --platform=linux/amd64  mcr.microsoft.com/dotnet/runtime-deps:10.0-noble AS runtime
+
+# Install base dependencies and add Bioconda channels
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    curl \
+    ca-certificates \
+    bzip2 \
+    gzip \
+    tabix \
+    time \
+    bc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install micromamba for conda packages (detect architecture)
+ENV MAMBA_ROOT_PREFIX=/opt/conda
+ENV PATH="/opt/conda/bin:$PATH"
+
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then MAMBA_ARCH="linux-64"; \
+    elif [ "$ARCH" = "aarch64" ]; then MAMBA_ARCH="linux-aarch64"; \
+    else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
+    curl -Ls "https://micro.mamba.pm/api/micromamba/${MAMBA_ARCH}/latest" | tar -xvj -C /usr/local bin/micromamba && \
+    /usr/local/bin/micromamba shell init -s bash --root-prefix /opt/conda && \
+    /usr/local/bin/micromamba config append channels conda-forge && \
+    /usr/local/bin/micromamba config append channels bioconda && \
+    /usr/local/bin/micromamba config set channel_priority strict
+
+# Install bioinformatics tools via micromamba
+# Required tools: bwa, samtools, bcftools, freebayes, htslib (bgzip/tabix), sambamba, seqtk, fastqc, fastp, cutadapt
+# Optional tools: bwa-mem2, trf, repeatmasker, picard, gatk4, snpeff, qualimap, lofreq, varscan
+RUN /usr/local/bin/micromamba install -y -n base \
+    bwa \
+    bwa-mem2 \
+    samtools \
+    bcftools \
+    freebayes \
+    htslib \
+    sambamba \
+    seqtk \
+    fastqc \
+    fastp \
+    cutadapt \
+    trf \
+    picard \
+    && /usr/local/bin/micromamba clean --all --yes
+
+# Set up environment for conda tools
+ENV PATH="/opt/conda/bin:$PATH"
+
+WORKDIR /app
+
+# Copy benchmark binaries from build stage
+COPY --from=build /app/benchmarks ./benchmarks/
+
+# Copy staged Illumina binaries from tools folder (vendor-provided, pre-staged)
+# Note: these binaries are only available for x86_64; ARM64 will skip BCL external benchmarks
+COPY tools/linux-x64/bcl-convert /usr/local/bin/bcl-convert
+COPY tools/linux-x64/bcl2fastq /usr/local/bin/bcl2fastq
+RUN chmod +x /usr/local/bin/bcl-convert /usr/local/bin/bcl2fastq
+
+# Benchmark fixtures are expected to be mounted at runtime.
+VOLUME ["/app/data"]
+VOLUME ["/app/reports"]
+
+# Create output directories
+RUN mkdir -p benchmark-results benchmark-results/logs benchmark-results/work reports
+
+# Set runtime environment variables for optimal .NET performance
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+ENV DOTNET_NOLOGO=1
+ENV DOTNET_gcServer=1
+ENV DOTNET_GCHeapHardLimit=0
+ENV DOTNET_TieredCompilation=1
+ENV DOTNET_TieredPGO=1
+ENV DOTNET_ReadyToRun=1
+
+# Copy the benchmark runner script
+COPY run-benchmarks.sh /app/run-benchmarks.sh
+RUN chmod +x /app/run-benchmarks.sh
+
+# Default command runs the benchmarks
+ENTRYPOINT ["/bin/bash", "/app/run-benchmarks.sh"]

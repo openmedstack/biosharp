@@ -1,3 +1,5 @@
+using OpenMedStack.BioSharp.Model.Alignment;
+
 namespace OpenMedStack.Preator;
 
 using System;

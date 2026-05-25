@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using OpenMedStack.BioSharp.Model;
 using Xunit;
 
 namespace OpenMedStack.BioSharp.Calculations.Tests;
@@ -127,7 +128,7 @@ public class RepetitivenessAnalyzerTests
         var score = DeBruijn.RepetitivenessAnalyzer.Analyze(bubble, kmerCounts);
 
         // Assert
-        Assert.Equal(DeBruijn.BubbleConfidence.Low, score.Confidence);
+        Assert.Equal(BubbleConfidence.Low, score.Confidence);
         Assert.True(score.RepeatKmerCount > 0);
     }
 
@@ -145,7 +146,7 @@ public class RepetitivenessAnalyzerTests
         var score = DeBruijn.RepetitivenessAnalyzer.Analyze(bubble, kmerCounts);
 
         // Assert
-        Assert.Equal(DeBruijn.BubbleConfidence.Medium, score.Confidence);
+        Assert.Equal(BubbleConfidence.Medium, score.Confidence);
         Assert.Equal(0, score.RepeatKmerCount);
     }
 

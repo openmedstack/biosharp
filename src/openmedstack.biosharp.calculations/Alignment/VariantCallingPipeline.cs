@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using OpenMedStack.BioSharp.Model.Alignment;
 
 namespace OpenMedStack.BioSharp.Calculations.Alignment;
 
@@ -195,6 +196,26 @@ public class VariantCallingPipeline
         public int ReadBufferCapacity { get; set; }
 
         /// <summary>
+        /// Try insert-size constrained candidate windows for the mate of an already mapped paired-end read.
+        /// </summary>
+        public bool EnablePairedEndInsertConstrainedAlignment { get; set; } = true;
+
+        /// <summary>
+        /// Expected paired-end template size used to seed mate candidate windows.
+        /// </summary>
+        public int ExpectedInsertSize { get; set; } = 350;
+
+        /// <summary>
+        /// Padding around the expected mate position when building insert-constrained windows.
+        /// </summary>
+        public int InsertSizeTolerance { get; set; } = 500;
+
+        /// <summary>
+        /// For BAM inputs, use existing BAM coordinates and CIGAR instead of re-aligning each read.
+        /// </summary>
+        public bool UseBamAlignmentCoordinates { get; set; } = true;
+
+        /// <summary>
         /// Maximum number of graph windows to analyze when performing full-graph SV detection.
         /// 0 means no cap.
         /// </summary>
@@ -258,6 +279,17 @@ public class VariantCallingPipeline
         }
     }
 
+    /// <summary>
+    /// Stage timings captured by the most recent BAM load.
+    /// </summary>
+    public sealed class BamLoadProfile
+    {
+        public int RecordsRead { get; set; }
+        public int RecordsAccepted { get; set; }
+        public double BamReadMilliseconds { get; set; }
+        public double VariantCallingMilliseconds { get; set; }
+    }
+
     private readonly Sequence _reference;
     private readonly string _chromosome;
     private readonly PipelineOptions _options;
@@ -268,10 +300,25 @@ public class VariantCallingPipeline
     private readonly ReadRealigner _realigner;
     private ReferenceIndex? _referenceIndex;
     private readonly HashSet<int> _graphCandidateWindows = [];
+
+    /// <summary>
+    /// Optional custom seeder used instead of the built-in
+    /// <see cref="ReferenceIndex"/>.  Assign an
+    /// <see cref="BurrowsWheeler.FmIndexSeeder"/> (or any
+    /// <see cref="IReferenceSeeder"/> implementation) before processing reads
+    /// to use FM-index–based seeding with BWA-MEM–style MEM seeds.
+    ///
+    /// When <c>null</c> (the default) the pipeline falls back to the
+    /// hash-map k-mer index built by <see cref="EnsureReferenceIndex"/>.
+    /// </summary>
+    public IReferenceSeeder? Seeder { get; set; }
     private SamDefinition? _samDefinition;
     private string? _bamFilePath;
     private readonly List<AlignmentSection> _regionAlignments = [];
     private int _skippedRealignments;
+    private int[]? _coverageByPosition;
+
+    public BamLoadProfile LastBamLoadProfile { get; } = new();
 
     private sealed class ReadProcessingResult
     {
@@ -289,7 +336,7 @@ public class VariantCallingPipeline
     {
         public string ReadName { get; set; } = string.Empty;
         public AlignmentResult? Alignment { get; set; }
-        public Sequence Sequence { get; set; } = null!;
+        public Sequence? Sequence { get; set; }
 
         public bool IsMapped
         {
@@ -352,23 +399,62 @@ public class VariantCallingPipeline
         _bamFilePath = bamFilePath;
         var logger = new NullLogger<BamReader>();
         var reader = new BamReader(bamFilePath, logger);
-        _samDefinition = await reader.Read(cancellationToken).ConfigureAwait(false);
 
-        if (_samDefinition == null || _samDefinition.AlignmentSections.Length == 0)
+        LastBamLoadProfile.RecordsRead = 0;
+        LastBamLoadProfile.RecordsAccepted = 0;
+        LastBamLoadProfile.BamReadMilliseconds = 0;
+        LastBamLoadProfile.VariantCallingMilliseconds = 0;
+
+        if (_options.UseBamAlignmentCoordinates)
         {
-            return false;
+            _samDefinition = null;
+            var sawAnyAlignment = false;
+            var readStopwatch = System.Diagnostics.Stopwatch.StartNew();
+            await foreach (var section in reader.ReadAlignmentSections(cancellationToken).ConfigureAwait(false))
+            {
+                LastBamLoadProfile.RecordsRead++;
+                if (!IsCallableBamAlignment(section))
+                {
+                    continue;
+                }
+
+                sawAnyAlignment = true;
+                LastBamLoadProfile.RecordsAccepted++;
+                readStopwatch.Stop();
+                var callStopwatch = System.Diagnostics.Stopwatch.StartNew();
+                MergeReadResult(AnalyzeBamAlignment(section));
+                callStopwatch.Stop();
+                LastBamLoadProfile.VariantCallingMilliseconds += callStopwatch.Elapsed.TotalMilliseconds;
+                readStopwatch.Start();
+            }
+
+            readStopwatch.Stop();
+            LastBamLoadProfile.BamReadMilliseconds = readStopwatch.Elapsed.TotalMilliseconds;
+            return sawAnyAlignment;
         }
 
-        var reads = _samDefinition.AlignmentSections
-            .Where(section => (section.Flag & AlignmentSection.AlignmentFlag.SegmentUnmapped) == 0)
-            .Select(section => new Sequence(
+        _samDefinition = null;
+        return await ProcessReads(StreamCallableBamReads(reader, cancellationToken), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async IAsyncEnumerable<Sequence> StreamCallableBamReads(
+        BamReader reader,
+        [System.Runtime.CompilerServices.EnumeratorCancellation]
+        CancellationToken cancellationToken)
+    {
+        await foreach (var section in reader.ReadAlignmentSections(cancellationToken).ConfigureAwait(false))
+        {
+            if (!IsCallableBamAlignment(section))
+            {
+                continue;
+            }
+
+            yield return new Sequence(
                 section.QName,
                 section.Sequence.TrimEnd().AsMemory(),
-                section.Quality.TrimEnd().AsMemory()));
-
-        await ProcessReads(reads.ToAsyncEnumerable(), cancellationToken).ConfigureAwait(false);
-
-        return true;
+                section.Quality.TrimEnd().AsMemory());
+        }
     }
 
     /// <summary>
@@ -442,6 +528,17 @@ public class VariantCallingPipeline
     }
 
     /// <summary>
+    /// Loads matched paired-end reads and uses the alignment of the first mapped mate to constrain
+    /// the initial candidate windows for the second mate.
+    /// </summary>
+    public async Task<bool> LoadPairedFastQ(
+        IAsyncEnumerable<(Sequence R1, Sequence R2)> readPairs,
+        CancellationToken cancellationToken = default)
+    {
+        return await ProcessReadPairs(readPairs, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
     /// Processes a single read: aligns against reference, calls variants,
     /// performs soft-clip realignment, and handles graph-based SV detection.
     /// </summary>
@@ -478,13 +575,15 @@ public class VariantCallingPipeline
         progress.Report(value);
     }
 
-    private ReadProcessingResult AnalyzeRead(Sequence read)
+    private ReadProcessingResult AnalyzeRead(
+        Sequence read,
+        ReferenceIndex.CandidateWindow[]? preferredCandidateWindows = null)
     {
         var results = new List<LocalVariantResult>();
         var candidateWindows = new List<int>();
 
         // Step 1: Align read against reference using Smith-Waterman
-        var alignment = AlignReadToCandidateWindows(read);
+        var alignment = AlignReadToCandidateWindows(read, preferredCandidateWindows);
 
         if (alignment == null)
         {
@@ -568,8 +667,9 @@ public class VariantCallingPipeline
         {
             ReadName = result.Read.Id,
             Alignment = result.Alignment,
-            Sequence = result.Read
+            Sequence = _options.EnableGraphSvDetection ? result.Read : null
         });
+        _coverageByPosition = null;
 
         foreach (var v in result.Variants)
         {
@@ -679,9 +779,278 @@ public class VariantCallingPipeline
         return sawAnyRead;
     }
 
-    private AlignmentResult? AlignReadToCandidateWindows(Sequence read)
+    private async Task<bool> ProcessReadPairs(
+        IAsyncEnumerable<(Sequence R1, Sequence R2)> readPairs,
+        CancellationToken cancellationToken)
     {
-        var candidateWindows = EnsureReferenceIndex().FindCandidateWindows(read);
+        var degreeOfParallelism = Math.Max(1, _options.DegreeOfParallelism);
+        if (degreeOfParallelism == 1)
+        {
+            var sawAnySequentialPair = false;
+            await foreach (var readPair in readPairs.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                sawAnySequentialPair = true;
+                foreach (var result in AnalyzeReadPair(readPair.R1, readPair.R2))
+                {
+                    MergeReadResult(result);
+                }
+            }
+
+            return sawAnySequentialPair;
+        }
+
+        var bufferCapacity = _options.ReadBufferCapacity > 0
+            ? _options.ReadBufferCapacity
+            : Math.Max(4, degreeOfParallelism * 4);
+        var inputChannel = Channel.CreateBounded<(Sequence R1, Sequence R2)>(new BoundedChannelOptions(bufferCapacity)
+        {
+            AllowSynchronousContinuations = false,
+            FullMode = BoundedChannelFullMode.Wait,
+            SingleReader = false,
+            SingleWriter = true
+        });
+        var resultChannel = Channel.CreateBounded<ReadProcessingResult[]>(new BoundedChannelOptions(bufferCapacity)
+        {
+            AllowSynchronousContinuations = false,
+            FullMode = BoundedChannelFullMode.Wait,
+            SingleReader = true,
+            SingleWriter = false
+        });
+        var sawAnyPair = false;
+
+        var producer = Task.Run(async () =>
+        {
+            try
+            {
+                await foreach (var readPair in readPairs.WithCancellation(cancellationToken).ConfigureAwait(false))
+                {
+                    sawAnyPair = true;
+                    await inputChannel.Writer.WriteAsync(readPair, cancellationToken).ConfigureAwait(false);
+                }
+
+                inputChannel.Writer.TryComplete();
+            }
+            catch (Exception exception)
+            {
+                inputChannel.Writer.TryComplete(exception);
+                throw;
+            }
+        }, cancellationToken);
+
+        var workers = Enumerable.Range(0, degreeOfParallelism)
+            .Select(_ => Task.Run(async () =>
+            {
+                await foreach (var readPair in inputChannel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+                {
+                    var results = AnalyzeReadPair(readPair.R1, readPair.R2);
+                    await resultChannel.Writer.WriteAsync(results, cancellationToken).ConfigureAwait(false);
+                }
+            }, cancellationToken))
+            .ToArray();
+
+        var completeResults = Task.Run(async () =>
+        {
+            try
+            {
+                await Task.WhenAll(workers).ConfigureAwait(false);
+                resultChannel.Writer.TryComplete();
+            }
+            catch (Exception exception)
+            {
+                resultChannel.Writer.TryComplete(exception);
+                throw;
+            }
+        }, CancellationToken.None);
+
+        try
+        {
+            await foreach (var results in resultChannel.Reader.ReadAllAsync(cancellationToken).ConfigureAwait(false))
+            {
+                foreach (var result in results)
+                {
+                    MergeReadResult(result);
+                }
+            }
+        }
+        finally
+        {
+            await producer.ConfigureAwait(false);
+            await completeResults.ConfigureAwait(false);
+        }
+
+        return sawAnyPair;
+    }
+
+    private ReadProcessingResult[] AnalyzeReadPair(Sequence firstRead, Sequence secondRead)
+    {
+        var firstResult = AnalyzeRead(firstRead);
+        var secondPreferredWindows = _options.EnablePairedEndInsertConstrainedAlignment && firstResult.Alignment != null
+            ? BuildMateCandidateWindows(firstResult.Alignment, secondRead.Length)
+            : null;
+        var secondResult = AnalyzeRead(secondRead, secondPreferredWindows);
+
+        if (secondResult.Alignment == null && firstResult.Alignment == null)
+        {
+            return [firstResult, secondResult];
+        }
+
+        if (!_options.EnablePairedEndInsertConstrainedAlignment || secondResult.Alignment != null)
+        {
+            return [firstResult, secondResult];
+        }
+
+        return [firstResult, AnalyzeRead(secondRead)];
+    }
+
+    private ReadProcessingResult AnalyzeBamAlignment(AlignmentSection section)
+    {
+        var read = new Sequence(
+            section.QName,
+            section.Sequence.TrimEnd().AsMemory(),
+            section.Quality.TrimEnd().AsMemory());
+        var alignment = BuildAlignmentFromBamSection(section);
+        if (alignment == null)
+        {
+            return new ReadProcessingResult { Read = read, Alignment = null, Variants = [] };
+        }
+
+        var variants = VariantCaller.CallVariants(_reference, alignment, _options.MinVariantQuality);
+        return new ReadProcessingResult
+        {
+            Read = read,
+            Alignment = alignment,
+            Variants = variants,
+            GraphCandidateStarts = _options.EnableGraphSvDetection ? [alignment.ReferenceStartPosition] : []
+        };
+    }
+
+    private AlignmentResult? BuildAlignmentFromBamSection(AlignmentSection section)
+    {
+        var referencePosition = Math.Max(0, section.Position - 1);
+        var readPosition = 0;
+        var leftSoftClip = 0;
+        var rightSoftClip = 0;
+        var referenceSpan = _reference.GetData().Span;
+        var referenceBuilder = new System.Text.StringBuilder(section.Sequence.Length + 16);
+        var readBuilder = new System.Text.StringBuilder(section.Sequence.Length + 16);
+        var visualBuilder = new System.Text.StringBuilder(section.Sequence.Length + 16);
+        var score = 0;
+
+        foreach (var (countValue, op) in section.Cigar)
+        {
+            var count = checked((int)countValue);
+            switch (op)
+            {
+                case CigarOp.Match:
+                case CigarOp.Equal:
+                case CigarOp.Difference:
+                    for (var offset = 0; offset < count; offset++)
+                    {
+                        if (referencePosition >= referenceSpan.Length || readPosition >= section.Sequence.Length)
+                        {
+                            return null;
+                        }
+
+                        var referenceBase = DnaEncoding.Normalize(referenceSpan[referencePosition++]);
+                        var readBase = DnaEncoding.Normalize(section.Sequence[readPosition++]);
+                        referenceBuilder.Append(referenceBase);
+                        readBuilder.Append(readBase);
+                        if (DnaEncoding.AreEqual(referenceBase, readBase))
+                        {
+                            visualBuilder.Append('|');
+                            score += _options.MatchScore;
+                        }
+                        else
+                        {
+                            visualBuilder.Append('X');
+                            score += _options.MismatchPenalty;
+                        }
+                    }
+
+                    break;
+                case CigarOp.Insertion:
+                    for (var offset = 0; offset < count; offset++)
+                    {
+                        if (readPosition >= section.Sequence.Length)
+                        {
+                            return null;
+                        }
+
+                        referenceBuilder.Append('-');
+                        readBuilder.Append(DnaEncoding.Normalize(section.Sequence[readPosition++]));
+                        visualBuilder.Append(' ');
+                        score += offset == 0 ? _options.GapOpenPenalty : _options.GapExtendPenalty;
+                    }
+
+                    break;
+                case CigarOp.Deletion:
+                    for (var offset = 0; offset < count; offset++)
+                    {
+                        if (referencePosition >= referenceSpan.Length)
+                        {
+                            return null;
+                        }
+
+                        referenceBuilder.Append(DnaEncoding.Normalize(referenceSpan[referencePosition++]));
+                        readBuilder.Append('-');
+                        visualBuilder.Append(' ');
+                        score += offset == 0 ? _options.GapOpenPenalty : _options.GapExtendPenalty;
+                    }
+
+                    break;
+                case CigarOp.SoftClip:
+                    if (readPosition == 0)
+                    {
+                        leftSoftClip += count;
+                    }
+                    else
+                    {
+                        rightSoftClip += count;
+                    }
+
+                    readPosition += count;
+                    break;
+                case CigarOp.Skip:
+                    referencePosition += count;
+                    break;
+                case CigarOp.HardClip:
+                case CigarOp.Padding:
+                    break;
+            }
+        }
+
+        if (referenceBuilder.Length == 0 || score < _options.MinAlignmentScore)
+        {
+            return null;
+        }
+
+        return new AlignmentResult(
+            referenceBuilder.ToString(),
+            readBuilder.ToString(),
+            visualBuilder.ToString(),
+            score,
+            Math.Max(0, section.Position - 1),
+            leftSoftClip,
+            rightSoftClip);
+    }
+
+    private static bool IsCallableBamAlignment(AlignmentSection section)
+    {
+        const AlignmentSection.AlignmentFlag excluded =
+            AlignmentSection.AlignmentFlag.SegmentUnmapped |
+            AlignmentSection.AlignmentFlag.SecondaryAlignment |
+            AlignmentSection.AlignmentFlag.SupplementaryAlignment;
+
+        return (section.Flag & excluded) == 0 && section.Sequence.Length > 0;
+    }
+
+    private AlignmentResult? AlignReadToCandidateWindows(
+        Sequence read,
+        ReferenceIndex.CandidateWindow[]? preferredCandidateWindows = null)
+    {
+        var candidateWindows = preferredCandidateWindows is { Length: > 0 }
+            ? preferredCandidateWindows
+            : (Seeder ?? EnsureReferenceIndex()).FindCandidateWindows(read);
         if (candidateWindows.Length == 0)
         {
             return null;
@@ -718,6 +1087,61 @@ public class VariantCallingPipeline
         }
 
         return bestAlignment;
+    }
+
+    private ReferenceIndex.CandidateWindow[] BuildMateCandidateWindows(AlignmentResult anchorAlignment, int mateLength)
+    {
+        var expectedInsertSize = Math.Max(mateLength, _options.ExpectedInsertSize);
+        var tolerance = Math.Max(_options.CandidateWindowPadding, _options.InsertSizeTolerance);
+        var anchorStart = anchorAlignment.ReferenceStartPosition;
+        var anchorReferenceLength = Math.Max(1, DnaEncoding.CountNonGap(anchorAlignment.AlignedReference.AsSpan()));
+        var downstreamStart = anchorStart + expectedInsertSize - mateLength;
+        var upstreamStart = anchorStart + anchorReferenceLength - expectedInsertSize;
+
+        return BuildCandidateWindowsFromEstimatedStarts([downstreamStart, upstreamStart], mateLength, tolerance);
+    }
+
+    private ReferenceIndex.CandidateWindow[] BuildCandidateWindowsFromEstimatedStarts(
+        int[] estimatedStarts,
+        int readLength,
+        int tolerance)
+    {
+        var windows = new List<ReferenceIndex.CandidateWindow>(estimatedStarts.Length);
+        foreach (var estimatedStart in estimatedStarts)
+        {
+            var start = Math.Max(0, estimatedStart - tolerance);
+            var end = Math.Min(_reference.Length, estimatedStart + readLength + tolerance);
+            if (end <= start)
+            {
+                continue;
+            }
+
+            var preferredOffset = Math.Clamp(estimatedStart - start, 0, end - start);
+            var merged = false;
+            for (var windowIndex = 0; windowIndex < windows.Count; windowIndex++)
+            {
+                var existing = windows[windowIndex];
+                if (start > existing.End || end < existing.Start)
+                {
+                    continue;
+                }
+
+                windows[windowIndex] = new ReferenceIndex.CandidateWindow(
+                    Math.Min(existing.Start, start),
+                    Math.Max(existing.End, end),
+                    existing.SeedHits + 1,
+                    existing.PreferredStartOffset);
+                merged = true;
+                break;
+            }
+
+            if (!merged)
+            {
+                windows.Add(new ReferenceIndex.CandidateWindow(start, end, 1, preferredOffset));
+            }
+        }
+
+        return windows.ToArray();
     }
 
     private ReferenceIndex.IndexOptions CreateReferenceIndexOptions()
@@ -773,7 +1197,13 @@ public class VariantCallingPipeline
 
     private int EstimateTotalCoverage(int position)
     {
-        var coverage = 0;
+        var coverageByPosition = _coverageByPosition ??= BuildCoverageByPosition();
+        return position >= 0 && position < coverageByPosition.Length ? coverageByPosition[position] : 0;
+    }
+
+    private int[] BuildCoverageByPosition()
+    {
+        var coverageByPosition = new int[_reference.Length + 1];
         foreach (var record in _allAlignments)
         {
             if (!record.IsMapped || record.Alignment == null)
@@ -781,21 +1211,24 @@ public class VariantCallingPipeline
                 continue;
             }
 
-            var referenceBasesCovered = DnaEncoding.CountNonGap(record.Alignment.AlignedReference.AsSpan());
-            if (referenceBasesCovered <= 0)
+            var referencePosition = record.Alignment.ReferenceStartPosition + 1;
+            foreach (var referenceBase in record.Alignment.AlignedReference)
             {
-                continue;
-            }
+                if (referenceBase == '-')
+                {
+                    continue;
+                }
 
-            var start = record.Alignment.ReferenceStartPosition + 1;
-            var end = start + referenceBasesCovered - 1;
-            if (position >= start && position <= end)
-            {
-                coverage++;
+                if (referencePosition >= 0 && referencePosition < coverageByPosition.Length)
+                {
+                    coverageByPosition[referencePosition]++;
+                }
+
+                referencePosition++;
             }
         }
 
-        return coverage;
+        return coverageByPosition;
     }
 
     private AlignmentResult? AlignReadToCandidateWindowsInParallel(
@@ -923,7 +1356,7 @@ public class VariantCallingPipeline
 
         foreach (var record in _allAlignments)
         {
-            if (record.Alignment == null || !record.IsMapped)
+            if (record.Alignment == null || !record.IsMapped || record.Sequence == null)
             {
                 continue;
             }

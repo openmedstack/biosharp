@@ -1,9 +1,10 @@
+using OpenMedStack.BioSharp.Model.Alignment;
+
 namespace OpenMedStack.BioSharp.Calculations.Alignment;
 
 using System;
 using System.Collections.Generic;
 using Model;
-using DeBruijn;
 
 /// <summary>
 /// Performs soft-clip realignment on reads to recover variants that are lost by the primary

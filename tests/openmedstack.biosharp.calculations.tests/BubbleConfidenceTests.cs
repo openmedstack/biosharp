@@ -1,5 +1,5 @@
 using System;
-using OpenMedStack.BioSharp.Calculations.DeBruijn;
+using OpenMedStack.BioSharp.Model;
 using Xunit;
 
 namespace OpenMedStack.BioSharp.Calculations.Tests;

@@ -1,7 +1,9 @@
+using OpenMedStack.BioSharp.Model;
+using OpenMedStack.BioSharp.Model.Alignment;
+
 namespace OpenMedStack.BioSharp.Calculations.Alignment;
 
 using System.Linq;
-using DeBruijn;
 
 /// <summary>
 /// Builds VCF 4.2-formatted lines from variant results.

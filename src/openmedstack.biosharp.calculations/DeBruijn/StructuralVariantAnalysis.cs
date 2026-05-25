@@ -1,4 +1,4 @@
-using OpenMedStack.BioSharp.Calculations.Alignment;
+using OpenMedStack.BioSharp.Model.Alignment;
 
 namespace OpenMedStack.BioSharp.Calculations.DeBruijn;
 

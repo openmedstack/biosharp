@@ -9,6 +9,7 @@ using AsyncEnumerable = OpenMedStack.BioSharp.Calculations.Alignment.AsyncEnumer
 using OpenMedStack.BioSharp.Calculations.Alignment;
 using OpenMedStack.BioSharp.Calculations.DeBruijn;
 using OpenMedStack.BioSharp.Model;
+using OpenMedStack.BioSharp.Model.Alignment;
 using Xunit;
 
 namespace OpenMedStack.BioSharp.Calculations.Tests;

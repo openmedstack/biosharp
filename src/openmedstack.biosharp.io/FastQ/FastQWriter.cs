@@ -1,6 +1,7 @@
 ﻿namespace OpenMedStack.BioSharp.Io.FastQ;
 
 using System;
+using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
@@ -37,24 +38,38 @@ public class FastQWriter : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-        await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
-        await _gzip.FlushAsync(cancellationToken).ConfigureAwait(false);
-        _semaphore.Release();
-    }
-
-    public async Task Write(IEnumerable<Sequence> sequences, CancellationToken cancellationToken = default)
-    {
-        await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-
-        foreach (var sequence in sequences)
+        try
         {
             await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
+            await _gzip.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+
+    public async Task<(int sequenceCount, int byteCount)> Write(IEnumerable<Sequence> sequences, CancellationToken cancellationToken = default)
+    {
+        var count = 0;
+        var byteCount = 0;
+        await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
+        {
+            foreach (var sequence in sequences)
+            {
+                byteCount += await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
+                count++;
+            }
+
+            await _gzip.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _semaphore.Release();
         }
 
-        await _gzip.FlushAsync(cancellationToken).ConfigureAwait(false);
-
-        _semaphore.Release();
+        return (count, byteCount);
     }
 
     public async Task<(int sequenceCount, int byteCount)> Write(
@@ -63,17 +78,23 @@ public class FastQWriter : IAsyncDisposable
     {
         var count = 0;
         var byteCount = 0;
-        //await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
-        await foreach (var sequence in sequences.WithCancellation(cancellationToken).ConfigureAwait(false))
+        await _semaphore.WaitAsync(cancellationToken).ConfigureAwait(false);
+        try
         {
-            var written = await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
-            byteCount += written;
-            Interlocked.Increment(ref count);
+            await foreach (var sequence in sequences.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                var written = await WriteSingle(sequence, cancellationToken).ConfigureAwait(false);
+                byteCount += written;
+                Interlocked.Increment(ref count);
+            }
+
+            await _gzip.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally
+        {
+            _semaphore.Release();
         }
 
-        await _gzip.FlushAsync(cancellationToken).ConfigureAwait(false);
-
-        //_semaphore.Release();
         return (count, byteCount);
     }
 
@@ -83,24 +104,31 @@ public class FastQWriter : IAsyncDisposable
         await _indexOutput.Write(key, _gzip.BlockOffset, cancellationToken);
         var data = sequence.GetData();
         var quality = sequence.GetQuality();
+        var byteCount = Encoding.UTF8.GetByteCount(sequence.Id) +
+            Encoding.UTF8.GetByteCount(data.Span) +
+            Encoding.UTF8.GetByteCount(quality.Span) +
+            5;
+        var buffer = ArrayPool<byte>.Shared.Rent(byteCount);
+        try
+        {
+            var offset = 0;
+            buffer[offset++] = (byte)'@';
+            offset += Encoding.UTF8.GetBytes(sequence.Id, buffer.AsSpan(offset));
+            buffer[offset++] = (byte)'\n';
+            offset += Encoding.UTF8.GetBytes(data.Span, buffer.AsSpan(offset));
+            buffer[offset++] = (byte)'\n';
+            buffer[offset++] = (byte)'+';
+            buffer[offset++] = (byte)'\n';
+            offset += Encoding.UTF8.GetBytes(quality.Span, buffer.AsSpan(offset));
+            buffer[offset++] = (byte)'\n';
 
-        var builder = new StringBuilder();
-        builder.Append($"@{sequence.Id}\n");
-        builder.Append(data.Span);
-        builder.Append('\n');
-        builder.Append("+\n");
-        builder.Append(quality);
-        builder.Append('\n');
-        var bytes = Encoding.UTF8.GetBytes(builder.ToString());
-
-        await _gzip.WriteAsync(bytes, cancellationToken);
-        //await _writer.WriteAsync('@').ConfigureAwait(false);
-        //await _writer.WriteLineAsync(sequence.Id).ConfigureAwait(false);
-        //await _writer.WriteLineAsync(data, cancellationToken).ConfigureAwait(false);
-        //await _writer.WriteLineAsync('+').ConfigureAwait(false);
-        //await _writer.WriteLineAsync(quality, cancellationToken).ConfigureAwait(false);
-
-        return bytes.Length;
+            await _gzip.WriteAsync(buffer.AsMemory(0, offset), cancellationToken).ConfigureAwait(false);
+            return offset;
+        }
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(buffer);
+        }
     }
 
     /// <inheritdoc />

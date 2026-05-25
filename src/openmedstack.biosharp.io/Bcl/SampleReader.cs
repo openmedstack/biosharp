@@ -58,14 +58,10 @@ public class SampleReader : IAsyncDisposable
             }
 
             var barcode = _sample.ToString();
-            var barcodes = data.Where(x => x.Type == ReadType.B)
-                .Select(x => new string(x.Bases.Span))
-                .ToArray();
-
+            var barcodes = GetBarcodes(data);
             var pairedEndRead = barcodes.Length > 1;
 
             var filtered = filter.Current;
-            //var trim = (await qualityTrimmer.Trim(data).ConfigureAwait(false));
             for (var i = 0; i < data.Length; i++)
             {
                 var r = data[i];
@@ -85,11 +81,51 @@ public class SampleReader : IAsyncDisposable
                         pairedEndRead && i > forwardLength ? ReadDirection.Reverse : ReadDirection.Forward,
                         r.Type),
                     r.Bases,
-                    Array.ConvertAll(r.Qualities.ToArray(), c => (char)(c + 33)));
+                    ToFastqQualities(r.Qualities.Span));
             }
         }
 
         filter.Dispose();
+    }
+
+    private static string[] GetBarcodes(ReadData[] data)
+    {
+        var barcodeCount = 0;
+        for (var i = 0; i < data.Length; i++)
+        {
+            if (data[i].Type == ReadType.B)
+            {
+                barcodeCount++;
+            }
+        }
+
+        if (barcodeCount == 0)
+        {
+            return [];
+        }
+
+        var barcodes = new string[barcodeCount];
+        var barcodeIndex = 0;
+        for (var i = 0; i < data.Length; i++)
+        {
+            if (data[i].Type == ReadType.B)
+            {
+                barcodes[barcodeIndex++] = new string(data[i].Bases.Span);
+            }
+        }
+
+        return barcodes;
+    }
+
+    private static char[] ToFastqQualities(ReadOnlySpan<char> qualities)
+    {
+        var result = new char[qualities.Length];
+        for (var i = 0; i < qualities.Length; i++)
+        {
+            result[i] = (char)(qualities[i] + 33);
+        }
+
+        return result;
     }
 
     /// <inheritdoc />

@@ -1,3 +1,5 @@
+using OpenMedStack.BioSharp.Model.Alignment;
+
 namespace OpenMedStack.BioSharp.AcceptanceTests.StepDefinitions;
 
 using System;
@@ -84,21 +86,21 @@ public class AlignmentStepDefinitions
     [Then("the metrics should report the total read count")]
     public void ThenMetricsTotalReads()
     {
-        var metrics = (DuplicateMarker.DuplicateMetrics)_ctx["dupMetrics"];
+        var metrics = (DuplicateMetrics)_ctx["dupMetrics"];
         Assert.Equal(4, metrics.TotalReads);
     }
 
     [Then("the metrics should report the number of duplicate reads")]
     public void ThenMetricsDuplicateCount()
     {
-        var metrics = (DuplicateMarker.DuplicateMetrics)_ctx["dupMetrics"];
+        var metrics = (DuplicateMetrics)_ctx["dupMetrics"];
         Assert.True(metrics.DuplicateReads >= 0, "Duplicate reads count should be non-negative");
     }
 
     [Then("the duplicate rate should be greater than zero")]
     public void ThenDuplicateRatePositive()
     {
-        var metrics = (DuplicateMarker.DuplicateMetrics)_ctx["dupMetrics"];
+        var metrics = (DuplicateMetrics)_ctx["dupMetrics"];
         // 3 reads at position 100 → at least 2 duplicates
         Assert.True(metrics.DuplicateRate >= 0.0, "Duplicate rate should be non-negative");
     }
@@ -270,7 +272,6 @@ public class AlignmentStepDefinitions
     [Then("the read should be returned unchanged with no bases removed")]
     public void ThenReadUnchanged()
     {
-        var original = (Sequence)_ctx["cleanRead"];
         var result = (Sequence?)_ctx["unchangedRead"];
         Assert.NotNull(result);
         var stats = (AdapterTrimmer.TrimStats)_ctx["noTrimStats"];

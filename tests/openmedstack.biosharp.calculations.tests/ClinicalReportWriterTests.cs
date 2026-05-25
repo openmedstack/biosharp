@@ -1,7 +1,7 @@
 using System;
-using OpenMedStack.BioSharp.Calculations.Alignment;
-using OpenMedStack.BioSharp.Calculations.Report;
 using OpenMedStack.BioSharp.Model;
+using OpenMedStack.BioSharp.Model.Alignment;
+using OpenMedStack.BioSharp.Model.Report;
 using Xunit;
 
 namespace OpenMedStack.BioSharp.Calculations.Tests;

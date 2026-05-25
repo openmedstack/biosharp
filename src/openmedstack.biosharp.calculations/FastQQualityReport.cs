@@ -1,11 +1,11 @@
-using System.Linq;
-
 namespace OpenMedStack.BioSharp.Calculations;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Io.FastQ;
 using Model;
 
 /// <summary>
@@ -14,6 +14,20 @@ using Model;
 public static class FastQQualityReport
 {
     private const int DuplicationSampleSize = 200_000;
+    private const int WriteBatchSize = 1024;
+
+    public sealed class ProcessingResult
+    {
+        public FastQReport QualityReport { get; init; } = new();
+
+        public AdapterTrimmer.TrimStats TrimStats { get; init; } = new();
+
+        public long ReadsWritten { get; init; }
+
+        public long BasesWritten { get; init; }
+
+        public long FastqBytesWritten { get; init; }
+    }
 
     /// <summary>
     /// Computes quality metrics from an async sequence of reads.
@@ -26,160 +40,236 @@ public static class FastQQualityReport
         string? adapterSequence = null,
         CancellationToken cancellationToken = default)
     {
-        // Accumulators indexed by cycle
-        var qualSums = new Dictionary<int, double>();
-        var qualSumSq = new Dictionary<int, double>();
-        var qualCounts = new Dictionary<int, int>();
-        var qualMins = new Dictionary<int, double>();
-        var qualMaxs = new Dictionary<int, double>();
+        var accumulator = new ReportAccumulator(adapterSequence);
+        await foreach (var seq in reads.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            accumulator.Add(seq);
+        }
 
-        // For quartile computation we store per-cycle histograms
-        var qualHistByCycle = new Dictionary<int, int[]>();
+        return accumulator.Build();
+    }
 
-        var baseCountsA = new Dictionary<int, int>();
-        var baseCountsC = new Dictionary<int, int>();
-        var baseCountsG = new Dictionary<int, int>();
-        var baseCountsT = new Dictionary<int, int>();
-        var baseCountsN = new Dictionary<int, int>();
-
-        // Per-sequence quality histogram
-        var seqQualHist = new Dictionary<int, int>();
-
-        // GC content histogram
-        var gcHist = new Dictionary<int, int>();
-
-        // Adapter content: cycle → count with adapter starting at or after that cycle
-        var adapterCounts = new Dictionary<int, int>();
-
-        // Duplication estimation: track first DuplicationSampleSize reads
-        var seenSeqs = new HashSet<string>();
-        var dupSampleCount = 0;
-        var dupCount = 0;
-
-        long totalReads = 0;
-        long totalBases = 0;
-
-        var adapterSpan = adapterSequence?.AsMemory() ?? ReadOnlyMemory<char>.Empty;
+    public static async Task<ProcessingResult> ComputeTrimAndWrite(
+        IAsyncEnumerable<Sequence> reads,
+        AdapterTrimmer trimmer,
+        FastQWriter? writer = null,
+        string? adapterSequence = null,
+        CancellationToken cancellationToken = default)
+    {
+        var accumulator = new ReportAccumulator(adapterSequence);
+        var cumulative = new AdapterTrimmer.TrimStats();
+        var writeBatch = writer == null ? null : new List<Sequence>(WriteBatchSize);
+        long readsWritten = 0;
+        long basesWritten = 0;
+        long fastqBytesWritten = 0;
 
         await foreach (var seq in reads.WithCancellation(cancellationToken).ConfigureAwait(false))
         {
-            totalReads++;
-            var data = seq.GetData();
-            var quality = seq.GetQuality();
-            var len = data.Length;
-            totalBases += len;
+            accumulator.Add(seq);
+            var (trimmed, stats) = trimmer.Trim(seq);
+            cumulative.ReadsTrimmed += stats.ReadsTrimmed;
+            cumulative.BasesRemoved += stats.BasesRemoved;
+            cumulative.ReadsDiscarded += stats.ReadsDiscarded;
 
-            // Per-cycle quality and composition
-            AccumulateCycleStats(
-                data.Span, quality.Span,
-                qualSums, qualSumSq, qualCounts, qualMins, qualMaxs,
-                qualHistByCycle,
-                baseCountsA, baseCountsC, baseCountsG, baseCountsT, baseCountsN);
-
-            // Per-sequence quality (mean of read)
-            var seqMeanPhred = ComputeMeanPhred(quality.Span);
-            var seqQualBin = (int)Math.Round(seqMeanPhred);
-            seqQualHist[seqQualBin] = seqQualHist.GetValueOrDefault(seqQualBin) + 1;
-
-            // GC content
-            var gcPct = ComputeGcPercent(data.Span);
-            gcHist[gcPct] = gcHist.GetValueOrDefault(gcPct) + 1;
-
-            // Adapter content
-            if (adapterSpan.Length > 0)
-            {
-                AccumulateAdapterContent(data.Span, adapterSpan.Span, adapterCounts);
-            }
-
-            // Duplication estimation (sample first N reads)
-            if (dupSampleCount < DuplicationSampleSize)
-            {
-                dupSampleCount++;
-                var seqKey = new string(data.Span);
-                if (!seenSeqs.Add(seqKey))
-                {
-                    dupCount++;
-                }
-            }
-        }
-
-        if (totalReads == 0)
-        {
-            return new FastQReport { TotalReads = 0, TotalBases = 0 };
-        }
-
-        // Build per-base quality stats
-        var perBaseQuality = new SortedDictionary<int, CycleQualityStats>();
-        foreach (var (cycle, count) in qualCounts)
-        {
-            var mean = qualSums[cycle] / count;
-            var hist = qualHistByCycle[cycle];
-            var (q1, median, q3) = ComputeQuartiles(hist);
-            perBaseQuality[cycle] = new CycleQualityStats
-            {
-                Mean = mean,
-                Median = median,
-                LowerQuartile = q1,
-                UpperQuartile = q3,
-                Min = qualMins[cycle],
-                Max = qualMaxs[cycle]
-            };
-        }
-
-        // Build per-base composition
-        var perBaseComp = new Dictionary<int, CycleComposition>();
-        var allCycles = new HashSet<int>(baseCountsA.Keys);
-        allCycles.UnionWith(baseCountsC.Keys);
-        allCycles.UnionWith(baseCountsG.Keys);
-        allCycles.UnionWith(baseCountsT.Keys);
-        allCycles.UnionWith(baseCountsN.Keys);
-        foreach (var cycle in allCycles)
-        {
-            var total = baseCountsA.GetValueOrDefault(cycle)
-                        + baseCountsC.GetValueOrDefault(cycle)
-                        + baseCountsG.GetValueOrDefault(cycle)
-                        + baseCountsT.GetValueOrDefault(cycle)
-                        + baseCountsN.GetValueOrDefault(cycle);
-
-            if (total == 0)
+            if (trimmed == null)
             {
                 continue;
             }
 
-            perBaseComp[cycle] = new CycleComposition
+            readsWritten++;
+            basesWritten += trimmed.Length;
+            if (writeBatch == null || writer == null)
             {
-                A = 100.0 * baseCountsA.GetValueOrDefault(cycle) / total,
-                C = 100.0 * baseCountsC.GetValueOrDefault(cycle) / total,
-                G = 100.0 * baseCountsG.GetValueOrDefault(cycle) / total,
-                T = 100.0 * baseCountsT.GetValueOrDefault(cycle) / total,
-                N = 100.0 * baseCountsN.GetValueOrDefault(cycle) / total
-            };
-        }
+                continue;
+            }
 
-        // Adapter content: convert counts to fractions
-        var adapterContent = new SortedDictionary<int, double>();
-        if (totalReads > 0 && adapterSpan.Length > 0)
-        {
-            foreach (var (pos, cnt) in adapterCounts)
+            writeBatch.Add(trimmed);
+            if (writeBatch.Count == WriteBatchSize)
             {
-                adapterContent[pos] = (double)cnt / totalReads;
+                var (_, byteCount) = await writer.Write(writeBatch, cancellationToken).ConfigureAwait(false);
+                fastqBytesWritten += byteCount;
+                writeBatch.Clear();
             }
         }
 
-        return new FastQReport
+        if (writeBatch is { Count: > 0 } && writer != null)
         {
-            PerBaseQuality = perBaseQuality,
-            PerSequenceQualityHistogram = new SortedDictionary<int, int>(seqQualHist),
-            PerBaseCompositionRaw = perBaseComp,
-            GcContentHistogram = new SortedDictionary<int, int>(gcHist),
-            DuplicationLevelEstimate = dupSampleCount == 0
-                ? 0.0
-                : (double)dupCount / dupSampleCount,
-            DuplicationEstimateSampleSize = dupSampleCount,
-            AdapterContentByPosition = adapterContent,
-            TotalReads = totalReads,
-            TotalBases = totalBases
+            var (_, byteCount) = await writer.Write(writeBatch, cancellationToken).ConfigureAwait(false);
+            fastqBytesWritten += byteCount;
+        }
+
+        return new ProcessingResult
+        {
+            QualityReport = accumulator.Build(),
+            TrimStats = cumulative,
+            ReadsWritten = readsWritten,
+            BasesWritten = basesWritten,
+            FastqBytesWritten = fastqBytesWritten
         };
+    }
+
+    private sealed class ReportAccumulator
+    {
+        // Accumulators indexed by cycle
+        private readonly Dictionary<int, double> _qualSums = new();
+        private readonly Dictionary<int, double> _qualSumSq = new();
+        private readonly Dictionary<int, int> _qualCounts = new();
+        private readonly Dictionary<int, double> _qualMins = new();
+        private readonly Dictionary<int, double> _qualMaxs = new();
+
+        // For quartile computation we store per-cycle histograms
+        private readonly Dictionary<int, int[]> _qualHistByCycle = new();
+
+        private readonly Dictionary<int, int> _baseCountsA = new();
+        private readonly Dictionary<int, int> _baseCountsC = new();
+        private readonly Dictionary<int, int> _baseCountsG = new();
+        private readonly Dictionary<int, int> _baseCountsT = new();
+        private readonly Dictionary<int, int> _baseCountsN = new();
+
+        // Per-sequence quality histogram
+        private readonly Dictionary<int, int> _seqQualHist = new();
+
+        // GC content histogram
+        private readonly Dictionary<int, int> _gcHist = new();
+
+        // Adapter content: cycle → count with adapter starting at or after that cycle
+        private readonly Dictionary<int, int> _adapterCounts = new();
+
+        // Duplication estimation: track first DuplicationSampleSize reads
+        private readonly HashSet<string> _seenSeqs = new();
+        private readonly ReadOnlyMemory<char> _adapter;
+        private long _totalReads;
+        private long _totalBases;
+        private int _dupSampleCount;
+        private int _dupCount;
+
+        public ReportAccumulator(string? adapterSequence)
+        {
+            _adapter = adapterSequence?.AsMemory() ?? ReadOnlyMemory<char>.Empty;
+        }
+
+        public void Add(Sequence seq)
+        {
+            _totalReads++;
+            var data = seq.GetData();
+            var quality = seq.GetQuality();
+            var len = data.Length;
+            _totalBases += len;
+
+            // Per-cycle quality and composition
+            AccumulateCycleStats(
+                data.Span, quality.Span,
+                _qualSums, _qualSumSq, _qualCounts, _qualMins, _qualMaxs,
+                _qualHistByCycle,
+                _baseCountsA, _baseCountsC, _baseCountsG, _baseCountsT, _baseCountsN);
+
+            // Per-sequence quality (mean of read)
+            var seqMeanPhred = ComputeMeanPhred(quality.Span);
+            var seqQualBin = (int)Math.Round(seqMeanPhred);
+            _seqQualHist[seqQualBin] = _seqQualHist.GetValueOrDefault(seqQualBin) + 1;
+
+            // GC content
+            var gcPct = ComputeGcPercent(data.Span);
+            _gcHist[gcPct] = _gcHist.GetValueOrDefault(gcPct) + 1;
+
+            // Adapter content
+            if (_adapter.Length > 0)
+            {
+                AccumulateAdapterContent(data.Span, _adapter.Span, _adapterCounts);
+            }
+
+            // Duplication estimation (sample first N reads)
+            if (_dupSampleCount < DuplicationSampleSize)
+            {
+                _dupSampleCount++;
+                var seqKey = new string(data.Span);
+                if (!_seenSeqs.Add(seqKey))
+                {
+                    _dupCount++;
+                }
+            }
+        }
+
+        public FastQReport Build()
+        {
+            if (_totalReads == 0)
+            {
+                return new FastQReport { TotalReads = 0, TotalBases = 0 };
+            }
+
+            // Build per-base quality stats
+            var perBaseQuality = new SortedDictionary<int, CycleQualityStats>();
+            foreach (var (cycle, count) in _qualCounts)
+            {
+                var mean = _qualSums[cycle] / count;
+                var hist = _qualHistByCycle[cycle];
+                var (q1, median, q3) = ComputeQuartiles(hist);
+                perBaseQuality[cycle] = new CycleQualityStats
+                {
+                    Mean = mean,
+                    Median = median,
+                    LowerQuartile = q1,
+                    UpperQuartile = q3,
+                    Min = _qualMins[cycle],
+                    Max = _qualMaxs[cycle]
+                };
+            }
+
+            // Build per-base composition
+            var perBaseComp = new Dictionary<int, CycleComposition>();
+            var allCycles = new HashSet<int>(_baseCountsA.Keys);
+            allCycles.UnionWith(_baseCountsC.Keys);
+            allCycles.UnionWith(_baseCountsG.Keys);
+            allCycles.UnionWith(_baseCountsT.Keys);
+            allCycles.UnionWith(_baseCountsN.Keys);
+            foreach (var cycle in allCycles)
+            {
+                var total = _baseCountsA.GetValueOrDefault(cycle)
+                            + _baseCountsC.GetValueOrDefault(cycle)
+                            + _baseCountsG.GetValueOrDefault(cycle)
+                            + _baseCountsT.GetValueOrDefault(cycle)
+                            + _baseCountsN.GetValueOrDefault(cycle);
+
+                if (total == 0)
+                {
+                    continue;
+                }
+
+                perBaseComp[cycle] = new CycleComposition
+                {
+                    A = 100.0 * _baseCountsA.GetValueOrDefault(cycle) / total,
+                    C = 100.0 * _baseCountsC.GetValueOrDefault(cycle) / total,
+                    G = 100.0 * _baseCountsG.GetValueOrDefault(cycle) / total,
+                    T = 100.0 * _baseCountsT.GetValueOrDefault(cycle) / total,
+                    N = 100.0 * _baseCountsN.GetValueOrDefault(cycle) / total
+                };
+            }
+
+            // Adapter content: convert counts to fractions
+            var adapterContent = new SortedDictionary<int, double>();
+            if (_adapter.Length > 0)
+            {
+                foreach (var (pos, cnt) in _adapterCounts)
+                {
+                    adapterContent[pos] = (double)cnt / _totalReads;
+                }
+            }
+
+            return new FastQReport
+            {
+                PerBaseQuality = perBaseQuality,
+                PerSequenceQualityHistogram = new SortedDictionary<int, int>(_seqQualHist),
+                PerBaseCompositionRaw = perBaseComp,
+                GcContentHistogram = new SortedDictionary<int, int>(_gcHist),
+                DuplicationLevelEstimate = _dupSampleCount == 0
+                    ? 0.0
+                    : (double)_dupCount / _dupSampleCount,
+                DuplicationEstimateSampleSize = _dupSampleCount,
+                AdapterContentByPosition = adapterContent,
+                TotalReads = _totalReads,
+                TotalBases = _totalBases
+            };
+        }
     }
 
     private static void AccumulateCycleStats(
@@ -276,31 +366,11 @@ public static class FastQQualityReport
         ReadOnlySpan<char> adapter,
         Dictionary<int, int> counts)
     {
-        // Scan all positions for an adapter match (full or partial overlap)
         var minOverlap = Math.Max(1, adapter.Length / 2);
-
-        for (var pos = 0; pos <= data.Length - minOverlap; pos++)
+        var pos = AdapterTrimmer.FindAdapterStart(data, adapter, maxMismatches: 0, minOverlap);
+        if (pos >= 0)
         {
-            var overlapLen = Math.Min(adapter.Length, data.Length - pos);
-            if (overlapLen < minOverlap)
-            {
-                break;
-            }
-
-            var match = true;
-            for (var k = 0; k < overlapLen; k++)
-            {
-                if (char.ToUpperInvariant(data[pos + k]) != char.ToUpperInvariant(adapter[k]))
-                {
-                    match = false;
-                    break;
-                }
-            }
-            if (match)
-            {
-                counts[pos] = counts.GetValueOrDefault(pos) + 1;
-                break; // Only record first hit per read
-            }
+            counts[pos] = counts.GetValueOrDefault(pos) + 1;
         }
     }
 

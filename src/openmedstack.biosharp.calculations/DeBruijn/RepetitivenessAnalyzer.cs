@@ -1,3 +1,5 @@
+using OpenMedStack.BioSharp.Model;
+
 namespace OpenMedStack.BioSharp.Calculations.DeBruijn;
 
 using System;

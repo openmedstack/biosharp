@@ -52,7 +52,7 @@ public sealed class AdapterTrimmer
         public TrimStats Stats { get; init; } = new();
     }
 
-    private readonly ReadOnlyMemory<char> _adapter;
+    private readonly char[] _adapter;
     private readonly int _maxMismatches;
     private readonly int _minLength;
 
@@ -72,7 +72,12 @@ public sealed class AdapterTrimmer
             throw new ArgumentException("Adapter sequence must not be empty.", nameof(adapterSequence));
         }
 
-        _adapter = adapterSequence.AsMemory();
+        _adapter = adapterSequence.ToCharArray();
+        for (var i = 0; i < _adapter.Length; i++)
+        {
+            _adapter[i] = ToUpperAscii(_adapter[i]);
+        }
+
         _maxMismatches = maxMismatches;
         _minLength = minLength;
     }
@@ -89,7 +94,7 @@ public sealed class AdapterTrimmer
     {
         var stats = new TrimStats();
         var readSpan = read.GetData().Span;
-        var adapterSpan = _adapter.Span;
+        var adapterSpan = _adapter.AsSpan();
 
         var trimPos = FindAdapterStart(readSpan, adapterSpan, _maxMismatches);
 
@@ -145,17 +150,27 @@ public sealed class AdapterTrimmer
     /// (where only the first K bases of the adapter are present). The minimum overlap length
     /// considered is 8 bp (or the adapter length if shorter).
     /// </summary>
-    private static int FindAdapterStart(
+    internal static int FindAdapterStart(
         ReadOnlySpan<char> read,
         ReadOnlySpan<char> adapter,
         int maxMismatches)
+    {
+        return FindAdapterStart(read, adapter, maxMismatches, Math.Min(8, adapter.Length));
+    }
+
+    internal static int FindAdapterStart(
+        ReadOnlySpan<char> read,
+        ReadOnlySpan<char> adapter,
+        int maxMismatches,
+        int minOverlap)
     {
         if (adapter.IsEmpty || read.IsEmpty)
         {
             return -1;
         }
 
-        var minOverlap = Math.Min(8, adapter.Length);
+        minOverlap = Math.Clamp(minOverlap, 1, adapter.Length);
+        var adapterFirst = ToUpperAscii(adapter[0]);
 
         // Scan every possible start position in the read where the adapter could begin.
         // We include positions within the last (adapterLength - minOverlap) bases of the read
@@ -164,6 +179,13 @@ public sealed class AdapterTrimmer
 
         for (var pos = 0; pos < searchEnd; pos++)
         {
+            // The first-character shortcut is only valid when no mismatches are allowed;
+            // with mismatches the first adapter base itself may differ from the read.
+            if (maxMismatches == 0 && ToUpperAscii(read[pos]) != adapterFirst)
+            {
+                continue;
+            }
+
             var remainingRead = read.Length - pos;
             var matchLen = Math.Min(remainingRead, adapter.Length);
 
@@ -172,10 +194,7 @@ public sealed class AdapterTrimmer
                 break; // overlap too short to be meaningful
             }
 
-            var readSlice = read.Slice(pos, matchLen);
-            var adapterSlice = adapter[..matchLen];
-
-            var mismatches = CountMismatches(readSlice, adapterSlice);
+            var mismatches = CountMismatchesUpTo(read.Slice(pos, matchLen), adapter[..matchLen], maxMismatches);
             if (mismatches <= maxMismatches)
             {
                 return pos;
@@ -186,16 +205,21 @@ public sealed class AdapterTrimmer
     }
 
     /// <summary>Counts the number of mismatching positions between two equal-length spans.</summary>
-    private static int CountMismatches(ReadOnlySpan<char> a, ReadOnlySpan<char> b)
+    private static int CountMismatchesUpTo(ReadOnlySpan<char> a, ReadOnlySpan<char> b, int maxMismatches)
     {
         var count = 0;
         for (var i = 0; i < a.Length; i++)
         {
-            if (char.ToUpperInvariant(a[i]) != char.ToUpperInvariant(b[i]))
+            if (ToUpperAscii(a[i]) != ToUpperAscii(b[i]) && ++count > maxMismatches)
             {
-                count++;
+                return count;
             }
         }
         return count;
+    }
+
+    private static char ToUpperAscii(char value)
+    {
+        return value is >= 'a' and <= 'z' ? (char)(value - 32) : value;
     }
 }

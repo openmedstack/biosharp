@@ -4,6 +4,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenMedStack.BioSharp.Calculations.Alignment;
+using OpenMedStack.BioSharp.Model.Alignment;
 using Xunit;
 
 namespace OpenMedStack.BioSharp.Calculations.Tests;

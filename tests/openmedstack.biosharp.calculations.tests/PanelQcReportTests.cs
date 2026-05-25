@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using OpenMedStack.BioSharp.Calculations.Alignment;
 using OpenMedStack.BioSharp.Io.Sam;
 using OpenMedStack.BioSharp.Model;
+using OpenMedStack.BioSharp.Model.Alignment;
 using Xunit;
 
 namespace OpenMedStack.BioSharp.Calculations.Tests;

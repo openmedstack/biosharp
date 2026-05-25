@@ -1,3 +1,5 @@
+using OpenMedStack.BioSharp.Model.Alignment;
+
 namespace OpenMedStack.BioSharp.Benchmarks;
 
 using System;
@@ -12,6 +14,8 @@ using OpenMedStack.BioSharp.Model;
 [MemoryDiagnoser]
 public class PipelineBenchmarks
 {
+    private const int ThreadCount = 10;
+
     private string _plainFastqPath = null!;
     private string _gzipFastqPath = null!;
     private Sequence _reference = null!;
@@ -53,15 +57,22 @@ public class PipelineBenchmarks
             clippedRead.AsMemory(),
             new string('I', clippedRead.Length).AsMemory());
         _softClippedAlignment =
-            new AlignmentResult(target, target, new string('|', target.Length), 42, 1024, 24, 0, false);
+            new AlignmentResult(target, target, new string('|', target.Length), 42, 1024, 24);
         _realigner = new ReadRealigner();
     }
 
     [GlobalCleanup]
     public void Cleanup()
     {
-        if (File.Exists(_plainFastqPath)) File.Delete(_plainFastqPath);
-        if (File.Exists(_gzipFastqPath)) File.Delete(_gzipFastqPath);
+        if (File.Exists(_plainFastqPath))
+        {
+            File.Delete(_plainFastqPath);
+        }
+
+        if (File.Exists(_gzipFastqPath))
+        {
+            File.Delete(_gzipFastqPath);
+        }
     }
 
     [Benchmark]
@@ -74,7 +85,7 @@ public class PipelineBenchmarks
     [Benchmark]
     public async Task<bool> StreamGzipFastQParallel()
     {
-        var pipeline = CreatePipeline(Environment.ProcessorCount > 1 ? 2 : 1);
+        var pipeline = CreatePipeline(ThreadCount);
         return await pipeline.LoadFastQ(_gzipFastqPath).ConfigureAwait(false);
     }
 
@@ -95,7 +106,9 @@ public class PipelineBenchmarks
             MinAlignmentScore = 10,
             EnableSoftClipRealignment = false,
             EnableGraphSvDetection = false,
-            DegreeOfParallelism = degreeOfParallelism
+            DegreeOfParallelism = degreeOfParallelism,
+            CandidateAlignmentDegreeOfParallelism = degreeOfParallelism,
+            ParallelCandidateWindowThreshold = 1
         });
     }
 }

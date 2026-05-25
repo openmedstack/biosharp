@@ -1,4 +1,4 @@
-using OpenMedStack.BioSharp.Calculations.Report;
+using OpenMedStack.BioSharp.Model.Report;
 
 namespace OpenMedStack.BioSharp.AcceptanceTests.StepDefinitions;
 

@@ -204,6 +204,7 @@ public partial class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
 
         var isGzip = Path.GetExtension(filePath).Equals(".gz", StringComparison.OrdinalIgnoreCase);
         var isBgzf = Path.GetExtension(filePath).Equals(".bgzf", StringComparison.OrdinalIgnoreCase);
+        var isCompressed = isGzip || isBgzf;
         var sourceFile = File.Open(
             filePath,
             new FileStreamOptions
@@ -213,9 +214,19 @@ public partial class BclReader : IAsyncDisposable, IAsyncEnumerable<ReadData[]>
                 Options = FileOptions.Asynchronous | FileOptions.SequentialScan,
                 Share = FileShare.Read
             });
+        if (!isCompressed)
+        {
+            sourceFile.Seek((long)offset.BlockAddress + offset.BlockOffset, SeekOrigin.Begin);
+            return sourceFile;
+        }
+
         sourceFile.Seek((long)offset.BlockAddress, SeekOrigin.Begin);
-        /*await using*/
-        Stream stream = isGzip || isBgzf ? new GZipStream(sourceFile, CompressionMode.Decompress) : sourceFile;
+        Stream stream = new GZipStream(sourceFile, CompressionMode.Decompress);
+
+        if (offset.BlockOffset == 0)
+        {
+            return stream;
+        }
 
         var arrayPool = ArrayPool<byte>.Shared;
         var discard = arrayPool.Rent(offset.BlockOffset);

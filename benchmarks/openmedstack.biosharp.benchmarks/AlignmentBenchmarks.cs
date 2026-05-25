@@ -1,4 +1,5 @@
 using System;
+using OpenMedStack.BioSharp.Model.Alignment;
 
 namespace OpenMedStack.BioSharp.Benchmarks;
 
@@ -22,7 +23,7 @@ public class AlignmentBenchmarks
 
     [Params(5, 15, 25, 50)] public int MinGraphCoverage;
 
-    [Params(1, 5, 10)] public int MaxCores;
+    [Params(10)] public int MaxCores;
 
     [GlobalSetup]
     public void Setup()
@@ -58,6 +59,8 @@ public class AlignmentBenchmarks
             EnableSoftClipRealignment = EnableSoftClipRealignment,
             EnableGraphSvDetection = EnableGraphSv,
             DegreeOfParallelism = MaxCores,
+            CandidateAlignmentDegreeOfParallelism = MaxCores,
+            ParallelCandidateWindowThreshold = 1,
         });
     }
 

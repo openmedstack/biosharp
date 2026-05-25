@@ -1,10 +1,12 @@
+using OpenMedStack.BioSharp.Model;
+using OpenMedStack.BioSharp.Model.Alignment;
+
 namespace OpenMedStack.BioSharp.Calculations.DeBruijn;
 
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
-using Alignment;
 
 /// <summary>
 /// Calls copy-number variants (CNVs) from per-position read depth by:

@@ -119,6 +119,71 @@ public partial class BamReader
         }
     }
 
+    /// <summary>
+    /// Streams alignment sections from the BAM file without materializing the complete SAM definition.
+    /// </summary>
+    public async IAsyncEnumerable<AlignmentSection> ReadAlignmentSections(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Start streaming BAM alignments");
+
+        var arrayPool = ArrayPool<byte>.Shared;
+        var buffer = arrayPool.Rent(1024);
+        try
+        {
+            var mem = await _stream.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
+            if (mem.Length != 4 || !mem.Span.SequenceEqual(MagicHeader))
+            {
+                throw new InvalidDataException("Invalid Header");
+            }
+
+            mem = await _stream.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
+
+            var textLength = (int)BitConverter.ToUInt32(mem.Span);
+            if (textLength > buffer.Length)
+            {
+                arrayPool.Return(buffer);
+                buffer = arrayPool.Rent(textLength);
+            }
+
+            await _stream.FillBuffer(buffer.AsMemory(0, textLength), cancellationToken).ConfigureAwait(false);
+            mem = await _stream.FillBuffer(buffer.AsMemory(0, 4), cancellationToken).ConfigureAwait(false);
+
+            var numberOfReferences = BitConverter.ToUInt32(mem.Span);
+            for (var referenceIndex = 0; referenceIndex < numberOfReferences; referenceIndex++)
+            {
+                _ = await ReadReferenceSequence(_stream, buffer, cancellationToken).ConfigureAwait(false);
+            }
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                mem = await _stream.FillBuffer(buffer.AsMemory(0, 4), true, cancellationToken)
+                    .ConfigureAwait(false);
+                if (mem.Length < 4)
+                {
+                    break;
+                }
+
+                var blockSize = (int)BitConverter.ToUInt32(mem.Span);
+                var blockBuffer = arrayPool.Rent(blockSize);
+                try
+                {
+                    var block = await _stream.FillBuffer(blockBuffer.AsMemory(0, blockSize), cancellationToken)
+                        .ConfigureAwait(false);
+                    yield return ProcessBlock(block);
+                }
+                finally
+                {
+                    arrayPool.Return(blockBuffer);
+                }
+            }
+        }
+        finally
+        {
+            arrayPool.Return(buffer);
+        }
+    }
+
     private static (FileMetadata fmd, Program pg, ReadGroup rg, HashSet<ReferenceSequence> refSeqs)
         ReadFileMetadata(string text)
     {

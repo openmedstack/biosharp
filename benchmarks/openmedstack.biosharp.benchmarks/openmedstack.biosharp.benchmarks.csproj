@@ -5,6 +5,8 @@
         <OutputType>Exe</OutputType>
         <RootNamespace>OpenMedStack.BioSharp.Benchmarks</RootNamespace>
         <IsPackable>false</IsPackable>
+        <EnableTrimAnalyzer>false</EnableTrimAnalyzer>
+        <IsTrimmable>false</IsTrimmable>
     </PropertyGroup>
 
     <ItemGroup>

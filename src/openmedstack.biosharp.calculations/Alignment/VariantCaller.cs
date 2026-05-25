@@ -1,3 +1,5 @@
+using OpenMedStack.BioSharp.Model.Alignment;
+
 namespace OpenMedStack.BioSharp.Calculations.Alignment;
 
 using System;
@@ -23,6 +25,11 @@ public static class VariantCaller
         ArgumentNullException.ThrowIfNull(reference);
 
         var refSeq = reference.GetData().Span;
+        if (alignment.AlignedReference.AsSpan().SequenceEqual(alignment.AlignedRead.AsSpan()))
+        {
+            return [];
+        }
+
         var events = ParseAlignmentEvents(alignment);
 
         // Compute homopolymer run lengths for indel events
