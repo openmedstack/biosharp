@@ -1,0 +1,78 @@
+name: Publish Preator
+
+# Triggered when a GitHub Release is published (covers both "create release"
+# in the UI and  gh release create  from the CLI).
+on:
+  release:
+    types: [published]
+
+jobs:
+  publish:
+    name: Publish (${{ matrix.runtime }})
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [osx-arm64, linux-x64, win-x64]
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Sources
+      # -----------------------------------------------------------------------
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # -----------------------------------------------------------------------
+      # 2. .NET SDK
+      # -----------------------------------------------------------------------
+      - name: Set up .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      # -----------------------------------------------------------------------
+      # 3. Publish — self-contained, trimmed, single-file, native libs bundled
+      #    for self-extract, with maximum compiler optimisations.
+      # -----------------------------------------------------------------------
+      - name: Publish preator (${{ matrix.runtime }})
+        run: |
+          dotnet publish \
+            src/openmedstack.preator/openmedstack.preator.csproj \
+            -c Release \
+            -r ${{ matrix.runtime }} \
+            --self-contained true \
+            -p:PublishSingleFile=true \
+            -p:IncludeNativeLibrariesForSelfExtract=true \
+            -p:PublishTrimmed=true \
+            -p:TrimmerRemoveSymbols=true \
+            -p:OptimizationPreference=Speed \
+            -p:DebugType=None \
+            -p:DebugSymbols=false \
+            -p:Optimize=true \
+            -o publish/${{ matrix.runtime }}
+
+      # -----------------------------------------------------------------------
+      # 4. Zip the published output
+      #    The executable is named 'preator' (or 'preator.exe' on Windows).
+      # -----------------------------------------------------------------------
+      - name: Zip published output (${{ matrix.runtime }})
+        run: |
+          cd publish/${{ matrix.runtime }}
+          zip -r ../../preator-${{ matrix.runtime }}-${{ github.ref_name }}.zip .
+          cd ../..
+
+      # -----------------------------------------------------------------------
+      # 5. Attach the zip to the GitHub Release that triggered this workflow.
+      #    GITHUB_TOKEN is automatically provided by GitHub Actions.
+      # -----------------------------------------------------------------------
+      - name: Upload release asset (${{ matrix.runtime }})
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload ${{ github.ref_name }} \
+            preator-${{ matrix.runtime }}-${{ github.ref_name }}.zip \
+            --clobber
+
