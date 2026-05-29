@@ -371,12 +371,16 @@ public static class VariantCaller
     /// </summary>
     public static int GetHomopolymerRun(ReadOnlySpan<char> refSeq, int position)
     {
-        if (refSeq.Length == 0)
+        // Guard against out-of-bounds positions.  absPos can exceed the reference length
+        // when alignment events are counted using alignment-string indices (which include
+        // gap characters) rather than reference-coordinate offsets, so positions at or
+        // beyond the reference end are valid edge cases that should silently return 0.
+        if (refSeq.Length == 0 || position < 0 || position >= refSeq.Length)
         {
             return 0;
         }
 
-        var refBase = DnaEncoding.Normalize(refSeq[Math.Clamp(position, 0, refSeq.Length - 1)]);
+        var refBase = DnaEncoding.Normalize(refSeq[position]);
         if (refBase != 'A' && refBase != 'C' && refBase != 'G' && refBase != 'T')
         {
             return 0;

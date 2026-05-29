@@ -1,0 +1,152 @@
+# BioSharp Equivalency Test Dockerfile
+# Runs the ToolEquivalency acceptance tests to prove that BioSharp produces
+# results equivalent to established external bioinformatics tools (bwa, fastp,
+# fastqc, cutadapt, freebayes, samtools/bcftools) across a range of parameters.
+#
+# NOTE: This image targets linux/amd64 only.  The external tools (bwa-mem2,
+# freebayes, etc.) are not available for ARM64 via Bioconda, and the acceptance
+# tests will skip automatically on any architecture where a required tool is absent.
+#
+# Build:
+#   podman build -f Dockerfile.equivalency -t biosharp-equivalency .
+#
+# Run (same volumes as Dockerfile.benchmark):
+#   podman run --rm \
+#     -v $(pwd)/reports:/app/reports \
+#     -v $(pwd)/data:/app/data:ro \
+#     biosharp-equivalency
+
+# =============================================================================
+# Stage 1: Build the acceptance test project
+# =============================================================================
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
+
+WORKDIR /src
+
+# Copy solution and project files first for better layer caching
+COPY global.json ./
+COPY shared.proj ./
+COPY openmedstack-biosharp.sln ./
+
+# Copy project files to restore dependencies
+COPY src/openmedstack.biosharp.model/openmedstack.biosharp.model.csproj                    src/openmedstack.biosharp.model/
+COPY src/openmedstack.biosharp.io/openmedstack.biosharp.io.csproj                          src/openmedstack.biosharp.io/
+COPY src/openmedstack.biosharp.calculations/openmedstack.biosharp.calculations.csproj      src/openmedstack.biosharp.calculations/
+COPY src/openmedstack.biosharp.annotationdb/openmedstack.biosharp.annotationdb.csproj      src/openmedstack.biosharp.annotationdb/
+COPY src/openmedstack.preator/openmedstack.preator.csproj                                  src/openmedstack.preator/
+COPY tests/openmedstack.biosharp.acceptancetests/openmedstack.biosharp.acceptancetests.csproj \
+     tests/openmedstack.biosharp.acceptancetests/
+
+RUN dotnet restore tests/openmedstack.biosharp.acceptancetests/openmedstack.biosharp.acceptancetests.csproj \
+    -p:EnableTrimAnalyzer=false \
+    -p:IsTrimmable=false \
+    -p:_FirstTargetFrameworkToSupportTrimming=net10.0 \
+    -p:_FirstTargetFrameworkToSupportAot=net10.0 \
+    -p:_FirstTargetFrameworkToSupportSingleFile=net10.0
+
+# Copy full source and build
+COPY src/ src/
+COPY tests/openmedstack.biosharp.acceptancetests/ tests/openmedstack.biosharp.acceptancetests/
+
+RUN dotnet build tests/openmedstack.biosharp.acceptancetests/openmedstack.biosharp.acceptancetests.csproj \
+    -c Release \
+    --no-restore \
+    -p:DebugType=None \
+    -p:DebugSymbols=false \
+    -p:_FirstTargetFrameworkToSupportTrimming=net10.0 \
+    -p:_FirstTargetFrameworkToSupportAot=net10.0 \
+    -p:_FirstTargetFrameworkToSupportSingleFile=net10.0
+
+# =============================================================================
+# Stage 2: Runtime — SDK + bioinformatics tools
+#
+# We need the SDK (not just runtime-deps) in order to run `dotnet test`.
+# The bioinformatics tools are installed via micromamba from Bioconda.
+# =============================================================================
+FROM --platform=linux/amd64 mcr.microsoft.com/dotnet/sdk:10.0-noble AS runtime
+
+# Install base utilities
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    wget \
+    curl \
+    ca-certificates \
+    bzip2 \
+    time \
+    bc \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install micromamba (conda package manager for Bioconda tools)
+ENV MAMBA_ROOT_PREFIX=/opt/conda
+ENV PATH="/opt/conda/bin:$PATH"
+
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then MAMBA_ARCH="linux-64"; \
+    elif [ "$ARCH" = "aarch64" ]; then MAMBA_ARCH="linux-aarch64"; \
+    else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
+    curl -Ls "https://micro.mamba.pm/api/micromamba/${MAMBA_ARCH}/latest" | tar -xvj -C /usr/local bin/micromamba && \
+    /usr/local/bin/micromamba shell init -s bash --root-prefix /opt/conda && \
+    /usr/local/bin/micromamba config append channels conda-forge && \
+    /usr/local/bin/micromamba config append channels bioconda && \
+    /usr/local/bin/micromamba config set channel_priority strict
+
+# Install bioinformatics tools required for equivalency tests
+# bwa / bwa-mem2 : alignment
+# samtools       : BAM manipulation, mpileup
+# bcftools       : variant calling via mpileup
+# freebayes      : variant calling
+# fastp          : FASTQ QC + adapter trimming
+# fastqc         : FASTQ QC (Java-based)
+# cutadapt       : adapter trimming (older conda version; upgraded via pip below)
+RUN /usr/local/bin/micromamba install -y -n base \
+    bwa \
+    bwa-mem2 \
+    samtools \
+    bcftools \
+    freebayes \
+    fastp \
+    fastqc \
+    cutadapt \
+    pip \
+    && /usr/local/bin/micromamba clean --all --yes
+
+# The conda-forge channel may supply an old cutadapt (e.g. 1.11) whose entry-point
+# script uses `pkg_resources.run_script()` — a method removed in modern setuptools.
+# Upgrading via pip installs the current release (4.x) which uses a standard
+# importlib entry point and therefore works with any Python 3.8+ environment.
+RUN /opt/conda/bin/pip install --upgrade --quiet "cutadapt>=4.0" setuptools
+
+# Copy the built test project from the build stage
+WORKDIR /src
+COPY --from=build /src/src/ src/
+COPY --from=build /src/tests/openmedstack.biosharp.acceptancetests/ tests/openmedstack.biosharp.acceptancetests/
+
+# Copy staged Illumina BCL converter binaries.
+# Injected via --build-context tools=<local-staging-path> to avoid macOS xattr issues.
+# These are Linux-x64 only; on other architectures the BCL scenarios skip automatically.
+COPY tools/linux-x64/bcl-convert /usr/local/bin/bcl-convert
+COPY tools/linux-x64/bcl2fastq   /usr/local/bin/bcl2fastq
+RUN chmod +x /usr/local/bin/bcl-convert /usr/local/bin/bcl2fastq
+
+WORKDIR /app
+
+# Data and report volumes (same convention as Dockerfile.benchmark)
+VOLUME ["/app/data"]
+VOLUME ["/app/reports"]
+
+RUN mkdir -p /app/reports /app/reports/test-results
+
+# .NET performance environment variables
+ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
+ENV DOTNET_NOLOGO=1
+ENV DOTNET_gcServer=1
+ENV DOTNET_TieredCompilation=1
+ENV DOTNET_TieredPGO=1
+
+# Report output path consumed by the ToolEquivalencyHooks [AfterTestRun] hook
+ENV BIOSHARP_EQUIV_REPORT_PATH=/app/reports/equivalency-report.md
+
+# Copy and enable entrypoint script
+COPY run-equivalency.sh /app/run-equivalency.sh
+RUN chmod +x /app/run-equivalency.sh
+
+ENTRYPOINT ["/bin/bash", "/app/run-equivalency.sh"]

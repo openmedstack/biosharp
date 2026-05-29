@@ -6,10 +6,37 @@
   `ValueTask`, or `ValueTask<T>`). Exception: keep the suffix only when it disambiguates an
   overload of a non-async method, or when implementing/overriding an interface/base-class
   member that already has the suffix.
+- **Docker rebuilds**: Never run `docker build` yourself. When a rebuild is needed, tell the user
+  and ask them to run the build script. They will provide the resulting image tag.
 
 ## Active Tasks
 
-None.
+### 29. Fix intermittent alignment test failure — DONE
+
+**Symptom**: `BioSharp HashMap alignment produces equivalent mapped-read count to bwa-mem2` failed intermittently (1 in ~4 runs) with `System.IndexOutOfRangeException: Index was outside the bounds of the array` in `VariantCaller.GetHomopolymerRun`.
+
+**Root cause**: In `VariantCaller.CallVariants`, `absPos = alignment.ReferenceStartPosition + evt.Position` where `evt.Position` is an alignment-string index (includes gap characters) rather than a reference-coordinate offset. When an indel event falls near the end of the reference, `absPos` can exceed `refSeq.Length - 1`. The old `GetHomopolymerRun` only clamped for the initial base lookup but not for the backward-scan loop entry (`var start = position; while (start > 0 && refSeq[start - 1] == refBase)`), which accessed `refSeq[absPos - 1]` — out of bounds.
+
+**Fix**: Added `if (position < 0 || position >= refSeq.Length) return 0;` guard at the top of `GetHomopolymerRun`. Removed the now-unnecessary `Math.Clamp` on the initial base lookup.
+
+**File changed**: `src/openmedstack.biosharp.calculations/Alignment/VariantCaller.cs`
+
+**New image**: `equivalency:1952` — 17/17 runs pass.
+
+### 28. Fix equivalency container — DONE
+
+All 34 equivalency tests pass (image `equivalency:1942`).
+
+**Root causes fixed across multiple iterations**:
+1. `dotnet test --no-build` with xUnit.v3 3.x runs 0 tests → switched to `dotnet <dll>` native runner.
+2. `ExternalToolRunner.Shell` wrapped command in outer quotes → fixed to use `ProcessStartInfo.ArgumentList`.
+3. BCL conversion tests: `--bcl-validation-stringency none` is not a valid flag in bcl-convert 4.0.3 → removed.
+4. BCL conversion tests: `--no-lane-splitting true` is not a valid flag in bcl-convert 4.0.3 → removed.
+
+**Files changed**:
+- `run-equivalency.sh`
+- `tests/openmedstack.biosharp.acceptancetests/ExternalToolRunner.cs`
+- `tests/openmedstack.biosharp.acceptancetests/StepDefinitions/ToolEquivalencyStepDefinitions.cs`
 
 ### 27. Parameterize BCL benchmark thread count + use sampledata — DONE
 
@@ -311,36 +338,36 @@ Added focused BenchmarkDotNet comparisons for FASTQ QC/trimming, coverage/depth,
 
 Found that the same benchmark-integrity issue present in the BCL benchmark also existed in the other head-to-head classes.
 
-**Environment audit:**
+**Environment audit**:
 - `bwa` → not installed
 - `bwa-mem2` → not installed
 - `freebayes` → not installed
 - `samtools` → installed at `/opt/homebrew/bin/samtools`
 - `bcftools` → not installed
 
-**Issues found in `AlignmentHeadToHeadBenchmarks`:**
+**Issues found in `AlignmentHeadToHeadBenchmarks`**:
 - External benchmarks returned `0` when `bwa` / `bwa-mem2` were missing → bogus near-zero timing risk
 - External benchmarks returned process exit code instead of a comparable work result
 - BioSharp pipeline benchmarks reused the same mutable `VariantCallingPipeline` across iterations, allowing state accumulation between benchmark invocations
 
-**Fixes applied in `AlignmentHeadToHeadBenchmarks.cs`:**
+**Fixes applied in `AlignmentHeadToHeadBenchmarks.cs`**:
 - External `bwa` / `bwa-mem2` benchmarks now throw when the tool is missing instead of returning `0`
 - External alignment benchmarks now write SAM output to a temp file and return **mapped read count**, not exit code
 - Added SAM parsing helper that counts mapped records (`flag & 0x4 == 0`)
 - BioSharp pipeline benchmarks now create a **fresh pipeline per benchmark invocation**
 - BioSharp pipeline benchmarks now return `BuildResult().Metrics.ReadsMapped`
 
-**Validation:**
+**Validation**:
 - `dotnet run -c Release -- --filter '*AlignmentHeadToHeadBenchmarks.BioSharp_Pipeline_HashMap*'` succeeded
 
-**Issues found in `VariantCallingHeadToHeadBenchmarks`:**
+**Issues found in `VariantCallingHeadToHeadBenchmarks`**:
 - External benchmarks returned `0` when tools were missing → bogus near-zero timing risk
 - External benchmarks returned process exit code instead of a comparable work result
 - BioSharp benchmark methods reused the same mutable pipeline instance across methods/iterations
 - `BioSharp_VariantCalling_WithSV_FromBam()` reused the shared non-SV pipeline, so its configured SV settings were not actually applied
 - Fixed repo-root resolution broke under BenchmarkDotNet generated job directories, so the benchmark failed to find `data/small_test_sorted.bam` even though it exists in the workspace
 
-**Fixes applied in `VariantCallingHeadToHeadBenchmarks.cs`:**
+**Fixes applied in `VariantCallingHeadToHeadBenchmarks.cs`**:
 - External `freebayes` and `samtools|bcftools` benchmarks now throw when required tools are missing
 - External variant-calling benchmarks now write VCF output to a temp file and return **variant record count**, not exit code
 - BioSharp methods now create a **fresh pipeline per benchmark invocation**
@@ -349,15 +376,15 @@ Found that the same benchmark-integrity issue present in the BCL benchmark also 
 - Synthetic BAM fallback uses `bwa mem -t 10` if it has to build the shared BAM
 - Setup now throws if no shared BAM can be prepared, instead of allowing benchmark methods to measure nothing
 
-**Validation:**
+**Validation**:
 - `dotnet run -c Release -- --filter '*VariantCallingHeadToHeadBenchmarks.BioSharp_VariantCalling_HashMap_FromBam*'` succeeded after repo-root fix
 
-**Docs updated:**
+**Docs updated**:
 - `benchmarks/openmedstack.biosharp.benchmarks/README.md`
 - `benchmarks/README.md`
 - now document that external head-to-head methods fail fast when required tools are missing
 
-**Final state:**
+**Final state**:
 - `dotnet build -c Release` for benchmark project → success, 0 warnings, 0 errors
 - Conclusion: the suspicious short-circuit / bogus-fast issue was **also present** in the alignment and variant-calling head-to-head benchmarks, but has now been fixed.
 
@@ -405,7 +432,7 @@ Validation run completed:
 
 Extended the benchmark harness so full lab runs can be split into smaller focused runs and merged afterward.
 
-**New capability:**
+**New capability**:
 - Added `merge-report` command in `benchmarks/openmedstack.biosharp.benchmarks/Program.cs`
 - Added `BenchmarkComparisonReportPostProcessor.cs`
   - reads `BenchmarkDotNet.Artifacts/results/*-report.csv`
@@ -415,11 +442,11 @@ Extended the benchmark harness so full lab runs can be split into smaller focuse
   - marks missing/not-yet-run benchmark methods per benchmark class
   - marks external benchmarks as unavailable when required tools are absent on the current machine
 
-**Outputs:**
+**Outputs**:
 - `BenchmarkDotNet.Artifacts/results/benchmark-comparison-report.md`
 - `BenchmarkDotNet.Artifacts/results/benchmark-comparison-summary.csv`
 
-**10-thread lab updates:**
+**10-thread lab updates**:
 - `AlignmentHeadToHeadBenchmarks`
   - BioSharp direct alignment loops now use `Parallel.ForEach(... MaxDegreeOfParallelism = 10)`
   - BioSharp pipeline benchmarks use `DegreeOfParallelism = 10`
@@ -437,11 +464,11 @@ Extended the benchmark harness so full lab runs can be split into smaller focuse
   - parallel FASTQ benchmark now uses 10 threads
   - candidate alignment parallelism enabled
 
-**Project configuration:**
+**Project configuration**:
 - `openmedstack.biosharp.benchmarks.csproj`
   - disables trim analysis for the benchmark executable because the merger intentionally uses reflection and this is not a trim-targeted shipping artifact
 
-**Validation completed:**
+**Validation completed**:
 - `dotnet build -c Release` → success, 0 warnings, 0 errors
 - `dotnet run -c Release -- merge-report` → generated merged markdown + CSV report successfully
 - `dotnet run -c Release -- --filter '*AlignmentHeadToHeadBenchmarks.BioSharp_HashMap_AlignReads*'` → updated 10-thread benchmark executed successfully
@@ -450,7 +477,7 @@ Extended the benchmark harness so full lab runs can be split into smaller focuse
 
 Delivered a full comparison harness in `benchmarks/openmedstack.biosharp.benchmarks/`:
 
-- **New benchmark classes:**
+- **New benchmark classes**:
   - `SeederComparisonBenchmarks.cs`
     - `ReferenceIndex` vs `FmIndexSeeder`
     - build time + candidate-window lookup
@@ -477,17 +504,17 @@ Delivered a full comparison harness in `benchmarks/openmedstack.biosharp.benchma
     - 75/150 bp reads vs 200/500/2000 bp windows
     - banded vs unbanded DP
 
-- **New helper:**
+- **New helper**:
   - `ExternalProcess.cs` — subprocess wrapper for `bwa`, `bwa-mem2`, `freebayes`, `samtools`, `bcftools`, `bcl2fastq`
 
-- **Docs added/updated:**
+- **Docs added/updated**:
   - `benchmarks/openmedstack.biosharp.benchmarks/README.md`
   - `benchmarks/README.md`
 
-- **Assembly visibility:**
+- **Assembly visibility**:
   - added `InternalsVisibleTo("openmedstack.biosharp.benchmarks")` in `src/openmedstack.biosharp.io/AssemblyInfo.cs`
 
-- **Validation completed:**
+- **Validation completed**:
   - `dotnet build -c Release` for benchmark project → success, 0 warnings, 0 errors
   - `dotnet run -c Release -- --filter '*FmIndexOperationBenchmarks*'` → BenchmarkDotNet run succeeded, reports exported
   - `dotnet run -c Release -- --list flat` confirms all new benchmark classes are discoverable
@@ -508,7 +535,7 @@ Fixed all 20 issues identified in `tool_comparison_review.md`:
 
 ### 6. Implement BWT/FM-index alignment pipeline (comparable to BWA) — DONE
 
-**New files created:**
+**New files created**:
 - `src/openmedstack.biosharp.calculations/BurrowsWheeler/FmIndex.cs` — core FM-index:
   - SA construction via prefix doubling with counting sort (O(n log n))
   - BWT derivation, C-array, sampled Occ table (every 64 rows)
@@ -523,12 +550,12 @@ Fixed all 20 issues identified in `tool_comparison_review.md`:
   for hash-map seeder and FM-index seeder
 - `tests/.../FmIndexTests.cs` — 31 unit tests (all passing)
 
-**Modified files:**
+**Modified files**:
 - `BurrowsWheelerTransform.cs` — `Transform()` now uses `FmIndex.BuildSuffixArray` (O(n log n))
 - `ReferenceIndex.cs` — now implements `IReferenceSeeder`
 - `VariantCallingPipeline.cs` — added `Seeder` property (`IReferenceSeeder?`)
 
-**Key bugs fixed during implementation:**
+**Key bugs fixed during implementation**:
 1. Initial counting sort array was sized `AlphabetSize+1` but test text had bytes up to 14 → used 257 slots
 2. Occ table "final partition" was overwriting correct sample-0 value for references shorter than sampleRate → changed to always write to `sLast = len/sampleRate + 1`
 3. Locate formula needed `(saSample[row/SR] + steps) % (n+1)` modulo to handle wrap-around at SA = 0
@@ -540,7 +567,7 @@ Key findings: fasterq-dump is wrong comparison for BCL; FASTX-Toolkit is C not P
 
 ### 4. Fix importer zero-transcript bug — DONE (all importers working)
 
-**Root causes found and fixed:**
+**Root causes found and fixed**:
 
 1. **Ensembl version mismatch** (`TranscriptImportParser.cs`): Ensembl GTF has unversioned
    `transcript_id` (`ENST00000511072`) but FASTA has versioned header (`ENST00000511072.5`).
@@ -608,7 +635,7 @@ files. Exceptions kept with `Async` suffix (legitimate overload disambiguation):
 
 **Status**: In progress
 
-**Issues found:**
+**Issues found**:
 
 1. **`HgvsVariant.Parse`** - Bug: `dot = input.IndexOf('.')` finds first dot in string, 
    which is in description (e.g., the `.` in `c.100A>G`) when no version is present.
@@ -638,11 +665,9 @@ files. Exceptions kept with `Async` suffix (legitimate overload disambiguation):
    - `n.{pos}` — intergenic, no `?` suffix
    Fix: standardize all to `c.{pos}?` or add `?` suffix for parseability
 
-**Files to modify:**
+**Files to modify**:
 - `src/openmedstack.biosharp.model/HgvsVariant.cs`
 - `src/openmedstack.biosharp.model/HgvsDescription.cs`
 - `src/openmedstack.biosharp.model/UncertainPositionDescription.cs`
 - `src/openmedstack.biosharp.calculations/VariantAnnotator.cs`
 - `src/openmedstack.biosharp.calculations/VariantAnnotationEngine.cs`
-
-

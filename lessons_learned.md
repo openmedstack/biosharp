@@ -1,5 +1,44 @@
 # Lessons Learned
 
+## `GetHomopolymerRun`: always bounds-check before traversal, not just at lookup
+
+In `VariantCaller.GetHomopolymerRun(ReadOnlySpan<char> refSeq, int position)`, the original code clamped `position` only for the initial base lookup:
+
+```csharp
+var refBase = DnaEncoding.Normalize(refSeq[Math.Clamp(position, 0, refSeq.Length - 1)]);
+// ...
+var start = position;  // not clamped!
+while (start > 0 && refSeq[start - 1] == refBase) start--;  // IndexOutOfRangeException when position > refSeq.Length!
+```
+
+When `absPos = alignment.ReferenceStartPosition + evt.Position` uses an alignment-string index (which includes gap characters) for `evt.Position`, the computed absolute position can exceed the reference length. This triggered an intermittent `IndexOutOfRangeException` in the backwards-scan loop.
+
+**Fix**: Add `if (position < 0 || position >= refSeq.Length) return 0;` at the top of `GetHomopolymerRun` — returning 0 is correct because out-of-bounds events cannot be in a homopolymer context.
+
+**Pattern**: Any bounds-guarded traversal loop must clamp/guard the **loop variable initialisation** as well as the bounds check. A `Math.Clamp` on a read-only lookup does not protect later mutable traversal variables initialised from the same unclamped input.
+
+## bcl-convert 4.0.3: valid CLI flags
+
+`bcl-convert` 4.0.3 does **not** have a `--bcl-validation-stringency` flag. Passing any
+unrecognised flag causes bcl-convert to print its full help text and exit with code 1
+(which looks identical to a runtime failure). Always verify flags against `bcl-convert --help`
+for the exact version in use. The valid flags as of 4.0.3 are:
+
+```
+--output-directory, -f/--force, --bcl-input-directory, --sample-sheet,
+--bcl-only-lane, --strict-mode, --first-tile-only, --tiles, --exclude-tiles,
+--bcl-sampleproject-subdirectories, --sample-name-column-enabled,
+--fastq-gzip-compression-level, --shared-thread-odirect-output,
+--bcl-num-parallel-tiles, --bcl-num-conversion-threads,
+--bcl-num-compression-threads
+```
+
+**`--no-lane-splitting`** and **`--bcl-validation-stringency`** are NOT in bcl-convert 4.0.3.
+Passing either causes bcl-convert to print its help and exit 1 — which looks identical
+to a normal runtime failure. When debugging bcl-convert, always increase the error
+snippet size to expose the full STDERR, including any Boost.ProgramOptions error message
+that appears before the version header.
+
 ## Illumina BCL run folder: per-tile vs. per-lane filter files
 
 `bcl-convert` and `bcl2fastq` both require **per-tile** filter files named
@@ -733,3 +772,33 @@ public async Task<int> BioSharp_Decode()
 **Result**: each benchmark row in the CSV gets either `Measured` or `Failed` with its own
 specific error message, and unrelated tools continue running.
 
+## Docker NETSDK1064: local obj/ directories overwriting container restore artifacts
+
+**Problem**: `dotnet build --no-restore` fails inside Docker with:
+```
+error NETSDK1064: Package <name>, version <x> was not found.
+It might have been deleted since NuGet restore. Otherwise, NuGet restore might have
+only partially completed, which might have been due to maximum path length restrictions.
+```
+
+**Root cause**: The standard .NET Docker pattern is:
+1. `COPY *.csproj` → `dotnet restore` (creates `obj/project.assets.json` in container)
+2. `COPY src/ src/` → `dotnet build --no-restore`
+
+Without a `.dockerignore`, step 2 copies local `**/obj/` directories from the developer
+machine into the container, **overwriting** the `project.assets.json` produced by step 1.
+The stale local assets file references packages under a different global packages path or a
+different version, so `dotnet build --no-restore` can no longer find the package.
+
+**Fix**: Add a `.dockerignore` that excludes build artefacts:
+```
+**/obj/
+**/bin/
+```
+
+This is standard .NET Docker best practice and should always be present in any .NET project
+that uses multi-stage Docker builds with the restore-then-copy pattern.
+
+**Additional caution**: Be careful not to exclude shell scripts needed as entrypoints
+(e.g. `run-equivalency.sh`). Avoid global wildcard `*.sh` exclusions when the Dockerfile
+copies shell scripts into the image.

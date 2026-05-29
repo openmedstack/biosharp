@@ -1,0 +1,42 @@
+## .dockerignore — standard exclusions for .NET Docker builds
+## Prevents local build artefacts from overwriting the restore/build output
+## generated inside the container.  Without this, copying src/ or tests/
+## after `dotnet restore` would replace the container's obj/project.assets.json
+## with a potentially stale local copy, causing NETSDK1064.
+
+# Build artefacts
+**/obj/
+**/bin/
+
+# IDE / OS noise
+**/.vs/
+**/.idea/
+**/.DS_Store
+**/Thumbs.db
+
+# NuGet local caches
+**/*.user
+**/*.suo
+**/.nuget/
+
+# Test / benchmark result artefacts (large; not needed in image)
+BenchmarkDotNet.Artifacts/
+benchmark-results/
+output/
+reports/
+
+# Git
+.git/
+.gitignore
+
+# Docker files themselves (not needed inside the image)
+Dockerfile*
+.dockerignore
+
+# CI / benchmark scripts not needed inside the image
+# (run-equivalency.sh and run-benchmarks.sh ARE needed — do not exclude *.sh globally)
+benchmark-tutorial-comparison.sh
+run-benchmarks.sh
+*.md
+
+
