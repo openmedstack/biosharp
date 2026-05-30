@@ -38,7 +38,10 @@ internal static class Program
             CreateBclCommand(),
             CreateAnalysisCommand(),
             CreateE2ECommand(),
-            CreateAnnotateCommand()
+            CreateAnnotateCommand(),
+            CreateTrimCommand(),
+            CreateQcCommand(),
+            CreateVariantCallCommand()
         };
     }
 
@@ -150,6 +153,74 @@ internal static class Program
         };
 
         command.SetAction(AnnotateCommand.Invoke);
+        return command;
+    }
+
+    private static Command CreateTrimCommand()
+    {
+        var command = new Command("trim", "Trim adapter sequences from FASTQ reads")
+        {
+            PreatorCommandOptions.FastqRequiredOption,
+            PreatorCommandOptions.AdapterOption,
+            PreatorCommandOptions.MinLengthOption,
+            PreatorCommandOptions.MaxMismatchesOption,
+            PreatorCommandOptions.MaxReadsOption,
+            PreatorCommandOptions.OutputOption,
+            PreatorCommandOptions.OutputPrefixOption
+        };
+
+        command.Validators.Add(result =>
+        {
+            if (result.GetValue(PreatorCommandOptions.AdapterOption) is null)
+            {
+                result.AddError("Missing required argument: --adapter");
+            }
+        });
+
+        command.SetAction(TrimCommand.Invoke);
+        return command;
+    }
+
+    private static Command CreateQcCommand()
+    {
+        var command = new Command("qc", "Compute FastQC-equivalent quality metrics from a FASTQ file")
+        {
+            PreatorCommandOptions.FastqRequiredOption,
+            PreatorCommandOptions.AdapterOption,
+            PreatorCommandOptions.MaxReadsOption,
+            PreatorCommandOptions.OutputDirOption,
+            PreatorCommandOptions.OutputPrefixOption
+        };
+
+        command.SetAction(QcCommand.Invoke);
+        return command;
+    }
+
+    private static Command CreateVariantCallCommand()
+    {
+        var command = new Command(
+            "variantcall",
+            "Call variants from a sorted BAM file against a reference (equivalent to freebayes / bcftools call)")
+        {
+            PreatorCommandOptions.BamOption,
+            PreatorCommandOptions.ReferenceOption,
+            PreatorCommandOptions.ReferenceIdContainsOption,
+            PreatorCommandOptions.ChromosomeOption,
+            PreatorCommandOptions.OutputOption,
+            PreatorCommandOptions.OutputPrefixOption,
+            PreatorCommandOptions.MinAlignmentScoreOption,
+            PreatorCommandOptions.MinVariantQualityOption,
+            PreatorCommandOptions.MinAlternateObservationCountOption,
+            PreatorCommandOptions.MinAlternateFractionOption,
+            PreatorCommandOptions.DisableSoftclipRealignOption,
+            PreatorCommandOptions.EnableGraphSvOption,
+            PreatorCommandOptions.KmerSizeOption,
+            PreatorCommandOptions.MinGraphCoverageOption,
+            PreatorCommandOptions.GraphWindowBpOption,
+            PreatorCommandOptions.MaxCoresOption
+        };
+
+        command.SetAction(VariantCallCommand.Invoke);
         return command;
     }
 }

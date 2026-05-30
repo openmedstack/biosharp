@@ -12,6 +12,7 @@ using OpenMedStack.BioSharp.Calculations.Alignment;
 using OpenMedStack.BioSharp.Model;
 
 [MemoryDiagnoser]
+[MarkdownExporterAttribute.GitHub]
 public class PipelineBenchmarks
 {
     private const int ThreadCount = 10;

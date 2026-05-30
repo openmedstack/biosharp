@@ -11,6 +11,54 @@
 
 ## Active Tasks
 
+### 31. Add published preator subprocess benchmarks — DONE
+
+Added `PreatorPublisher.cs` and preator subprocess benchmark methods to all four head-to-head benchmark classes so the compiled/published preator binary is measured alongside in-process BioSharp and external tools.
+
+**New file**: `benchmarks/openmedstack.biosharp.benchmarks/PreatorPublisher.cs`
+- Static class with double-checked lazy publish (runs `dotnet publish -c Release --self-contained false /p:PublishTrimmed=false`)
+- Caches the path to `preator.dll` in the publish output directory
+- Callers invoke via `ExternalProcess.Run("dotnet", $"\"{dll}\" <args>")`
+- `FindRepoRoot()` walks parent directories from `AppContext.BaseDirectory` / `CWD`, stopping when `openmedstack-biosharp.sln` + `data/` are found
+
+**Modified files** (all add `_preatorDll` + `_preatorPublishError` fields populated in `[GlobalSetup]` via `PreatorPublisher.GetPreatorDll()`):
+
+1. `ComparisonHeadToHeadBenchmarks.cs` (`FastqProcessingHeadToHeadBenchmarks`):
+   - `Preator_Qc_Subprocess()` → `preator qc --fastq ... --adapter ... --output-dir ...`
+   - `Preator_Trim_Subprocess()` → `preator trim --fastq ... --adapter ... --min-length 20 --max-mismatches 2 --output ...`
+
+2. `BclHeadToHeadBenchmarks.cs` (`BclHeadToHeadBenchmarks`):
+   - `Preator_Bcl_Subprocess()` → `preator bcl --input ... --output ... --readstructure "26T8B98T"`
+
+3. `VariantCallingHeadToHeadBenchmarks.cs` (`VariantCallingHeadToHeadBenchmarks`):
+   - `Preator_VariantCall_Subprocess()` → `preator variantcall --bam ... --reference ... --output ... --min-alignment-score 20 --min-alternate-fraction 0.15 --min-alternate-observation-count 2 -p 10`
+
+4. `AlignmentHeadToHeadBenchmarks.cs` (`AlignmentHeadToHeadBenchmarks`):
+   - `Preator_Analysis_Subprocess()` → `preator analysis --reference ... --fastq ... --chromosome chrSynth --output ... -p 10`
+   - Also added `using System.Linq;` (was missing, caused CS1929 error on `.Count(...)`)
+
+### 30. Add trim, qc, and variantcall commands to preator — DONE
+
+Added three new commands to `openmedstack.preator` that mirror external bioinformatics tools:
+
+- **`trim`** (`TrimCommand.cs`) — Adapter trimming equivalent to `fastp`/`cutadapt`.
+  Options: `--fastq` (required), `--adapter` (required), `--min-length` (default: 20), `--max-mismatches` (default: 2), `--max-reads`, `--output`, `--output-prefix`.
+  Output: trimmed `.fastq.gz`, index file, `.trim-summary.json`.
+  Uses `AdapterTrimmer` + `FastQQualityReport.ComputeTrimAndWrite`.
+
+- **`qc`** (`QcCommand.cs`) — FastQC-equivalent quality metrics.
+  Options: `--fastq` (required), `--adapter` (optional), `--max-reads`, `--output-dir`, `--output-prefix`.
+  Output: `.json` (full `FastQReport`), `.summary.txt` (per-cycle TSV).
+  Uses `FastQQualityReport.Compute`.
+
+- **`variantcall`** (`VariantCallCommand.cs`) — BAM-based variant calling equivalent to `freebayes`/`bcftools call`.
+  Options: `--bam` (required), `--reference` (required), + all variant-quality options.
+  Output: `.vcf`, `.tsv`, `.summary.txt`.
+  Uses `VariantCallingPipeline.LoadBam`.
+
+New supporting files: `TrimOptions.cs`, `QcOptions.cs`, `VariantCallOptions.cs`, `TrimSummary.cs`, `PreatorJsonContext.cs`.
+New options added to `PreatorCommandOptions.cs`: `FastqRequiredOption`, `AdapterOption`, `MinLengthOption`, `MaxMismatchesOption`, `BamOption`.
+
 ### 29. Fix intermittent alignment test failure — DONE
 
 **Symptom**: `BioSharp HashMap alignment produces equivalent mapped-read count to bwa-mem2` failed intermittently (1 in ~4 runs) with `System.IndexOutOfRangeException: Index was outside the bounds of the array` in `VariantCaller.GetHomopolymerRun`.

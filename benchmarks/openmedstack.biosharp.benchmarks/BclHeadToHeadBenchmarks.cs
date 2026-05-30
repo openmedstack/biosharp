@@ -36,6 +36,7 @@ using OpenMedStack.BioSharp.Model.Bcl;
 /// can be observed directly in the benchmark results table.
 /// </summary>
 [MemoryDiagnoser]
+[MarkdownExporterAttribute.GitHub]
 [SimpleJob(RuntimeMoniker.Net10_0, warmupCount: 3, iterationCount: 10)]
 public class BclHeadToHeadBenchmarks
 {
@@ -62,6 +63,8 @@ public class BclHeadToHeadBenchmarks
     private string?  _bioSharpSetupError;
     private string?  _bclConvertSetupError;
     private string?  _bcl2FastqSetupError;
+    private string?  _preatorDll;
+    private string?  _preatorPublishError;
 
     /// <summary>
     /// Number of threads passed to each BCL conversion tool.
@@ -86,6 +89,10 @@ public class BclHeadToHeadBenchmarks
 
         _bclConvertAvailable = ExternalProcess.IsAvailable("bcl-convert");
         _bcl2FastqAvailable  = ExternalProcess.IsAvailable("bcl2fastq");
+
+        // Publish the preator binary once (shared across benchmark classes in this process).
+        _preatorDll = PreatorPublisher.GetPreatorDll();
+        _preatorPublishError = PreatorPublisher.GetPublishError();
 
         // Build the cycle-file list for the single-tile BioSharp reader (lane 1, tile 1101).
         var baseCallsLane1 = Path.Combine(_bclRunDir, "Data", "Intensities", "BaseCalls", "L001");
@@ -321,6 +328,56 @@ public class BclHeadToHeadBenchmarks
     }
 
     // ── BCL throughput metric benchmark ─────────────────────────────────────
+
+    /// <summary>
+    /// preator (compiled subprocess): run <c>preator bcl</c> on the same sampledata run folder.
+    /// Uses the published, pre-compiled preator binary so process start, .NET runtime load, BCL
+    /// parsing, and FASTQ writing are all included — directly comparable to bcl-convert/bcl2fastq.
+    /// </summary>
+    [Benchmark(Description = "preator-bcl (subprocess)")]
+    [BenchmarkCategory("BCL", "Preator", "DiskIO", "Comparable")]
+    public long Preator_Bcl_Subprocess()
+    {
+        if (_preatorDll == null)
+        {
+            throw new InvalidOperationException(
+                $"preator binary is not available: {_preatorPublishError}");
+        }
+
+        var outDir = Path.Combine(_bclOutputDir, $"preator_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(outDir);
+        try
+        {
+            var exit = ExternalProcess.Run(
+                "dotnet",
+                $"\"{_preatorDll}\" bcl --input \"{_bclRunDir}\" --output \"{outDir}\" --readstructure \"{SampleDataReadStructure}\"",
+                _tempDir,
+                300_000);
+            if (exit != 0)
+            {
+                throw new InvalidOperationException($"preator bcl exited with code {exit}.");
+            }
+
+            var summary = SummarizeFastqDirectory(outDir);
+            if (summary.FastqFileCount == 0 || summary.ReadCount == 0)
+            {
+                throw new InvalidOperationException(
+                    "preator bcl completed but produced no FASTQ reads. " +
+                    "The benchmark would not be apples-to-apples.");
+            }
+
+            return summary.TotalCompressedBytes;
+        }
+        finally
+        {
+            if (Directory.Exists(outDir))
+            {
+                Directory.Delete(outDir, recursive: true);
+            }
+        }
+    }
+
+
 
     /// <summary>
     /// Measures cluster throughput (clusters / second) for BioSharp BCL decoding.

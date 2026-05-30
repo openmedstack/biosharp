@@ -4,6 +4,7 @@ using System;
 using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 
 /// <summary>
 /// Helpers for invoking external bioinformatics CLI tools (bwa, freebayes, samtools, bcl-convert)
@@ -103,6 +104,46 @@ public static class ExternalProcess
         }
 
         return p.ExitCode;
+    }
+
+    /// <summary>
+    /// Same as <see cref="Run"/> but captures stderr and returns it alongside the exit code.
+    /// Useful for publish / build steps where the error output aids diagnostics.
+    /// </summary>
+    public static (int ExitCode, string Stderr) RunCapture(
+        string executable,
+        string arguments,
+        string? workingDirectory = null,
+        int timeoutMs = 120_000)
+    {
+        var psi = new ProcessStartInfo(executable, arguments)
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError  = true,
+            UseShellExecute        = false,
+            CreateNoWindow         = true
+        };
+
+        if (!string.IsNullOrEmpty(workingDirectory))
+        {
+            psi.WorkingDirectory = workingDirectory;
+        }
+
+        var sb = new StringBuilder();
+        using var p = Process.Start(psi)
+            ?? throw new InvalidOperationException($"Failed to start {executable}");
+        p.OutputDataReceived += (_, _) => { };
+        p.ErrorDataReceived  += (_, e) => { if (e.Data != null) sb.AppendLine(e.Data); };
+        p.BeginOutputReadLine();
+        p.BeginErrorReadLine();
+
+        if (!p.WaitForExit(timeoutMs))
+        {
+            p.Kill(entireProcessTree: true);
+            throw new TimeoutException($"{executable} did not complete within {timeoutMs} ms");
+        }
+
+        return (p.ExitCode, sb.ToString());
     }
 
     /// <summary>

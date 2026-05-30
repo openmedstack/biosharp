@@ -1,9 +1,11 @@
+using BenchmarkDotNet.Exporters;
 using OpenMedStack.BioSharp.Model.Alignment;
 
 namespace OpenMedStack.BioSharp.Benchmarks;
 
 using System;
 using System.IO;
+using System.Linq;
 using System.Globalization;
 using System.Threading;
 using System.Threading.Tasks;
@@ -40,6 +42,7 @@ using OpenMedStack.BioSharp.Model;
 ///                         not having that overhead in a longer pipeline.
 /// </summary>
 [MemoryDiagnoser]
+[MarkdownExporterAttribute.GitHub]
 [SimpleJob(RuntimeMoniker.Net10_0, warmupCount: 3, iterationCount: 10)]
 public class AlignmentHeadToHeadBenchmarks
 {
@@ -54,6 +57,8 @@ public class AlignmentHeadToHeadBenchmarks
     private string         _tempDir            = null!;
     private bool           _bwaAvailable;
     private bool           _bwaMem2Available;
+    private string?        _preatorDll;
+    private string?        _preatorPublishError;
 
     /// <summary>Number of synthetic 150 bp reads aligned in each iteration.</summary>
     [Params(100, 500)]
@@ -117,6 +122,10 @@ public class AlignmentHeadToHeadBenchmarks
         // Build BWA index (one-time setup, not benchmarked)
         _bwaAvailable = ExternalProcess.IsAvailable("bwa");
         _bwaMem2Available = ExternalProcess.IsAvailable("bwa-mem2");
+
+        // Publish the preator binary once (shared across benchmark classes in this process).
+        _preatorDll = PreatorPublisher.GetPreatorDll();
+        _preatorPublishError = PreatorPublisher.GetPublishError();
 
         if (_bwaAvailable)
         {
@@ -286,6 +295,66 @@ public class AlignmentHeadToHeadBenchmarks
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// preator (compiled subprocess): run <c>preator analysis</c> on the same reference + reads.
+    /// Uses the published, pre-compiled preator binary — process start, .NET runtime load, index
+    /// construction, seeding, and Smith-Waterman alignment are all included in the measurement.
+    ///
+    /// This is the end-to-end pipeline comparison counterpart to the in-process
+    /// <see cref="BioSharp_Pipeline_HashMap"/> benchmark.  Because preator runs as a separate
+    /// process it also includes JIT compilation, whereas the in-process benchmarks only pay JIT
+    /// on the first warmup iteration.  The difference exposes the true startup + JIT overhead
+    /// of the .NET runtime vs. a native C tool like BWA.
+    /// </summary>
+    [Benchmark(Description = "preator-analysis (subprocess)")]
+    [BenchmarkCategory("Alignment", "Preator")]
+    public int Preator_Analysis_Subprocess()
+    {
+        if (_preatorDll == null)
+        {
+            throw new InvalidOperationException(
+                $"preator binary is not available: {_preatorPublishError}");
+        }
+
+        var outDir = Path.Combine(_tempDir, $"preator_analysis_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(outDir);
+        try
+        {
+            var exit = ExternalProcess.Run(
+                "dotnet",
+                $"\"{_preatorDll}\" analysis" +
+                $" --reference \"{_referenceFastaPath}\"" +
+                $" --fastq \"{_readsFastqPath}\"" +
+                $" --chromosome chrSynth" +
+                $" --output \"{outDir}\"" +
+                $" --output-prefix aligned" +
+                $" -p {ThreadCount}",
+                _tempDir,
+                300_000);
+            if (exit != 0)
+            {
+                throw new InvalidOperationException($"preator analysis exited with code {exit}.");
+            }
+
+            // Return the count of variant records as a work-done signal.
+            // An empty VCF (0 variants on a synthetic reference) is also acceptable.
+            var vcfPath = Path.Combine(outDir, "aligned.vcf");
+            return File.Exists(vcfPath)
+                ? File.ReadLines(vcfPath)
+                    .Count(line => !string.IsNullOrWhiteSpace(line) && line[0] != '#')
+                : 0;
+        }
+        finally
+        {
+            if (Directory.Exists(outDir))
+            {
+                Directory.Delete(outDir, recursive: true);
+            }
+        }
+    }
+
+
+
     private VariantCallingPipeline CreatePipeline()
     {
         return new VariantCallingPipeline(_reference, "chrSynth",
@@ -396,64 +465,3 @@ public class AlignmentHeadToHeadBenchmarks
         }
     }
 }
-
-/// <summary>
-/// Smith-Waterman alignment micro-benchmarks at different reference window sizes.
-/// Isolates the DP cost from seeding so we can profile the inner loop directly.
-/// </summary>
-[MemoryDiagnoser]
-[SimpleJob(RuntimeMoniker.Net10_0, warmupCount: 5, iterationCount: 30)]
-public class SmithWatermanMicroBenchmarks
-{
-    private Sequence _ref200bp  = null!;
-    private Sequence _ref500bp  = null!;
-    private Sequence _ref2kbp   = null!;
-    private Sequence _read75bp  = null!;
-    private Sequence _read150bp = null!;
-
-    private static Sequence MakeSeq(string id, int length, Random rng)
-    {
-        const string bases = "ACGT";
-        var buf = new char[length];
-        for (var i = 0; i < length; i++)
-        {
-            buf[i] = bases[rng.Next(4)];
-        }
-
-        return new Sequence(id, new string(buf).AsMemory(), new string('I', length).AsMemory());
-    }
-
-    [GlobalSetup]
-    public void Setup()
-    {
-        var rng = new Random(17);
-        _ref200bp  = MakeSeq("r200",   200, rng);
-        _ref500bp  = MakeSeq("r500",   500, rng);
-        _ref2kbp   = MakeSeq("r2k",  2_000, rng);
-        _read75bp  = MakeSeq("q75",     75, rng);
-        _read150bp = MakeSeq("q150",   150, rng);
-    }
-
-    [Benchmark(Baseline = true, Description = "SW-75bp-on-200bp-ref")]
-    public AlignmentResult? Sw_75bp_200bp() => SmithWatermanAligner.Align(_ref200bp,  _read75bp,  minScore: 10);
-
-    [Benchmark(Description = "SW-150bp-on-500bp-ref")]
-    public AlignmentResult? Sw_150bp_500bp() => SmithWatermanAligner.Align(_ref500bp,  _read150bp, minScore: 10);
-
-    [Benchmark(Description = "SW-150bp-on-2kb-ref")]
-    public AlignmentResult? Sw_150bp_2kb()   => SmithWatermanAligner.Align(_ref2kbp,   _read150bp, minScore: 10);
-
-    [Benchmark(Description = "SW-150bp-on-500bp-ref-banded")]
-    public AlignmentResult? Sw_150bp_500bp_Banded() =>
-        SmithWatermanAligner.Align(_ref500bp, _read150bp, bandWidth: 32, minScore: 10);
-
-    [Benchmark(Description = "SW-150bp-on-2kb-ref-banded")]
-    public AlignmentResult? Sw_150bp_2kb_Banded() =>
-        SmithWatermanAligner.Align(_ref2kbp, _read150bp, bandWidth: 32, minScore: 10);
-}
-
-
-
-
-
-

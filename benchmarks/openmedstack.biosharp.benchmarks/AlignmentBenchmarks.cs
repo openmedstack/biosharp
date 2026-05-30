@@ -7,6 +7,7 @@ using BenchmarkDotNet.Attributes;
 using OpenMedStack.BioSharp.Calculations.Alignment;
 using OpenMedStack.BioSharp.Model;
 
+[MarkdownExporterAttribute.GitHub]
 [MemoryDiagnoser]
 public class AlignmentBenchmarks
 {

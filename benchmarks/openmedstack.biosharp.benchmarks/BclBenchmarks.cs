@@ -13,6 +13,7 @@ using OpenMedStack.BioSharp.Model;
 using OpenMedStack.BioSharp.Model.Bcl;
 
 [MemoryDiagnoser]
+[MarkdownExporterAttribute.GitHub]
 [ShortRunJob]
 public class BclBenchmarks
 {

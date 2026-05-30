@@ -9,6 +9,7 @@ using OpenMedStack.BioSharp.Calculations.DeBruijn;
 using OpenMedStack.BioSharp.Model;
 
 [MemoryDiagnoser]
+[MarkdownExporterAttribute.GitHub]
 [ShortRunJob]
 public class DeBruijnBenchmarks
 {

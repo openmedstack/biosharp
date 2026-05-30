@@ -1,5 +1,39 @@
 # Lessons Learned
 
+## PreatorPublisher: `/p:PublishTrimmed=false` is mandatory for the benchmark publish
+
+`openmedstack.preator.csproj` sets `<PublishTrimmed>true</PublishTrimmed>` for production shipping.
+When `PreatorPublisher` does a framework-dependent publish with `--self-contained false`, the
+trimmer still runs and fails hard because EF Core / EFCore.Sqlite produce `IL2104`/`NETSDK1144`
+trim-analysis errors that are treated as build errors via `<TreatWarningsAsErrors>true</TreatWarningsAsErrors>`
+in `shared.proj`.
+
+The fix: always pass `/p:PublishTrimmed=false` on the benchmark publish command line:
+
+```
+dotnet publish "{projectPath}" -c Release -o "{publishDir}" --self-contained false /p:PublishTrimmed=false
+```
+
+The design comment in `PreatorPublisher.cs` already described this requirement; the actual command
+was simply missing the property override. Because `ExternalProcess.Run` silently drains stdout/stderr,
+the failure was visible only as "dotnet publish exited with non-zero exit code 1" with no further detail.
+
+Lesson: when spawning a build/publish step inside a benchmark, always use `ExternalProcess.RunCapture`
+(not `ExternalProcess.Run`) so stderr is available for diagnostics on failure.
+
+## Preator command patterns
+
+When adding new commands to `openmedstack.preator`:
+
+1. **Options record** — create a `*Options.cs` sealed record with all options for the command.
+2. **Command class** — create a `*Command.cs` static class with:
+   - `CreateOptions(ParseResult)` to map CLI args to the options record
+   - `Invoke(ParseResult, CancellationToken)` as the `SetAction` handler (with stopwatch + error handling)
+   - `Run(*Options, CancellationToken)` as the public testable entry point
+3. **PreatorCommandOptions** — add shared/new `Option<T>` statics to `PreatorCommandOptions.cs`; avoid duplicating aliases.
+4. **Program.cs** — add a `Create*Command()` method and reference it in `CreateRootCommand()`.
+5. **PublishTrimmed compatibility** — since the project uses `PublishTrimmed=true`, use `JsonSerializerContext` source generation instead of reflection-based `JsonSerializer.Serialize(obj, new JsonSerializerOptions {...})`. Add new types to `PreatorJsonContext.cs`.
+
 ## `GetHomopolymerRun`: always bounds-check before traversal, not just at lookup
 
 In `VariantCaller.GetHomopolymerRun(ReadOnlySpan<char> refSeq, int position)`, the original code clamped `position` only for the initial base lookup:
@@ -802,3 +836,105 @@ that uses multi-stage Docker builds with the restore-then-copy pattern.
 **Additional caution**: Be careful not to exclude shell scripts needed as entrypoints
 (e.g. `run-equivalency.sh`). Avoid global wildcard `*.sh` exclusions when the Dockerfile
 copies shell scripts into the image.
+
+## Benchmarking a published .NET binary vs external tools
+
+When adding a "compiled preator" benchmark row alongside external tools (bwa, freebayes,
+bcl-convert), publish once in `[GlobalSetup]` and invoke via `dotnet <dll>`:
+
+### Publish once with a static lazy
+
+Use a double-checked lock or `Lazy<T>` so publish happens at most once per benchmark process,
+even when multiple benchmark classes call `GetPreatorDll()` in their own `[GlobalSetup]`:
+
+```csharp
+public static class PreatorPublisher
+{
+    private static readonly object Lock = new();
+    private static string? _preatorDllPath;
+    private static bool    _publishAttempted;
+
+    public static string? GetPreatorDll()
+    {
+        if (_publishAttempted) return _preatorDllPath;
+        lock (Lock)
+        {
+            if (_publishAttempted) return _preatorDllPath;
+            _publishAttempted = true;
+            _preatorDllPath = Publish();  // may return null on failure
+            return _preatorDllPath;
+        }
+    }
+}
+```
+
+### Prefer framework-dependent publish for speed and correctness
+
+`dotnet publish -c Release --self-contained false /p:PublishTrimmed=false` is faster than
+a self-contained publish and avoids the `PublishTrimmed=true` + `--self-contained false`
+incompatibility that exists in the preator csproj.  Invoke the resulting DLL as:
+
+```csharp
+ExternalProcess.Run("dotnet", $"\"{preatorDll}\" {subcommand} {args}", workingDir, timeout);
+```
+
+This is reliable cross-platform and ensures `dotnet` (which must be on PATH to run the
+benchmark project itself) is reused to execute the published DLL.
+
+### Guard each benchmark method with the cached publish error
+
+Mirror the pattern used for optional external tools:
+
+```csharp
+private string? _preatorDll;
+private string? _preatorPublishError;
+
+// in [GlobalSetup]:
+_preatorDll          = PreatorPublisher.GetPreatorDll();
+_preatorPublishError = PreatorPublisher.GetPublishError();
+
+// in each benchmark method:
+if (_preatorDll == null)
+    throw new InvalidOperationException($"preator not available: {_preatorPublishError}");
+```
+
+This keeps the benchmark row visible in the report (as `Failed`) while leaving all
+other rows in the class unaffected — same isolation pattern as missing external tools.
+
+### `System.Linq` must be explicitly imported in benchmark files that use `.Count(...)`
+
+When adding a LINQ `.Count(predicate)` call to a benchmark file that previously did not
+import `System.Linq`, the compiler may resolve an extension method from a project reference
+(e.g. `SequenceExtensions.Count` from `OpenMedStack.BioSharp.Model`) that has an
+incompatible signature. The fix is to add `using System.Linq;` to the file.
+
+
+**Problem**: `dotnet build --no-restore` fails inside Docker with:
+```
+error NETSDK1064: Package <name>, version <x> was not found.
+It might have been deleted since NuGet restore. Otherwise, NuGet restore might have
+only partially completed, which might have been due to maximum path length restrictions.
+```
+
+**Root cause**: The standard .NET Docker pattern is:
+1. `COPY *.csproj` → `dotnet restore` (creates `obj/project.assets.json` in container)
+2. `COPY src/ src/` → `dotnet build --no-restore`
+
+Without a `.dockerignore`, step 2 copies local `**/obj/` directories from the developer
+machine into the container, **overwriting** the `project.assets.json` produced by step 1.
+The stale local assets file references packages under a different global packages path or a
+different version, so `dotnet build --no-restore` can no longer find the package.
+
+**Fix**: Add a `.dockerignore` that excludes build artefacts:
+```
+**/obj/
+**/bin/
+```
+
+This is standard .NET Docker best practice and should always be present in any .NET project
+that uses multi-stage Docker builds with the restore-then-copy pattern.
+
+**Additional caution**: Be careful not to exclude shell scripts needed as entrypoints
+(e.g. `run-equivalency.sh`). Avoid global wildcard `*.sh` exclusions when the Dockerfile
+copies shell scripts into the image.
+

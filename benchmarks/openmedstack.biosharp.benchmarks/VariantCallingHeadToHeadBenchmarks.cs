@@ -33,6 +33,7 @@ using OpenMedStack.BioSharp.Model;
 /// BioSharp has optimisation potential.
 /// </summary>
 [MemoryDiagnoser]
+[MarkdownExporterAttribute.GitHub]
 [SimpleJob(RuntimeMoniker.Net10_0, warmupCount: 3, iterationCount: 10)]
 public class VariantCallingHeadToHeadBenchmarks
 {
@@ -46,6 +47,8 @@ public class VariantCallingHeadToHeadBenchmarks
     private string _tempDir = null!;
     private bool _freeBayesAvailable;
     private bool _samtoolsAvailable;
+    private string? _preatorDll;
+    private string? _preatorPublishError;
 
     private static string? FindRepoRoot()
     {
@@ -87,6 +90,10 @@ public class VariantCallingHeadToHeadBenchmarks
 
         _freeBayesAvailable = ExternalProcess.IsAvailable("freebayes");
         _samtoolsAvailable = ExternalProcess.IsAvailable("samtools");
+
+        // Publish the preator binary once (shared across benchmark classes in this process).
+        _preatorDll = PreatorPublisher.GetPreatorDll();
+        _preatorPublishError = PreatorPublisher.GetPublishError();
 
         // ── Try to use the real test data first ────────────────────────────
         var realBam = DataPath("small_test_sorted.bam");
@@ -312,6 +319,77 @@ public class VariantCallingHeadToHeadBenchmarks
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// preator (compiled subprocess): run <c>preator variantcall</c> on the same BAM + reference.
+    /// Uses the published, pre-compiled preator binary — process start, .NET runtime load, BAM
+    /// reading, and variant calling are all included.  Directly comparable to freebayes/bcftools.
+    ///
+    /// Pipeline options are aligned to the in-process BioSharp benchmarks so the
+    /// algorithm comparison is apples-to-apples:
+    ///   --min-alignment-score 20   → matches <see cref="CreatePipeline"/> default
+    ///   --min-alternate-fraction 0.15
+    ///   --min-alternate-observation-count 2
+    /// </summary>
+    [Benchmark(Description = "preator-variantcall (subprocess)")]
+    [BenchmarkCategory("VariantCalling", "Preator")]
+    public int Preator_VariantCall_Subprocess()
+    {
+        if (_preatorDll == null)
+        {
+            throw new InvalidOperationException(
+                $"preator binary is not available: {_preatorPublishError}");
+        }
+
+        if (string.IsNullOrEmpty(_bamPath))
+        {
+            throw new InvalidOperationException(
+                "Shared BAM input was not prepared; the preator variant-call subprocess benchmark " +
+                "cannot run without a BAM file.");
+        }
+
+        var outDir = Path.Combine(_tempDir, $"preator_vc_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(outDir);
+        try
+        {
+            var exit = ExternalProcess.Run(
+                "dotnet",
+                $"\"{_preatorDll}\" variantcall" +
+                $" --bam \"{_bamPath}\"" +
+                $" --reference \"{_referencePath}\"" +
+                $" --output \"{outDir}\"" +
+                $" --output-prefix variants" +
+                $" --min-alignment-score 20" +
+                $" --min-alternate-fraction 0.15" +
+                $" --min-alternate-observation-count 2" +
+                $" -p {ThreadCount}",
+                _tempDir,
+                300_000);
+            if (exit != 0)
+            {
+                throw new InvalidOperationException($"preator variantcall exited with code {exit}.");
+            }
+
+            var vcfPath = Path.Combine(outDir, "variants.vcf");
+            if (!File.Exists(vcfPath))
+            {
+                throw new InvalidOperationException(
+                    "preator variantcall completed but produced no VCF output.");
+            }
+
+            return File.ReadLines(vcfPath)
+                .Count(line => !string.IsNullOrWhiteSpace(line) && line[0] != '#');
+        }
+        finally
+        {
+            if (Directory.Exists(outDir))
+            {
+                Directory.Delete(outDir, recursive: true);
+            }
+        }
+    }
+
+
 
     private VariantCallingPipeline CreatePipeline(
         bool enableGraphSvDetection = false,

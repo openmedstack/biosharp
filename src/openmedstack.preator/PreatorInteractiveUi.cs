@@ -19,6 +19,21 @@ internal sealed class PreatorInteractiveUi : IPreatorInteractiveUi
 {
     private const string AnalysisInputModeKey = "analysis-input-mode";
     private const string E2EInputModeKey = "e2e-input-mode";
+
+    // Shared advanced variant-calling options reused by both `analysis` and `variantcall` specs
+    private static readonly IReadOnlyList<InteractiveOptionSpec> VariantCallingAdvancedOptions =
+    [
+        new InteractiveOptionSpec("min-alignment-score", "--min-alignment-score", "Minimum alignment score.", PromptValueKind.Integer, DefaultValue: "10"),
+        new InteractiveOptionSpec("min-variant-quality", "--min-variant-quality", "Minimum variant quality.", PromptValueKind.Integer, DefaultValue: "30"),
+        new InteractiveOptionSpec("min-alternate-observation-count", "--min-alternate-observation-count", "Minimum supporting-read count for merged calls.", PromptValueKind.Integer, DefaultValue: "1"),
+        new InteractiveOptionSpec("min-alternate-fraction", "--min-alternate-fraction", "Minimum alternate fraction for merged calls.", PromptValueKind.Double, DefaultValue: "0.0"),
+        new InteractiveOptionSpec("disable-softclip-realign", "--disable-softclip-realign", "Disable soft-clip realignment.", PromptValueKind.Flag, DefaultFlagValue: false),
+        new InteractiveOptionSpec("enable-graph-sv", "--enable-graph-sv", "Enable full-reference graph SV detection.", PromptValueKind.Flag, DefaultFlagValue: false),
+        new InteractiveOptionSpec("kmer-size", "--kmer-size", "K-mer size for graph SV detection.", PromptValueKind.Integer, DefaultValue: "15"),
+        new InteractiveOptionSpec("min-graph-coverage", "--min-graph-coverage", "Minimum graph coverage.", PromptValueKind.Integer, DefaultValue: "5"),
+        new InteractiveOptionSpec("graph-window-bp", "--graph-window-bp", "Graph window size in bp.", PromptValueKind.Integer, DefaultValue: "500"),
+        new InteractiveOptionSpec("max-cores", "--max-cores", "Maximum cores to use.", PromptValueKind.Integer, DefaultValue: "10")
+    ];
     private readonly IAnsiConsole _console;
 
     public PreatorInteractiveUi()
@@ -117,20 +132,9 @@ internal sealed class PreatorInteractiveUi : IPreatorInteractiveUi
                     new InteractiveOptionSpec("output-prefix", "--output-prefix", "Output filename prefix.", PromptValueKind.Text, DefaultValue: "variants"),
                     new InteractiveOptionSpec("max-reads", "--max-reads", "Optional read limit for smoke tests.", PromptValueKind.Integer),
                     new InteractiveOptionSpec("reference-id-contains", "--reference-id-contains", "Select a FASTA record by partial ID match.", PromptValueKind.Text),
-                    new InteractiveOptionSpec("chromosome", "--chromosome", "Override the output contig/chromosome name.", PromptValueKind.Text),
-                    new InteractiveOptionSpec("min-alignment-score", "--min-alignment-score", "Minimum alignment score.", PromptValueKind.Integer, DefaultValue: "10"),
-                    new InteractiveOptionSpec("min-variant-quality", "--min-variant-quality", "Minimum variant quality.", PromptValueKind.Integer, DefaultValue: "30"),
-                    new InteractiveOptionSpec("min-alternate-observation-count", "--min-alternate-observation-count", "Minimum supporting-read count for merged calls.", PromptValueKind.Integer, DefaultValue: "1"),
-                    new InteractiveOptionSpec("min-alternate-fraction", "--min-alternate-fraction", "Minimum alternate fraction for merged calls.", PromptValueKind.Double, DefaultValue: "0.0"),
-                    new InteractiveOptionSpec("disable-softclip-realign", "--disable-softclip-realign", "Disable soft-clip realignment.", PromptValueKind.Flag, DefaultFlagValue: false),
-                    new InteractiveOptionSpec("enable-graph-sv", "--enable-graph-sv", "Enable full-reference graph SV detection.", PromptValueKind.Flag, DefaultFlagValue: false),
-                    new InteractiveOptionSpec("kmer-size", "--kmer-size", "K-mer size for graph SV detection.", PromptValueKind.Integer, DefaultValue: "15"),
-                    new InteractiveOptionSpec("min-graph-coverage", "--min-graph-coverage", "Minimum graph coverage.", PromptValueKind.Integer, DefaultValue: "5"),
-                    new InteractiveOptionSpec("graph-window-bp", "--graph-window-bp", "Graph window size in bp.", PromptValueKind.Integer, DefaultValue: "500"),
-                    new InteractiveOptionSpec("max-cores", "--max-cores", "Maximum cores to use.", PromptValueKind.Integer, DefaultValue: "10")
+                    new InteractiveOptionSpec("chromosome", "--chromosome", "Override the output contig/chromosome name.", PromptValueKind.Text)
                 ],
-                AdvancedOptions:
-                [],
+                AdvancedOptions: VariantCallingAdvancedOptions,
                 BuildArguments: BuildAnalysisArguments),
             new InteractiveCommandSpec(
                 Name: "e2e",
@@ -149,16 +153,7 @@ internal sealed class PreatorInteractiveUi : IPreatorInteractiveUi
                     new InteractiveOptionSpec("max-reads", "--max-reads", "Optional read limit for smoke tests.", PromptValueKind.Integer),
                     new InteractiveOptionSpec("reference-id-contains", "--reference-id-contains", "Select a FASTA record by partial ID match.", PromptValueKind.Text),
                     new InteractiveOptionSpec("chromosome", "--chromosome", "Override the output contig/chromosome name.", PromptValueKind.Text),
-                    new InteractiveOptionSpec("min-alignment-score", "--min-alignment-score", "Minimum alignment score.", PromptValueKind.Integer, DefaultValue: "10"),
-                    new InteractiveOptionSpec("min-variant-quality", "--min-variant-quality", "Minimum variant quality.", PromptValueKind.Integer, DefaultValue: "30"),
-                    new InteractiveOptionSpec("min-alternate-observation-count", "--min-alternate-observation-count", "Minimum supporting-read count for merged calls.", PromptValueKind.Integer, DefaultValue: "1"),
-                    new InteractiveOptionSpec("min-alternate-fraction", "--min-alternate-fraction", "Minimum alternate fraction for merged calls.", PromptValueKind.Double, DefaultValue: "0.0"),
-                    new InteractiveOptionSpec("disable-softclip-realign", "--disable-softclip-realign", "Disable soft-clip realignment.", PromptValueKind.Flag, DefaultFlagValue: false),
-                    new InteractiveOptionSpec("enable-graph-sv", "--enable-graph-sv", "Enable full-reference graph SV detection.", PromptValueKind.Flag, DefaultFlagValue: false),
-                    new InteractiveOptionSpec("kmer-size", "--kmer-size", "K-mer size for graph SV detection.", PromptValueKind.Integer, DefaultValue: "15"),
-                    new InteractiveOptionSpec("min-graph-coverage", "--min-graph-coverage", "Minimum graph coverage.", PromptValueKind.Integer, DefaultValue: "5"),
-                    new InteractiveOptionSpec("graph-window-bp", "--graph-window-bp", "Graph window size in bp.", PromptValueKind.Integer, DefaultValue: "500"),
-                    new InteractiveOptionSpec("max-cores", "--max-cores", "Maximum cores to use.", PromptValueKind.Integer, DefaultValue: "10"),
+                    ..VariantCallingAdvancedOptions,
                     new InteractiveOptionSpec("transcript-id", "--transcript-id", "Restrict annotation to a single transcript ID.", PromptValueKind.Text),
                     new InteractiveOptionSpec("min-quality", "--min-quality", "Minimum QUAL threshold required before annotation.", PromptValueKind.Double, DefaultValue: "0")
                 ],
@@ -185,7 +180,67 @@ internal sealed class PreatorInteractiveUi : IPreatorInteractiveUi
                     ("--output-dir", answers.GetValue("output-dir")),
                     ("--output-prefix", answers.GetValue("output-prefix")),
                     ("--transcript-id", answers.GetValue("transcript-id")),
-                    ("--min-quality", answers.GetValue("min-quality"))))
+                    ("--min-quality", answers.GetValue("min-quality")))),
+            new InteractiveCommandSpec(
+                Name: "trim",
+                Description: "Trim adapter sequences from FASTQ reads (equivalent to fastp / cutadapt)",
+                BasicOptions:
+                [
+                    new InteractiveOptionSpec("fastq", "--fastq", "Input FASTQ or FASTQ.GZ file.", PromptValueKind.Text, IsRequired: true),
+                    new InteractiveOptionSpec("adapter", "--adapter", "Adapter sequence to trim from reads.", PromptValueKind.Text, IsRequired: true),
+                    new InteractiveOptionSpec("min-length", "--min-length", "Minimum read length after trimming. Shorter reads are discarded.", PromptValueKind.Integer, DefaultValue: "20"),
+                    new InteractiveOptionSpec("max-mismatches", "--max-mismatches", "Maximum mismatches allowed during adapter matching.", PromptValueKind.Integer, DefaultValue: "2"),
+                    new InteractiveOptionSpec("output", "--output", "Output directory.", PromptValueKind.Text, DefaultValue: Environment.CurrentDirectory),
+                    new InteractiveOptionSpec("output-prefix", "--output-prefix", "Output filename prefix.", PromptValueKind.Text, DefaultValue: "trimmed")
+                ],
+                AdvancedOptions:
+                [
+                    new InteractiveOptionSpec("max-reads", "--max-reads", "Stop after this many reads (useful for smoke tests).", PromptValueKind.Integer)
+                ],
+                BuildArguments: answers => BuildStandardArguments(
+                    "trim",
+                    ("--fastq", answers.GetRequiredValue("fastq")),
+                    ("--adapter", answers.GetRequiredValue("adapter")),
+                    ("--min-length", answers.GetValue("min-length")),
+                    ("--max-mismatches", answers.GetValue("max-mismatches")),
+                    ("--output", answers.GetValue("output")),
+                    ("--output-prefix", answers.GetValue("output-prefix")),
+                    ("--max-reads", answers.GetValue("max-reads")))),
+            new InteractiveCommandSpec(
+                Name: "qc",
+                Description: "Compute FastQC-equivalent quality metrics from a FASTQ file",
+                BasicOptions:
+                [
+                    new InteractiveOptionSpec("fastq", "--fastq", "Input FASTQ or FASTQ.GZ file.", PromptValueKind.Text, IsRequired: true),
+                    new InteractiveOptionSpec("output-dir", "--output-dir", "Output directory.", PromptValueKind.Text, DefaultValue: Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, "output"))),
+                    new InteractiveOptionSpec("output-prefix", "--output-prefix", "Output filename prefix.", PromptValueKind.Text, DefaultValue: "qc-report")
+                ],
+                AdvancedOptions:
+                [
+                    new InteractiveOptionSpec("adapter", "--adapter", "Optional adapter sequence for adapter-content analysis.", PromptValueKind.Text),
+                    new InteractiveOptionSpec("max-reads", "--max-reads", "Stop after this many reads (useful for smoke tests).", PromptValueKind.Integer)
+                ],
+                BuildArguments: answers => BuildStandardArguments(
+                    "qc",
+                    ("--fastq", answers.GetRequiredValue("fastq")),
+                    ("--output-dir", answers.GetValue("output-dir")),
+                    ("--output-prefix", answers.GetValue("output-prefix")),
+                    ("--adapter", answers.GetValue("adapter")),
+                    ("--max-reads", answers.GetValue("max-reads")))),
+            new InteractiveCommandSpec(
+                Name: "variantcall",
+                Description: "Call variants from a sorted BAM file (equivalent to freebayes / bcftools call)",
+                BasicOptions:
+                [
+                    new InteractiveOptionSpec("bam", "--bam", "Input sorted BAM file.", PromptValueKind.Text, IsRequired: true),
+                    new InteractiveOptionSpec("reference", "--reference", "Reference FASTA or FASTA.GZ file.", PromptValueKind.Text, IsRequired: true),
+                    new InteractiveOptionSpec("output", "--output", "Output directory.", PromptValueKind.Text, DefaultValue: Environment.CurrentDirectory),
+                    new InteractiveOptionSpec("output-prefix", "--output-prefix", "Output filename prefix.", PromptValueKind.Text, DefaultValue: "variants"),
+                    new InteractiveOptionSpec("reference-id-contains", "--reference-id-contains", "Select a FASTA record by partial ID match.", PromptValueKind.Text),
+                    new InteractiveOptionSpec("chromosome", "--chromosome", "Override the output contig/chromosome name.", PromptValueKind.Text)
+                ],
+                AdvancedOptions: VariantCallingAdvancedOptions,
+                BuildArguments: BuildVariantCallArguments)
         ];
     }
 
@@ -250,6 +305,28 @@ internal sealed class PreatorInteractiveUi : IPreatorInteractiveUi
             ("--enable-graph-sv", answers.GetFlag("enable-graph-sv")),
             ("--transcript-id", answers.GetValue("transcript-id")),
             ("--min-quality", answers.GetValue("min-quality")));
+    }
+
+    private static IReadOnlyList<string> BuildVariantCallArguments(InteractiveAnswerStore answers)
+    {
+        return BuildStandardArguments(
+            "variantcall",
+            ("--bam", answers.GetRequiredValue("bam")),
+            ("--reference", answers.GetRequiredValue("reference")),
+            ("--output", answers.GetValue("output")),
+            ("--output-prefix", answers.GetValue("output-prefix")),
+            ("--reference-id-contains", answers.GetValue("reference-id-contains")),
+            ("--chromosome", answers.GetValue("chromosome")),
+            ("--min-alignment-score", answers.GetValue("min-alignment-score")),
+            ("--min-variant-quality", answers.GetValue("min-variant-quality")),
+            ("--min-alternate-observation-count", answers.GetValue("min-alternate-observation-count")),
+            ("--min-alternate-fraction", answers.GetValue("min-alternate-fraction")),
+            ("--kmer-size", answers.GetValue("kmer-size")),
+            ("--min-graph-coverage", answers.GetValue("min-graph-coverage")),
+            ("--graph-window-bp", answers.GetValue("graph-window-bp")),
+            ("--max-cores", answers.GetValue("max-cores")),
+            ("--disable-softclip-realign", answers.GetFlag("disable-softclip-realign")),
+            ("--enable-graph-sv", answers.GetFlag("enable-graph-sv")));
     }
 
     internal static IReadOnlyList<string> BuildStandardArguments(

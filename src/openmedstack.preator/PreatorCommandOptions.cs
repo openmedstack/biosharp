@@ -155,4 +155,33 @@ internal static class PreatorCommandOptions
         DefaultValueFactory = _ =>
             new DirectoryInfo(Path.GetFullPath(Path.Combine(Environment.CurrentDirectory, "output")))
     };
+
+    internal static readonly Option<string> FastqRequiredOption = new("--fastq", "-fq")
+    {
+        Description = "FASTQ or FASTQ.GZ file to process.",
+        Required = true
+    };
+
+    internal static readonly Option<string> AdapterOption = new("--adapter", "-a")
+    {
+        Description = "Adapter sequence to trim from reads."
+    };
+
+    internal static readonly Option<int> MinLengthOption = new("--min-length", "-ml")
+    {
+        Description = "Minimum read length after trimming. Shorter reads are discarded.",
+        DefaultValueFactory = _ => 20
+    };
+
+    internal static readonly Option<int> MaxMismatchesOption = new("--max-mismatches", "-mm")
+    {
+        Description = "Maximum mismatches allowed during adapter matching.",
+        DefaultValueFactory = _ => 2
+    };
+
+    internal static readonly Option<string> BamOption = new("--bam", "-b")
+    {
+        Description = "Input sorted BAM file for variant calling.",
+        Required = true
+    };
 }
