@@ -31,6 +31,7 @@ COPY benchmarks/openmedstack.biosharp.benchmarks/openmedstack.biosharp.benchmark
 
 # Restore dependencies (benchmark project only, not full solution)
 RUN dotnet restore benchmarks/openmedstack.biosharp.benchmarks/openmedstack.biosharp.benchmarks.csproj
+RUN dotnet restore src/openmedstack.preator/openmedstack.preator.csproj
 
 # Copy all source code
 COPY src/ src/
@@ -56,6 +57,22 @@ RUN ARCH=$(uname -m) && \
       -p:Optimize=true \
       -p:PublishTrimmed=false \
       -o /app/benchmarks
+
+RUN ARCH=$(uname -m) && \
+    if [ "$ARCH" = "x86_64" ]; then RID="linux-x64"; \
+    elif [ "$ARCH" = "aarch64" ]; then RID="linux-arm64"; \
+    else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
+    dotnet publish src/openmedstack.preator/openmedstack.preator.csproj \
+      -c Release \
+      -r "$RID" \
+      --self-contained true \
+      -p:PublishReadyToRun=true \
+      -p:OptimizationPreference=Speed \
+      -p:DebugType=None \
+      -p:DebugSymbols=false \
+      -p:Optimize=true \
+      -p:PublishTrimmed=false \
+      -o /app/preator
 
 # =============================================================================
 # Stage 2: Runtime environment with all bioinformatics tools
@@ -114,6 +131,7 @@ WORKDIR /app
 
 # Copy benchmark binaries from build stage
 COPY --from=build /app/benchmarks ./benchmarks/
+COPY --from=build /app/preator ./preator/
 
 # Copy staged Illumina binaries from tools folder (vendor-provided, pre-staged)
 # Note: these binaries are only available for x86_64; ARM64 will skip BCL external benchmarks

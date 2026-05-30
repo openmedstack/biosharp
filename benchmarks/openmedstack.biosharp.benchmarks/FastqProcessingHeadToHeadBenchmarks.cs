@@ -31,8 +31,7 @@ public class FastqProcessingHeadToHeadBenchmarks
     private string? _preatorDll;
     private string? _preatorPublishError;
 
-    [Params(10_000)]
-    public int ReadCount { get; set; }
+    [Params(10_000)] public int ReadCount { get; set; }
 
     [GlobalSetup]
     public void Setup()
@@ -110,7 +109,8 @@ public class FastqProcessingHeadToHeadBenchmarks
     {
         if (!_fastqcAvailable)
         {
-            throw new InvalidOperationException("fastqc is not installed on PATH. The FASTQ QC head-to-head benchmark cannot be run apples-to-apples on this machine.");
+            throw new InvalidOperationException(
+                "fastqc is not installed on PATH. The FASTQ QC head-to-head benchmark cannot be run apples-to-apples on this machine.");
         }
 
         var outDir = Path.Combine(_tempDir, $"fastqc_{Guid.NewGuid():N}");
@@ -124,10 +124,12 @@ public class FastqProcessingHeadToHeadBenchmarks
                 120_000);
             if (exit != 0)
             {
-                throw new InvalidOperationException($"fastqc exited with code {exit}. STDERR: {ReadExternalLog(logPath)}");
+                throw new InvalidOperationException(
+                    $"fastqc exited with code {exit}. STDERR: {ReadExternalLog(logPath)}");
             }
 
-            return Directory.EnumerateFiles(outDir, "*", SearchOption.AllDirectories).Sum(path => new FileInfo(path).Length);
+            return Directory.EnumerateFiles(outDir, "*", SearchOption.AllDirectories)
+                .Sum(path => new FileInfo(path).Length);
         }
         finally
         {
@@ -146,7 +148,8 @@ public class FastqProcessingHeadToHeadBenchmarks
     {
         if (!_fastpAvailable)
         {
-            throw new InvalidOperationException("fastp is not installed on PATH. The FASTQ QC/trimming head-to-head benchmark cannot be run apples-to-apples on this machine.");
+            throw new InvalidOperationException(
+                "fastp is not installed on PATH. The FASTQ QC/trimming head-to-head benchmark cannot be run apples-to-apples on this machine.");
         }
 
         var outPath = Path.Combine(_tempDir, $"fastp_{Guid.NewGuid():N}.fastq.gz");
@@ -161,7 +164,8 @@ public class FastqProcessingHeadToHeadBenchmarks
                 120_000);
             if (exit != 0)
             {
-                throw new InvalidOperationException($"fastp exited with code {exit}. STDERR: {ReadExternalLog(logPath)}");
+                throw new InvalidOperationException(
+                    $"fastp exited with code {exit}. STDERR: {ReadExternalLog(logPath)}");
             }
 
             if (!File.Exists(outPath))
@@ -186,7 +190,8 @@ public class FastqProcessingHeadToHeadBenchmarks
     {
         if (!_cutadaptAvailable)
         {
-            throw new InvalidOperationException("cutadapt is not installed on PATH. The adapter-trimming head-to-head benchmark cannot be run apples-to-apples on this machine.");
+            throw new InvalidOperationException(
+                "cutadapt is not installed on PATH. The adapter-trimming head-to-head benchmark cannot be run apples-to-apples on this machine.");
         }
 
         var outPath = Path.Combine(_tempDir, $"cutadapt_{Guid.NewGuid():N}.fastq.gz");
@@ -199,7 +204,8 @@ public class FastqProcessingHeadToHeadBenchmarks
                 120_000);
             if (exit != 0)
             {
-                throw new InvalidOperationException($"cutadapt exited with code {exit}. STDERR: {ReadExternalLog(logPath)}");
+                throw new InvalidOperationException(
+                    $"cutadapt exited with code {exit}. STDERR: {ReadExternalLog(logPath)}");
             }
 
             if (!File.Exists(outPath))
@@ -235,11 +241,16 @@ public class FastqProcessingHeadToHeadBenchmarks
         Directory.CreateDirectory(outDir);
         try
         {
-            var exit = ExternalProcess.Run(
-                "dotnet",
-                $"\"{_preatorDll}\" qc --fastq \"{_fastqPath}\" --adapter \"{Adapter}\" --output-dir \"{outDir}\" --output-prefix qc",
-                _tempDir,
-                120_000);
+            var runningInContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+            var exit = runningInContainer
+                ? ExternalProcess.Run(
+                    "/app/preator/preator",
+                    $"qc --fastq \"{_fastqPath}\" --adapter \"{Adapter}\" --output-dir \"{outDir}\" --output-prefix qc",
+                    _tempDir)
+                : ExternalProcess.Run(
+                    "dotnet",
+                    $"\"{_preatorDll}\" qc --fastq \"{_fastqPath}\" --adapter \"{Adapter}\" --output-dir \"{outDir}\" --output-prefix qc",
+                    _tempDir);
             if (exit != 0)
             {
                 throw new InvalidOperationException($"preator qc exited with code {exit}.");
@@ -276,11 +287,16 @@ public class FastqProcessingHeadToHeadBenchmarks
         Directory.CreateDirectory(outDir);
         try
         {
-            var exit = ExternalProcess.Run(
-                "dotnet",
-                $"\"{_preatorDll}\" trim --fastq \"{_fastqPath}\" --adapter \"{Adapter}\" --min-length 20 --max-mismatches 2 --output \"{outDir}\" --output-prefix trimmed",
-                _tempDir,
-                120_000);
+            var runningInContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+            var exit = runningInContainer
+                ? ExternalProcess.Run(
+                    "/app/preator/preator",
+                    $"trim --fastq \"{_fastqPath}\" --adapter \"{Adapter}\" --min-length 20 --max-mismatches 2 --output \"{outDir}\" --output-prefix trimmed",
+                    _tempDir)
+                : ExternalProcess.Run(
+                    "dotnet",
+                    $"\"{_preatorDll}\" trim --fastq \"{_fastqPath}\" --adapter \"{Adapter}\" --min-length 20 --max-mismatches 2 --output \"{outDir}\" --output-prefix trimmed",
+                    _tempDir);
             if (exit != 0)
             {
                 throw new InvalidOperationException($"preator trim exited with code {exit}.");

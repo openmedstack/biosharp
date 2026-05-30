@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Linq;
+
 namespace OpenMedStack.BioSharp.Benchmarks;
 
 using System;
@@ -52,10 +55,12 @@ public static class PreatorPublisher
     public static int Run(string preatorArguments, string? workingDirectory = null, int timeoutMs = 300_000)
     {
         var dll = GetPreatorDll()
-            ?? throw new InvalidOperationException(
+         ?? throw new InvalidOperationException(
                 $"preator is not published and cannot be benchmarked: {GetPublishError()}");
-
-        return ExternalProcess.Run("dotnet", $"\"{dll}\" {preatorArguments}", workingDirectory, timeoutMs);
+        var runningInContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+        return runningInContainer
+            ? ExternalProcess.Run("/app/preator/preator", $"\"{dll}\" {preatorArguments}", workingDirectory, timeoutMs)
+            : ExternalProcess.Run("dotnet", $"\"{dll}\" {preatorArguments}", workingDirectory, timeoutMs);
     }
 
     // ── Private implementation ────────────────────────────────────────────────
@@ -72,7 +77,8 @@ public static class PreatorPublisher
             _publishAttempted = true;
             try
             {
-                _preatorDllPath = Publish();
+                const string dockerPath = "/app/preator/preator";
+                _preatorDllPath = File.Exists(dockerPath) ? dockerPath : Publish();
             }
             catch (Exception ex)
             {
@@ -84,7 +90,7 @@ public static class PreatorPublisher
     private static string Publish()
     {
         var repoRoot = FindRepoRoot()
-            ?? throw new InvalidOperationException(
+         ?? throw new InvalidOperationException(
                 "Cannot locate the repository root. " +
                 "Expected to find 'openmedstack-biosharp.sln' and a 'data/' directory while walking up " +
                 "from the application base directory or the current working directory.");
@@ -106,7 +112,7 @@ public static class PreatorPublisher
         // trim-compatible, so the trimmer produces fatal IL2104/NETSDK1144 errors unless overridden.
         var (exit, stderr) = ExternalProcess.RunCapture(
             "dotnet",
-            $"publish \"{projectPath}\" -c Release -o \"{publishDir}\" --self-contained false /p:PublishTrimmed=false",
+            $"publish \"{projectPath}\" -c Release -o \"{publishDir}\" --self-contained false /p:PublishReadyToRunShowWarnings=true /p:PublishTrimmed=false",
             workingDirectory: repoRoot,
             timeoutMs: 600_000);
 
@@ -132,20 +138,25 @@ public static class PreatorPublisher
 
     private static string? FindRepoRoot()
     {
-        foreach (var startDir in new[] { AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
+        List<DirectoryInfo?> dirs = [];
+        foreach (var startDir in new[] { "/src", AppContext.BaseDirectory, Directory.GetCurrentDirectory() })
         {
             for (var dir = new DirectoryInfo(Path.GetFullPath(startDir));
-                 dir != null;
-                 dir = dir.Parent)
+                dir != null;
+                dir = dir.Parent)
             {
-                if (File.Exists(Path.Combine(dir.FullName, "openmedstack-biosharp.sln")) &&
-                    Directory.Exists(Path.Combine(dir.FullName, "data")))
+                if (File.Exists(Path.Combine(dir.FullName, "openmedstack-biosharp.sln")))
                 {
                     return dir.FullName;
                 }
+
+                dirs.Add(dir);
             }
         }
 
-        return null;
+        throw new FileNotFoundException(
+            "Repository root not found. Expected to find 'openmedstack-biosharp.sln' while walking up " +
+            "from the application base directory or the current working directory. Ended at: " +
+            string.Join(", ", dirs.Select(d => d?.FullName ?? "<null>")));
     }
 }

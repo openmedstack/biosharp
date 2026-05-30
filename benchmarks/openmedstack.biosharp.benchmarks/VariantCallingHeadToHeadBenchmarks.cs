@@ -352,19 +352,34 @@ public class VariantCallingHeadToHeadBenchmarks
         Directory.CreateDirectory(outDir);
         try
         {
-            var exit = ExternalProcess.Run(
-                "dotnet",
-                $"\"{_preatorDll}\" variantcall" +
-                $" --bam \"{_bamPath}\"" +
-                $" --reference \"{_referencePath}\"" +
-                $" --output \"{outDir}\"" +
-                $" --output-prefix variants" +
-                $" --min-alignment-score 20" +
-                $" --min-alternate-fraction 0.15" +
-                $" --min-alternate-observation-count 2" +
-                $" -p {ThreadCount}",
-                _tempDir,
-                300_000);
+            var runningInContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+            var exit = runningInContainer
+                ? ExternalProcess.Run(
+                    "/app/preator/preator",
+                    $"variantcall" +
+                    $" --bam \"{_bamPath}\"" +
+                    $" --reference \"{_referencePath}\"" +
+                    $" --output \"{outDir}\"" +
+                    $" --output-prefix variants" +
+                    $" --min-alignment-score 20" +
+                    $" --min-alternate-fraction 0.15" +
+                    $" --min-alternate-observation-count 2" +
+                    $" -p {ThreadCount}",
+                    _tempDir,
+                    300_000)
+                : ExternalProcess.Run(
+                    "dotnet",
+                    $"\"{_preatorDll}\" variantcall" +
+                    $" --bam \"{_bamPath}\"" +
+                    $" --reference \"{_referencePath}\"" +
+                    $" --output \"{outDir}\"" +
+                    $" --output-prefix variants" +
+                    $" --min-alignment-score 20" +
+                    $" --min-alternate-fraction 0.15" +
+                    $" --min-alternate-observation-count 2" +
+                    $" -p {ThreadCount}",
+                    _tempDir,
+                    300_000);
             if (exit != 0)
             {
                 throw new InvalidOperationException($"preator variantcall exited with code {exit}.");
@@ -388,7 +403,6 @@ public class VariantCallingHeadToHeadBenchmarks
             }
         }
     }
-
 
 
     private VariantCallingPipeline CreatePipeline(

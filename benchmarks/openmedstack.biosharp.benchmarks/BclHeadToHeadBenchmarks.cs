@@ -347,8 +347,14 @@ public class BclHeadToHeadBenchmarks
         var outDir = Path.Combine(_bclOutputDir, $"preator_{Guid.NewGuid():N}");
         Directory.CreateDirectory(outDir);
         try
-        {
-            var exit = ExternalProcess.Run(
+        {var runningInContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+            var exit = runningInContainer
+                ? ExternalProcess.Run(
+                    "/app/preator/preator",
+                    $"bcl --input \"{_bclRunDir}\" --output \"{outDir}\" --readstructure \"{SampleDataReadStructure}\"",
+                    _tempDir,
+                    300_000)
+                : ExternalProcess.Run(
                 "dotnet",
                 $"\"{_preatorDll}\" bcl --input \"{_bclRunDir}\" --output \"{outDir}\" --readstructure \"{SampleDataReadStructure}\"",
                 _tempDir,
@@ -529,7 +535,7 @@ public class BclHeadToHeadBenchmarks
             " --no-lane-splitting false" +
             // Suppress strict input-validation failures on the sampledata run folder
             // (e.g. missing InterOp files, non-standard instrument name in RunInfo.xml).
-            " --bcl-validation-stringency none" +
+//            " --bcl-validation-stringency none" +
             " --force" +
             $" > {ExternalProcess.NullDevice} 2> \"{logPath}\"";
 
@@ -564,7 +570,7 @@ public class BclHeadToHeadBenchmarks
             " --ignore-missing-bcls" +
             " --ignore-missing-filter" +
             " --ignore-missing-positions" +
-            " --force" +
+//            " --force" +
             $" > {ExternalProcess.NullDevice} 2> \"{logPath}\"";
 
         var exit = ExternalProcess.Shell(command, timeoutMs: 300_000);
@@ -717,14 +723,18 @@ public class BclHeadToHeadBenchmarks
             [Header]
             FileFormatVersion,2
 
-            [BCLConvert_Settings]
+            [Reads]
             Read1Cycles,{SampleDataRead1Cycles}
-            IndexRead1Cycles,{SampleDataIndexCycles}
             Read2Cycles,{SampleDataRead2Cycles}
+            Index1Cycles,{SampleDataIndexCycles}
 
             [BCLConvert_Data]
-            Sample_ID
-            BenchSample
+            Lane,Sample_ID,index
+            1,BenchSample,NNNNNNNN
+            
+            [BCLConvert_Settings]
+            SoftwareVersion,4.1.23
+            FastqCompressionFormat,gzip
             """);
     }
 

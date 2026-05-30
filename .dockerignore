@@ -35,8 +35,8 @@ Dockerfile*
 
 # CI / benchmark scripts not needed inside the image
 # (run-equivalency.sh and run-benchmarks.sh ARE needed — do not exclude *.sh globally)
-benchmark-tutorial-comparison.sh
-run-benchmarks.sh
+#benchmark-tutorial-comparison.sh
+#run-benchmarks.sh
 *.md
 
 

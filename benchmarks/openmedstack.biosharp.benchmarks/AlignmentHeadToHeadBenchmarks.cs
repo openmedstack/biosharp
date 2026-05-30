@@ -26,17 +26,17 @@ using OpenMedStack.BioSharp.Model;
 ///   its pre-built binary index (*.bwt/*.sa) from disk once at start-up.
 /// • BWA's index is built on disk in <c>[GlobalSetup]</c> (one-time cost not benchmarked).
 /// • Every benchmark iteration measures the actual alignment work: seeding + SW extension
-///   for BioSharp; process start + BWA's full alignment for <c>bwa mem</c>.
-/// • stdout of BWA is redirected to /dev/null so SAM serialisation cost is symmetric
-///   with BioSharp (pipeline results are returned as in-memory objects, not serialised).
+///   for BioSharp; process start plus BWA's full alignment for <c>bwa mem</c>.
+/// • stdout of BWA is redirected to /dev/null so SAM serialization cost is symmetric
+///   with BioSharp (pipeline results are returned as in-memory objects, not serialized).
 /// • Input reads are the same synthetic FASTQ file for all methods.
 ///
 /// What each timing number means
 /// ──────────────────────────────
-/// BioSharp numbers      = alignment + seeding in managed .NET (warm JIT, in-process).
-/// bwa mem numbers       = process start + shared-lib load + index read + alignment.
+/// BioSharp numbers      = alignment plus seeding in managed .NET (warm JIT, in-process).
+/// bwa mem numbers       = process start plus shared-lib load + index read + alignment.
 ///
-/// The gap between them identifies optimisation opportunities:
+/// The gap between them identifies optimization opportunities:
 ///   - If BioSharp ≫ BWA  → improve seeding/SW implementation.
 ///   - If BioSharp ≈ BWA  → overhead is in process management; BioSharp advantage is in
 ///                         not having that overhead in a longer pipeline.
@@ -48,17 +48,17 @@ public class AlignmentHeadToHeadBenchmarks
 {
     private const int ThreadCount = 10;
 
-    private Sequence       _reference    = null!;
-    private Sequence[]     _reads        = null!;
-    private FmIndexSeeder  _fmSeeder     = null!;
-    private ReferenceIndex _hashSeeder   = null!;
-    private string         _referenceFastaPath = null!;
-    private string         _readsFastqPath     = null!;
-    private string         _tempDir            = null!;
-    private bool           _bwaAvailable;
-    private bool           _bwaMem2Available;
-    private string?        _preatorDll;
-    private string?        _preatorPublishError;
+    private Sequence _reference = null!;
+    private Sequence[] _reads = null!;
+    private FmIndexSeeder _fmSeeder = null!;
+    private ReferenceIndex _hashSeeder = null!;
+    private string _referenceFastaPath = null!;
+    private string _readsFastqPath = null!;
+    private string _tempDir = null!;
+    private bool _bwaAvailable;
+    private bool _bwaMem2Available;
+    private string? _preatorDll;
+    private string? _preatorPublishError;
 
     /// <summary>Number of synthetic 150 bp reads aligned in each iteration.</summary>
     [Params(100, 500)]
@@ -80,19 +80,19 @@ public class AlignmentHeadToHeadBenchmarks
         }
 
         const string target = "ACGTGATTACAGGTTCCGATTAGCTTACGAAAGTCCTTAGATCGGATCCGAA" +
-                              "ACCGTTAGCTAGCTAGCTGCGATCGATCGATCGATCGATCGGCTAGCTAGCT";
+            "ACCGTTAGCTAGCTAGCTGCGATCGATCGATCGATCGATCGGCTAGCTAGCT";
         target.CopyTo(0, refBuf, 50_000, target.Length);
         var refStr = new string(refBuf);
         _reference = new Sequence("chrSynth", refStr.AsMemory(), new string('I', refStr.Length).AsMemory());
 
         // Build BioSharp indices
-        _fmSeeder   = new FmIndexSeeder(_reference);
+        _fmSeeder = new FmIndexSeeder(_reference);
         _hashSeeder = new ReferenceIndex(_reference, new ReferenceIndex.IndexOptions
         {
-            SeedSize                   = 11,
-            WindowPadding              = 64,
+            SeedSize = 11,
+            WindowPadding = 64,
             MaxCandidateWindowsPerRead = 8,
-            MaxSeedHitsPerKmer         = 64
+            MaxSeedHitsPerKmer = 64
         });
 
         // Generate synthetic reads: mix of perfect matches and 1-2 substitution variants
@@ -107,7 +107,11 @@ public class AlignmentHeadToHeadBenchmarks
                 readBuf[75] = readBuf[75] == 'A' ? 'T' : 'A'; // SNP
             }
 
-            if (i % 7 == 0) { readBuf[40] = 'X'; /* soft-clip */ }
+            if (i % 7 == 0)
+            {
+                readBuf[40] = 'X'; /* soft-clip */
+            }
+
             _reads[i] = new Sequence($"r{i}", new string(readBuf).AsMemory(),
                 new string('I', 150).AsMemory());
         }
@@ -136,7 +140,6 @@ public class AlignmentHeadToHeadBenchmarks
         {
             ExternalProcess.Run("bwa-mem2", $"index {_referenceFastaPath}", timeoutMs: 60_000);
         }
-
     }
 
     [GlobalCleanup]
@@ -320,17 +323,30 @@ public class AlignmentHeadToHeadBenchmarks
         Directory.CreateDirectory(outDir);
         try
         {
-            var exit = ExternalProcess.Run(
-                "dotnet",
-                $"\"{_preatorDll}\" analysis" +
-                $" --reference \"{_referenceFastaPath}\"" +
-                $" --fastq \"{_readsFastqPath}\"" +
-                $" --chromosome chrSynth" +
-                $" --output \"{outDir}\"" +
-                $" --output-prefix aligned" +
-                $" -p {ThreadCount}",
-                _tempDir,
-                300_000);
+            var runningInContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
+            var exit = runningInContainer
+                ? ExternalProcess.Run(
+                    "/app/preator/preator",
+                    $"analysis" +
+                    $" --reference \"{_referenceFastaPath}\"" +
+                    $" --fastq \"{_readsFastqPath}\"" +
+                    $" --chromosome chrSynth" +
+                    $" --output \"{outDir}\"" +
+                    $" --output-prefix aligned" +
+                    $" -p {ThreadCount}",
+                    _tempDir,
+                    300_000)
+                : ExternalProcess.Run(
+                    "dotnet",
+                    $"\"{_preatorDll}\" analysis" +
+                    $" --reference \"{_referenceFastaPath}\"" +
+                    $" --fastq \"{_readsFastqPath}\"" +
+                    $" --chromosome chrSynth" +
+                    $" --output \"{outDir}\"" +
+                    $" --output-prefix aligned" +
+                    $" -p {ThreadCount}",
+                    _tempDir,
+                    300_000);
             if (exit != 0)
             {
                 throw new InvalidOperationException($"preator analysis exited with code {exit}.");
@@ -352,7 +368,6 @@ public class AlignmentHeadToHeadBenchmarks
             }
         }
     }
-
 
 
     private VariantCallingPipeline CreatePipeline()
@@ -393,7 +408,8 @@ public class AlignmentHeadToHeadBenchmarks
             var mappedCount = CountMappedSamRecords(samPath);
             if (mappedCount == 0)
             {
-                throw new InvalidOperationException($"{executable} completed but produced zero mapped reads, which is suspicious for this synthetic dataset.");
+                throw new InvalidOperationException(
+                    $"{executable} completed but produced zero mapped reads, which is suspicious for this synthetic dataset.");
             }
 
             return mappedCount;
