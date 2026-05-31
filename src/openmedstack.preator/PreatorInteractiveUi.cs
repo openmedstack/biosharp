@@ -240,8 +240,43 @@ internal sealed class PreatorInteractiveUi : IPreatorInteractiveUi
                     new InteractiveOptionSpec("chromosome", "--chromosome", "Override the output contig/chromosome name.", PromptValueKind.Text)
                 ],
                 AdvancedOptions: VariantCallingAdvancedOptions,
-                BuildArguments: BuildVariantCallArguments)
-        ];
+                BuildArguments: BuildVariantCallArguments),
+            new InteractiveCommandSpec(
+                Name: "align",
+                Description: "Align FASTQ reads against a reference using FM-index + Smith-Waterman (like bwa-mem)",
+                BasicOptions:
+                 [
+                    new InteractiveOptionSpec("reference", "--reference", "Reference FASTA or FASTA.GZ file.", PromptValueKind.Text, IsRequired: true),
+                    new InteractiveOptionSpec("reads", "--fastq", "FASTQ or FASTQ.GZ file to align.", PromptValueKind.Text, IsRequired: true),
+                    new InteractiveOptionSpec("output", "--output", "Output directory.", PromptValueKind.Text, DefaultValue: Environment.CurrentDirectory),
+                    new InteractiveOptionSpec("output-prefix", "--output-prefix", "Output filename prefix.", PromptValueKind.Text, DefaultValue: "aligned"),
+                    new InteractiveOptionSpec("max-reads", "--max-reads", "Stop after this many reads (useful for smoke tests).", PromptValueKind.Integer),
+                 ],
+                AdvancedOptions:
+                 [
+                    new InteractiveOptionSpec("min-alignment-score", "--min-alignment-score", "Minimum alignment score.", PromptValueKind.Integer, DefaultValue: "10"),
+                    new InteractiveOptionSpec("min-seed-len", "--min-seed-len", "Minimum seed length for FM-index seeding.", PromptValueKind.Integer, DefaultValue: "19"),
+                    new InteractiveOptionSpec("max-seed-hits", "--max-seed-hits", "Discard seeds mapping to more than this many positions.", PromptValueKind.Integer, DefaultValue: "64"),
+                    new InteractiveOptionSpec("seed-step", "--seed-step", "Step size between sampled seeds (1=every position).", PromptValueKind.Integer, DefaultValue: "1"),
+                    new InteractiveOptionSpec("window-padding", "--window-padding", "Extra bases on both sides of a candidate window.", PromptValueKind.Integer, DefaultValue: "64"),
+                    new InteractiveOptionSpec("max-windows", "--max-windows", "Max candidate windows per read.", PromptValueKind.Integer, DefaultValue: "8"),
+                    new InteractiveOptionSpec("max-cores", "--max-cores", "Maximum cores to use.", PromptValueKind.Integer, DefaultValue: "10")
+                 ],
+                BuildArguments: answers => BuildStandardArguments(
+                     "align",
+                     ("--reference", answers.GetRequiredValue("reference")),
+                     ("--fastq", answers.GetRequiredValue("reads")),
+                     ("--output", answers.GetValue("output")),
+                     ("--output-prefix", answers.GetValue("output-prefix")),
+                     ("--max-reads", answers.GetValue("max-reads")),
+                     ("--min-alignment-score", answers.GetValue("min-alignment-score")),
+                     ("--min-seed-len", answers.GetValue("min-seed-len")),
+                     ("--max-seed-hits", answers.GetValue("max-seed-hits")),
+                     ("--seed-step", answers.GetValue("seed-step")),
+                     ("--window-padding", answers.GetValue("window-padding")),
+                     ("--max-windows", answers.GetValue("max-windows")),
+                     ("--max-cores", answers.GetValue("max-cores"))))
+         ];
     }
 
     private static IReadOnlyList<string> BuildAnalysisArguments(InteractiveAnswerStore answers)

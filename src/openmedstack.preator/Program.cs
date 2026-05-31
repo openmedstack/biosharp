@@ -34,15 +34,16 @@ internal static class Program
     internal static RootCommand CreateRootCommand()
     {
         return new RootCommand("Preator - BioSharp command-line tools")
-        {
+         {
             CreateBclCommand(),
             CreateAnalysisCommand(),
             CreateE2ECommand(),
             CreateAnnotateCommand(),
             CreateTrimCommand(),
             CreateQcCommand(),
-            CreateVariantCallCommand()
-        };
+            CreateVariantCallCommand(),
+            CreateAlignmentCommand()
+         };
     }
 
     private static Command CreateBclCommand()
@@ -222,5 +223,29 @@ internal static class Program
 
         command.SetAction(VariantCallCommand.Invoke);
         return command;
-    }
+     }
+
+    private static Command CreateAlignmentCommand()
+    {
+        var command = new Command(
+            "align",
+            "Align FASTQ reads against a reference FASTA using FM-index seeding + Smith-Waterman (equivalent to bwa-mem)")
+        {
+            PreatorCommandOptions.ReferenceOption,
+            PreatorCommandOptions.FastqRequiredOption,
+            PreatorCommandOptions.OutputOption,
+            PreatorCommandOptions.MaxReadsOption,
+            PreatorCommandOptions.MinAlignmentScoreOption,
+            PreatorCommandOptions.MinSeedLenOption,
+            PreatorCommandOptions.MaxSeedHitsThresholdOption,
+            PreatorCommandOptions.SeedStepOption,
+            PreatorCommandOptions.WindowPaddingOption,
+            PreatorCommandOptions.MaxCandidateWindowsPerReadOption,
+            PreatorCommandOptions.MaxCoresOption,
+            PreatorCommandOptions.OutputPrefixOption
+        };
+
+        command.SetAction(AlignmentCommand.Invoke);
+        return command;
+     }
 }

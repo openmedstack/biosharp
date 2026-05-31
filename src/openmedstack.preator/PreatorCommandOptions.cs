@@ -180,8 +180,39 @@ internal static class PreatorCommandOptions
     };
 
     internal static readonly Option<string> BamOption = new("--bam", "-b")
-    {
+     {
         Description = "Input sorted BAM file for variant calling.",
         Required = true
-    };
+     };
+
+    // Alignment-specific options
+    internal static readonly Option<int> MinSeedLenOption = new("--min-seed-len", "-ms")
+     {
+        Description = "Minimum seed length for FM-index seeding (like BWA-MEM).",
+        DefaultValueFactory = _ => 19
+     };
+
+    internal static readonly Option<double> MaxSeedHitsThresholdOption = new("--max-seed-hits")
+     {
+        Description = "Discard seeds that map to more than this many positions in the reference.",
+        DefaultValueFactory = _ => 64.0
+     };
+
+    internal static readonly Option<int> SeedStepOption = new("--seed-step", "-ss")
+     {
+        Description = "Step size between sampled seeds in the read (1 = check every position).",
+        DefaultValueFactory = _ => 1
+     };
+
+    internal static readonly Option<int> WindowPaddingOption = new("--window-padding", "-wp")
+     {
+        Description = "Extra bases included on both sides of a candidate window.",
+        DefaultValueFactory = _ => 64
+     };
+
+    internal static readonly Option<int> MaxCandidateWindowsPerReadOption = new("--max-windows")
+     {
+        Description = "Maximum candidate windows returned per read before SMW extension.",
+        DefaultValueFactory = _ => 8
+     };
 }

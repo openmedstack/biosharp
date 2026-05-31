@@ -101,7 +101,7 @@ internal static class VariantCallCommand
         if (options.EnableGraphSvDetection)
         {
             Console.WriteLine("Running full-reference De Bruijn graph analysis");
-            await pipeline.RunFullGraphAnalysis().ConfigureAwait(false);
+            await pipeline.RunFullGraphAnalysis(cancellationToken).ConfigureAwait(false);
         }
 
         var result = pipeline.BuildResult();
