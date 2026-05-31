@@ -1,4 +1,6 @@
-﻿namespace OpenMedStack.BioSharp.Io.FastQ;
+﻿using OpenMedStack.BioSharp.Io.Bgzf;
+
+namespace OpenMedStack.BioSharp.Io.FastQ;
 
 using System;
 using System.Buffers;

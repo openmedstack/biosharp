@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Logging.Abstractions;
 using OpenMedStack.BioSharp.Io;
 using OpenMedStack.BioSharp.Io.FastA;
+using OpenMedStack.BioSharp.Io.Gff;
 using OpenMedStack.BioSharp.Model;
 
 namespace OpenMedStack.BioSharp.AnnotationDb;

@@ -1,4 +1,6 @@
 using Microsoft.Extensions.Logging.Abstractions;
+using OpenMedStack.BioSharp.Io.Bed;
+using OpenMedStack.BioSharp.Io.Gff;
 using OpenMedStack.BioSharp.Model.Alignment;
 
 namespace OpenMedStack.BioSharp.AcceptanceTests.StepDefinitions;

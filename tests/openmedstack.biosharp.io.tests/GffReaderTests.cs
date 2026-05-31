@@ -2,6 +2,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using OpenMedStack.BioSharp.Io.Gff;
 using OpenMedStack.BioSharp.Model;
 using Xunit;
 

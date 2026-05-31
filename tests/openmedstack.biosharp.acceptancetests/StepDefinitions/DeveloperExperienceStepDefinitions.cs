@@ -1,3 +1,6 @@
+using OpenMedStack.BioSharp.Io.Bed;
+using OpenMedStack.BioSharp.Io.Gff;
+
 namespace OpenMedStack.BioSharp.AcceptanceTests.StepDefinitions;
 
 using System;

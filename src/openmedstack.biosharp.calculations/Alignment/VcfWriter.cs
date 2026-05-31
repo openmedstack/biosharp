@@ -1,3 +1,4 @@
+using OpenMedStack.BioSharp.Io.Bgzf;
 using OpenMedStack.BioSharp.Model;
 using OpenMedStack.BioSharp.Model.Alignment;
 

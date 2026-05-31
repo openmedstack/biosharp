@@ -1,12 +1,12 @@
-namespace OpenMedStack.BioSharp.Io;
-
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Model;
+using OpenMedStack.BioSharp.Model;
+
+namespace OpenMedStack.BioSharp.Io.Gff;
 
 /// <summary>
 /// Reads GFF3 and GTF annotation files, yielding <see cref="GffRecord"/> instances.

@@ -2,6 +2,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Linq;
 using System.Threading.Tasks;
+using OpenMedStack.BioSharp.Io.Bgzf;
 using OpenMedStack.BioSharp.Io.Vcf;
 using OpenMedStack.BioSharp.Model.Vcf;
 using Xunit;

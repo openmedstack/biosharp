@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using OpenMedStack.BioSharp.Io.Bgzf;
 using OpenMedStack.BioSharp.Io.Sam;
 
 namespace OpenMedStack.BioSharp.Io.Bam;

@@ -1,3 +1,5 @@
+using OpenMedStack.BioSharp.Io.Bed;
+
 namespace OpenMedStack.BioSharp.Io.Tests;
 
 using System.IO;

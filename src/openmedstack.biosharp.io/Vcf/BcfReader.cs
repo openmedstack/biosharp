@@ -1,3 +1,5 @@
+using OpenMedStack.BioSharp.Io.Bgzf;
+
 namespace OpenMedStack.BioSharp.Io.Vcf;
 
 using System;

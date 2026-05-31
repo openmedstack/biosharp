@@ -1,3 +1,4 @@
+using OpenMedStack.BioSharp.Io.Bgzf;
 using OpenMedStack.BioSharp.Model.Alignment;
 
 namespace OpenMedStack.BioSharp.Calculations.Tests;

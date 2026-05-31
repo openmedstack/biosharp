@@ -1,12 +1,12 @@
-namespace OpenMedStack.BioSharp.Io;
-
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-using Model;
+using OpenMedStack.BioSharp.Model;
+
+namespace OpenMedStack.BioSharp.Io.Bed;
 
 /// <summary>
 /// Reads BED (3-to-12 column) and BEDGraph (4-column) interval files,

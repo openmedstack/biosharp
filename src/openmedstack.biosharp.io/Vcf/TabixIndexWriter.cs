@@ -1,4 +1,5 @@
 using System.Linq;
+using OpenMedStack.BioSharp.Io.Bgzf;
 
 namespace OpenMedStack.BioSharp.Io.Vcf;
 

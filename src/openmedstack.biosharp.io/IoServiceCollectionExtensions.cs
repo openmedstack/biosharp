@@ -1,3 +1,6 @@
+using OpenMedStack.BioSharp.Io.Bed;
+using OpenMedStack.BioSharp.Io.Gff;
+
 namespace OpenMedStack.BioSharp.Io;
 
 using FastA;
@@ -11,7 +14,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 /// Extension methods for registering BioSharp I/O services with
 /// <see cref="IServiceCollection"/>.
 /// </summary>
-public static class BioSharpIoServiceCollectionExtensions
+public static class IoServiceCollectionExtensions
 {
     /// <summary>
     /// Registers all BioSharp I/O readers and writers as transient services.
