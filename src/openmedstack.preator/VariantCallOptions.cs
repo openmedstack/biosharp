@@ -1,12 +1,14 @@
 namespace OpenMedStack.Preator;
 
 internal sealed record VariantCallOptions(
-    string BamPath,
     string ReferencePath,
+    string? FastqPath,
+    string? FastaPath,
     string? ReferenceIdContains,
     string? Chromosome,
     string OutputDirectory,
     string OutputPrefix,
+    int? MaxReads,
     int MinAlignmentScore,
     int MinVariantQuality,
     int MinAlternateObservationCount,
@@ -17,4 +19,3 @@ internal sealed record VariantCallOptions(
     int MinGraphCoverage,
     int GraphWindowBp,
     int MaxCores);
-

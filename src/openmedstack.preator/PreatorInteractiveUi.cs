@@ -17,7 +17,7 @@ internal interface IPreatorInteractiveUi
 
 internal sealed class PreatorInteractiveUi : IPreatorInteractiveUi
 {
-    private const string AnalysisInputModeKey = "analysis-input-mode";
+    private const string VariantCallInputModeKey = "variantcall-input-mode";
     private const string E2EInputModeKey = "e2e-input-mode";
 
     // Shared advanced variant-calling options reused by both `analysis` and `variantcall` specs
@@ -34,12 +34,7 @@ internal sealed class PreatorInteractiveUi : IPreatorInteractiveUi
         new InteractiveOptionSpec("graph-window-bp", "--graph-window-bp", "Graph window size in bp.", PromptValueKind.Integer, DefaultValue: "500"),
         new InteractiveOptionSpec("max-cores", "--max-cores", "Maximum cores to use.", PromptValueKind.Integer, DefaultValue: "10")
     ];
-    private readonly IAnsiConsole _console;
-
-    public PreatorInteractiveUi()
-    {
-        _console = AnsiConsole.Console;
-    }
+    private readonly IAnsiConsole _console = AnsiConsole.Console;
 
     public async Task<int> Run(RootCommand rootCommand, CancellationToken cancellationToken)
     {
@@ -121,11 +116,11 @@ internal sealed class PreatorInteractiveUi : IPreatorInteractiveUi
                     ("--lanes", answers.GetValue("lanes")),
                     ("--readstructure", answers.GetValue("readstructure")))),
             new InteractiveCommandSpec(
-                Name: "analysis",
-                Description: "Run the DNA analysis pipeline",
+                Name: "variantcall",
+                Description: "Run the variant call pipeline",
                 BasicOptions:
                 [
-                    new InteractiveOptionSpec(AnalysisInputModeKey, "Input mode", "Choose whether reads come from FASTQ or FASTA.", PromptValueKind.Choice, DefaultValue: "fastq", choices: ["fastq", "fasta"]),
+                    new InteractiveOptionSpec(VariantCallInputModeKey, "Input mode", "Choose whether reads come from FASTQ or FASTA.", PromptValueKind.Choice, DefaultValue: "fastq", choices: ["fastq", "fasta"]),
                     new InteractiveOptionSpec("reference", "--reference", "Reference FASTA or FASTA.GZ file.", PromptValueKind.Text, IsRequired: true),
                     new InteractiveOptionSpec("reads-path", "Read input path", "Read file matching the selected input mode.", PromptValueKind.Text, IsRequired: true),
                     new InteractiveOptionSpec("output", "--output", "Output directory.", PromptValueKind.Text, DefaultValue: Environment.CurrentDirectory),
@@ -228,20 +223,6 @@ internal sealed class PreatorInteractiveUi : IPreatorInteractiveUi
                     ("--adapter", answers.GetValue("adapter")),
                     ("--max-reads", answers.GetValue("max-reads")))),
             new InteractiveCommandSpec(
-                Name: "variantcall",
-                Description: "Call variants from a sorted BAM file (equivalent to freebayes / bcftools call)",
-                BasicOptions:
-                [
-                    new InteractiveOptionSpec("bam", "--bam", "Input sorted BAM file.", PromptValueKind.Text, IsRequired: true),
-                    new InteractiveOptionSpec("reference", "--reference", "Reference FASTA or FASTA.GZ file.", PromptValueKind.Text, IsRequired: true),
-                    new InteractiveOptionSpec("output", "--output", "Output directory.", PromptValueKind.Text, DefaultValue: Environment.CurrentDirectory),
-                    new InteractiveOptionSpec("output-prefix", "--output-prefix", "Output filename prefix.", PromptValueKind.Text, DefaultValue: "variants"),
-                    new InteractiveOptionSpec("reference-id-contains", "--reference-id-contains", "Select a FASTA record by partial ID match.", PromptValueKind.Text),
-                    new InteractiveOptionSpec("chromosome", "--chromosome", "Override the output contig/chromosome name.", PromptValueKind.Text)
-                ],
-                AdvancedOptions: VariantCallingAdvancedOptions,
-                BuildArguments: BuildVariantCallArguments),
-            new InteractiveCommandSpec(
                 Name: "align",
                 Description: "Align FASTQ reads against a reference using FM-index + Smith-Waterman (like bwa-mem)",
                 BasicOptions:
@@ -282,14 +263,14 @@ internal sealed class PreatorInteractiveUi : IPreatorInteractiveUi
     private static IReadOnlyList<string> BuildAnalysisArguments(InteractiveAnswerStore answers)
     {
         var readsArgumentName = string.Equals(
-            answers.GetRequiredValue(AnalysisInputModeKey),
+            answers.GetRequiredValue(VariantCallInputModeKey),
             "fasta",
             StringComparison.OrdinalIgnoreCase)
             ? "--fasta"
             : "--fastq";
 
         return BuildStandardArguments(
-            "analysis",
+            "variantcall",
             ("--reference", answers.GetRequiredValue("reference")),
             (readsArgumentName, answers.GetRequiredValue("reads-path")),
             ("--output", answers.GetValue("output")),
@@ -340,28 +321,6 @@ internal sealed class PreatorInteractiveUi : IPreatorInteractiveUi
             ("--enable-graph-sv", answers.GetFlag("enable-graph-sv")),
             ("--transcript-id", answers.GetValue("transcript-id")),
             ("--min-quality", answers.GetValue("min-quality")));
-    }
-
-    private static IReadOnlyList<string> BuildVariantCallArguments(InteractiveAnswerStore answers)
-    {
-        return BuildStandardArguments(
-            "variantcall",
-            ("--bam", answers.GetRequiredValue("bam")),
-            ("--reference", answers.GetRequiredValue("reference")),
-            ("--output", answers.GetValue("output")),
-            ("--output-prefix", answers.GetValue("output-prefix")),
-            ("--reference-id-contains", answers.GetValue("reference-id-contains")),
-            ("--chromosome", answers.GetValue("chromosome")),
-            ("--min-alignment-score", answers.GetValue("min-alignment-score")),
-            ("--min-variant-quality", answers.GetValue("min-variant-quality")),
-            ("--min-alternate-observation-count", answers.GetValue("min-alternate-observation-count")),
-            ("--min-alternate-fraction", answers.GetValue("min-alternate-fraction")),
-            ("--kmer-size", answers.GetValue("kmer-size")),
-            ("--min-graph-coverage", answers.GetValue("min-graph-coverage")),
-            ("--graph-window-bp", answers.GetValue("graph-window-bp")),
-            ("--max-cores", answers.GetValue("max-cores")),
-            ("--disable-softclip-realign", answers.GetFlag("disable-softclip-realign")),
-            ("--enable-graph-sv", answers.GetFlag("enable-graph-sv")));
     }
 
     internal static IReadOnlyList<string> BuildStandardArguments(

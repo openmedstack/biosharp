@@ -31,9 +31,9 @@ public sealed class ProgramInteractiveModeTests
     [Fact]
     public void BuildAnalysisArguments_UsesSelectedReadInputMode()
     {
-        var spec = GetSpec("analysis");
+        var spec = GetSpec("variantcall");
         var answers = new InteractiveAnswerStore();
-        answers.SetValue("analysis-input-mode", "fasta");
+        answers.SetValue("variantcall-input-mode", "fasta");
         answers.SetValue("reference", "reference.fa.gz");
         answers.SetValue("reads-path", "reads.fa.gz");
         answers.SetValue("output", "output");
@@ -43,7 +43,7 @@ public sealed class ProgramInteractiveModeTests
         var arguments = spec.BuildArguments(answers);
 
         Assert.Equal(
-            ["analysis", "--reference", "reference.fa.gz", "--fasta", "reads.fa.gz", "--output", "output", "--output-prefix", "variants", "--max-reads", "10"],
+            ["variantcall", "--reference", "reference.fa.gz", "--fasta", "reads.fa.gz", "--output", "output", "--output-prefix", "variants", "--max-reads", "10"],
             arguments);
     }
 
@@ -154,66 +154,6 @@ public sealed class ProgramInteractiveModeTests
 
         Assert.Contains("--adapter", arguments);
         Assert.Contains("AGATCGGAAGAGCACACGTCTGAACTCCAGTCA", arguments);
-    }
-
-    [Fact]
-    public void CreateCommandSpecs_ContainsVariantCallCommand()
-    {
-        var spec = GetSpec("variantcall");
-
-        Assert.Equal("variantcall", spec.Name);
-        Assert.Contains(spec.BasicOptions, o => o.Label == "--bam");
-        Assert.Contains(spec.BasicOptions, o => o.Label == "--reference");
-        // advanced options are the shared variant-calling set
-        Assert.Contains(spec.AdvancedOptions, o => o.Label == "--min-alignment-score");
-        Assert.Contains(spec.AdvancedOptions, o => o.Label == "--min-variant-quality");
-    }
-
-    [Fact]
-    public void BuildVariantCallArguments_IncludesRequiredOptions()
-    {
-        var spec = GetSpec("variantcall");
-        var answers = new InteractiveAnswerStore();
-        answers.SetValue("bam", "sorted.bam");
-        answers.SetValue("reference", "ref.fa.gz");
-        answers.SetValue("output", "output");
-        answers.SetValue("output-prefix", "variants");
-
-        var arguments = spec.BuildArguments(answers);
-
-        Assert.Contains("variantcall", arguments);
-        Assert.Contains("--bam", arguments);
-        Assert.Contains("sorted.bam", arguments);
-        Assert.Contains("--reference", arguments);
-        Assert.Contains("ref.fa.gz", arguments);
-    }
-
-    [Fact]
-    public void BuildVariantCallArguments_IncludesEnableGraphSvFlagWhenEnabled()
-    {
-        var spec = GetSpec("variantcall");
-        var answers = new InteractiveAnswerStore();
-        answers.SetValue("bam", "sorted.bam");
-        answers.SetValue("reference", "ref.fa.gz");
-        answers.SetFlag("enable-graph-sv", true);
-
-        var arguments = spec.BuildArguments(answers);
-
-        Assert.Contains("--enable-graph-sv", arguments);
-    }
-
-    [Fact]
-    public void BuildVariantCallArguments_OmitsDisableSoftclipFlagWhenFalse()
-    {
-        var spec = GetSpec("variantcall");
-        var answers = new InteractiveAnswerStore();
-        answers.SetValue("bam", "sorted.bam");
-        answers.SetValue("reference", "ref.fa.gz");
-        answers.SetFlag("disable-softclip-realign", false);
-
-        var arguments = spec.BuildArguments(answers);
-
-        Assert.DoesNotContain("--disable-softclip-realign", arguments);
     }
 
     [Fact]

@@ -8,14 +8,14 @@ public sealed class AnalysisCommandOptionTests
     public void CreateAnalysisOptions_DefaultsPreserveHistoricalAcceptanceThresholds()
     {
         var parseResult = Program.CreateRootCommand().Parse([
-            "analysis",
+            "variantcall",
             "--reference", "reference.fa.gz",
             "--fastq", "reads.fastq.gz"
         ]);
 
         Assert.Empty(parseResult.Errors);
 
-        var options = AnalysisCommand.CreateOptions(parseResult);
+        var options = VariantCallCommand.CreateOptions(parseResult);
 
         Assert.Equal(1, options.MinAlternateObservationCount);
         Assert.Equal(0.0, options.MinAlternateFraction);
@@ -25,7 +25,7 @@ public sealed class AnalysisCommandOptionTests
     public void CreateAnalysisOptions_ParsesFreebayesLikeAcceptanceThresholds()
     {
         var parseResult = Program.CreateRootCommand().Parse([
-            "analysis",
+            "variantcall",
             "--reference", "reference.fa.gz",
             "--fastq", "reads.fastq.gz",
             "--min-alternate-observation-count", "2",
@@ -34,7 +34,7 @@ public sealed class AnalysisCommandOptionTests
 
         Assert.Empty(parseResult.Errors);
 
-        var options = AnalysisCommand.CreateOptions(parseResult);
+        var options = VariantCallCommand.CreateOptions(parseResult);
 
         Assert.Equal(2, options.MinAlternateObservationCount);
         Assert.Equal(0.20, options.MinAlternateFraction);

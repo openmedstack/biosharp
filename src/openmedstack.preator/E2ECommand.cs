@@ -84,10 +84,10 @@ internal static class E2ECommand
 
         // ── Load reference ───────────────────────────────────────────────────
         Console.WriteLine($"Loading reference from {options.ReferencePath}");
-        var reference = await AnalysisCommand.LoadReference(
+        var reference = await VariantCallCommand.LoadReference(
             options.ReferencePath,
             options.ReferenceIdContains).ConfigureAwait(false);
-        var chromosome = options.Chromosome ?? AnalysisCommand.NormalizeSequenceId(reference.Id);
+        var chromosome = options.Chromosome ?? VariantCallCommand.NormalizeSequenceId(reference.Id);
 
         Console.WriteLine($"Selected reference sequence: {reference.Id} ({reference.Length:N0} bp)");
         Console.WriteLine($"Using chromosome/output contig name: {chromosome}");
@@ -116,9 +116,9 @@ internal static class E2ECommand
             $"Reading {(isFastA ? "FASTA" : "FASTQ")} from {(isFastA ? options.FastaPath : options.FastqPath)}");
 
         var processedReads = isFastA
-            ? await AnalysisCommand.ProcessFasta(pipeline, options.FastaPath!, options.MaxReads)
+            ? await VariantCallCommand.ProcessFasta(pipeline, options.FastaPath!, options.MaxReads)
                 .ConfigureAwait(false)
-            : await AnalysisCommand.ProcessFastq(pipeline, options.FastqPath!, options.MaxReads)
+            : await VariantCallCommand.ProcessFastq(pipeline, options.FastqPath!, options.MaxReads)
                 .ConfigureAwait(false);
 
         Console.WriteLine($"Processed reads: {processedReads:N0}");
@@ -138,10 +138,10 @@ internal static class E2ECommand
         var reportPath = Path.Combine(outputDir, $"{options.OutputPrefix}.tsv");
         var summaryPath = Path.Combine(outputDir, $"{options.OutputPrefix}.summary.txt");
 
-        await AnalysisCommand.WriteMergedVcf(vcfPath, mergedVariants, chromosome, reference.Length)
+        await VariantCallCommand.WriteMergedVcf(vcfPath, mergedVariants, chromosome, reference.Length)
             .ConfigureAwait(false);
-        await AnalysisCommand.WriteReport(reportPath, mergedVariants).ConfigureAwait(false);
-        await AnalysisCommand.WriteSummary(summaryPath, processedReads, pipelineResult, mergedVariants)
+        await VariantCallCommand.WriteReport(reportPath, mergedVariants).ConfigureAwait(false);
+        await VariantCallCommand.WriteSummary(summaryPath, processedReads, pipelineResult, mergedVariants)
             .ConfigureAwait(false);
 
         Console.WriteLine();

@@ -35,14 +35,13 @@ internal static class Program
     {
         return new RootCommand("Preator - BioSharp command-line tools")
          {
-            CreateBclCommand(),
-            CreateAnalysisCommand(),
-            CreateE2ECommand(),
+            CreateAlignmentCommand(),
             CreateAnnotateCommand(),
-            CreateTrimCommand(),
-            CreateQcCommand(),
+            CreateBclCommand(),
+            CreateE2ECommand(),
             CreateVariantCallCommand(),
-            CreateAlignmentCommand()
+            CreateQcCommand(),
+            CreateTrimCommand(),
          };
     }
 
@@ -60,9 +59,9 @@ internal static class Program
         return command;
     }
 
-    private static Command CreateAnalysisCommand()
+    private static Command CreateVariantCallCommand()
     {
-        var command = new Command("analysis", "Run the DNA analysis pipeline")
+        var command = new Command("variantcall", "Run the variant call pipeline")
         {
             PreatorCommandOptions.ReferenceOption,
             PreatorCommandOptions.FastqOption,
@@ -94,7 +93,7 @@ internal static class Program
             }
         });
 
-        command.SetAction(AnalysisCommand.Invoke);
+        command.SetAction(VariantCallCommand.Invoke);
         return command;
     }
 
@@ -196,34 +195,6 @@ internal static class Program
         command.SetAction(QcCommand.Invoke);
         return command;
     }
-
-    private static Command CreateVariantCallCommand()
-    {
-        var command = new Command(
-            "variantcall",
-            "Call variants from a sorted BAM file against a reference (equivalent to freebayes / bcftools call)")
-        {
-            PreatorCommandOptions.BamOption,
-            PreatorCommandOptions.ReferenceOption,
-            PreatorCommandOptions.ReferenceIdContainsOption,
-            PreatorCommandOptions.ChromosomeOption,
-            PreatorCommandOptions.OutputOption,
-            PreatorCommandOptions.OutputPrefixOption,
-            PreatorCommandOptions.MinAlignmentScoreOption,
-            PreatorCommandOptions.MinVariantQualityOption,
-            PreatorCommandOptions.MinAlternateObservationCountOption,
-            PreatorCommandOptions.MinAlternateFractionOption,
-            PreatorCommandOptions.DisableSoftclipRealignOption,
-            PreatorCommandOptions.EnableGraphSvOption,
-            PreatorCommandOptions.KmerSizeOption,
-            PreatorCommandOptions.MinGraphCoverageOption,
-            PreatorCommandOptions.GraphWindowBpOption,
-            PreatorCommandOptions.MaxCoresOption
-        };
-
-        command.SetAction(VariantCallCommand.Invoke);
-        return command;
-     }
 
     private static Command CreateAlignmentCommand()
     {

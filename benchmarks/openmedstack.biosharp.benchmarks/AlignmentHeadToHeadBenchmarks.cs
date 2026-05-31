@@ -309,9 +309,9 @@ public class AlignmentHeadToHeadBenchmarks
     /// on the first warmup iteration.  The difference exposes the true startup + JIT overhead
     /// of the .NET runtime vs. a native C tool like BWA.
     /// </summary>
-    [Benchmark(Description = "preator-analysis (subprocess)")]
+    [Benchmark(Description = "preator-variantcall (subprocess)")]
     [BenchmarkCategory("Alignment", "Preator")]
-    public int Preator_Analysis_Subprocess()
+    public int Preator_VariantCall_Subprocess()
     {
         if (_preatorDll == null)
         {
@@ -319,7 +319,7 @@ public class AlignmentHeadToHeadBenchmarks
                 $"preator binary is not available: {_preatorPublishError}");
         }
 
-        var outDir = Path.Combine(_tempDir, $"preator_analysis_{Guid.NewGuid():N}");
+        var outDir = Path.Combine(_tempDir, $"preator_variantcall_{Guid.NewGuid():N}");
         Directory.CreateDirectory(outDir);
         try
         {
@@ -327,7 +327,7 @@ public class AlignmentHeadToHeadBenchmarks
             var exit = runningInContainer
                 ? ExternalProcess.Run(
                     "/app/preator/preator",
-                    $"analysis" +
+                    $"variantcall" +
                     $" --reference \"{_referenceFastaPath}\"" +
                     $" --fastq \"{_readsFastqPath}\"" +
                     $" --chromosome chrSynth" +
@@ -338,7 +338,7 @@ public class AlignmentHeadToHeadBenchmarks
                     300_000)
                 : ExternalProcess.Run(
                     "dotnet",
-                    $"\"{_preatorDll}\" analysis" +
+                    $"\"{_preatorDll}\" variantcall" +
                     $" --reference \"{_referenceFastaPath}\"" +
                     $" --fastq \"{_readsFastqPath}\"" +
                     $" --chromosome chrSynth" +
@@ -349,7 +349,7 @@ public class AlignmentHeadToHeadBenchmarks
                     300_000);
             if (exit != 0)
             {
-                throw new InvalidOperationException($"preator analysis exited with code {exit}.");
+                throw new InvalidOperationException($"preator variantcall exited with code {exit}.");
             }
 
             // Return the count of variant records as a work-done signal.
