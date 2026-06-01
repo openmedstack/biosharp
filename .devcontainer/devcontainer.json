@@ -1,0 +1,56 @@
+{
+    "name": "BioSharp (.NET 10)",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": "..",
+        "args": {
+            "HOST_UID": "1000",
+            "HOST_GID": "1000"
+        }
+    },
+    "features": {
+        "ghcr.io/devcontainers/features/ssh-server:1": {
+            "version": "latest",
+            "passwordAuthentication": false,
+            "authorizeKey": true,
+            "enableSSHAgent": true
+        },
+        "ghcr.io/devcontainers/features/docker-in-docker:2": {
+            "version": "latest",
+            "moby": false
+        },
+        "ghcr.io/devcontainers/features/git:1": {
+            "version": "latest"
+        }
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-dotnettools.dotnet-vb-dotnet.vstest",
+                "ms-dotnettools.csharp"
+            ],
+            "settings": {
+                "dotnet.defaultSolution": "openmedstack-biosharp.sln",
+                "terminal.integrated.defaultProfile.linux": "bash",
+                "remote.SSH.remotePlatform": {
+                    "localhost": "linux"
+                }
+            }
+        },
+        "jetbrains": {
+            "intellijIde": "rider",
+            "intellijIdeVersion": "2024.1"
+        }
+    },
+    "forwardPorts": [2222],
+    "postCreateCommand": "dotnet restore openmedstack-biosharp.sln && dotnet build openmedstack-biosharp.sln -c Debug",
+    "remoteUser": "vscode",
+    "workspaceMount": "source=${localWorkspaceFolder},target=/workspaces/biosharp,type=bind,consistency=cached",
+    "workspaceFolder": "/workspaces/biosharp",
+    "overrideCommand": false,
+    "runArgs": [
+        "--cap-add=SYS_PTRACE",
+        "--security-opt",
+        "seccomp=unconfined"
+    ]
+}
