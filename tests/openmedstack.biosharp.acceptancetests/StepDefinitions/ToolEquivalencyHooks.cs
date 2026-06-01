@@ -129,6 +129,24 @@ public sealed class ToolEquivalencyHooks
         }
     }
 
+    [BeforeScenario("RequiresTrimmomatic")]
+    public void RequiresTrimmomatic()
+    {
+        if (!ExternalToolRunner.IsAvailable("trimmomatic"))
+        {
+            Assert.Skip("trimmomatic is not available on this platform/architecture — skipping equivalency scenario.");
+        }
+    }
+
+    [BeforeScenario("RequiresSnpEff")]
+    public void RequiresSnpEff()
+    {
+        if (!ExternalToolRunner.IsAvailable("snpeff"))
+        {
+            Assert.Skip("snpeff is not available on this platform/architecture — skipping equivalency scenario.");
+        }
+    }
+
     // ── Scenario-level temp directory management ────────────────────────────
 
     [BeforeScenario("Equivalency")]
@@ -186,8 +204,9 @@ public sealed class ToolEquivalencyHooks
         _ when Array.Exists(tags, t => t is "RequiresBclConvert" or "RequiresBcl2Fastq") => "BclConversion",
         _ when Array.Exists(tags, t => t is "RequiresBwa" or "RequiresBwaMem2") => "Alignment",
         _ when Array.Exists(tags, t => t is "RequiresSamtools" or "RequiresBcftools" or "RequiresFreebayes") => "VariantCalling",
-        _ when Array.Exists(tags, t => t is "RequiresCutadapt") => "AdapterTrimming",
+        _ when Array.Exists(tags, t => t is "RequiresCutadapt" or "RequiresTrimmomatic") => "AdapterTrimming",
         _ when Array.Exists(tags, t => t is "RequiresFastp" or "RequiresFastqc") => "QualityControl",
+        _ when Array.Exists(tags, t => t is "RequiresSnpEff") => "VariantAnnotation",
         _ => "Other"
     };
 
@@ -203,6 +222,8 @@ public sealed class ToolEquivalencyHooks
         _ when Array.Exists(tags, t => t == "RequiresCutadapt") => "cutadapt",
         _ when Array.Exists(tags, t => t == "RequiresFastp") => "fastp",
         _ when Array.Exists(tags, t => t == "RequiresFastqc") => "fastqc",
+        _ when Array.Exists(tags, t => t == "RequiresTrimmomatic") => "trimmomatic",
+        _ when Array.Exists(tags, t => t == "RequiresSnpEff") => "snpeff",
         _ => "unknown"
     };
 

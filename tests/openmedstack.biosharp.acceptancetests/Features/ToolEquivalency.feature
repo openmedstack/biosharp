@@ -136,7 +136,39 @@ Feature: Tool Equivalency Acceptance Tests
       | 1000      | 100        | 60              | "CTGTCTCTTATACACATCT"               | 20        | 15           |
 
   # ─────────────────────────────────────────────────────────────────────────────
-  # QC metrics: BioSharp vs FastQC — total read count
+  # Adapter trimming: BioSharp vs Trimmomatic — surviving read count
+  # Trimmomatic is the canonical Java adapter trimmer widely used in NGS pipelines.
+  # Equivalency here validates that BioSharp's C# implementation is compatible.
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  @RequiresTrimmomatic
+  Scenario Outline: BioSharp adapter trimming produces equivalent surviving read count to trimmomatic
+    Given <ReadCount> FASTQ reads of <ReadLength> bp with <AdapterFraction> percent carrying adapter <Adapter>
+    When BioSharp trims adapter <Adapter> with minimum length <MinLength> and max mismatches 2
+    And trimmomatic trims the reads with adapter <Adapter> and minimum length <MinLength>
+    Then the BioSharp surviving read count should be within <TolerancePct> percent of the trimmomatic surviving count
+
+    Examples:
+      | ReadCount | ReadLength | AdapterFraction | Adapter                               | MinLength | TolerancePct |
+      | 1000      | 100        | 30              | "AGATCGGAAGAGCACACGTCTGAACTCCAGTCA" | 20        | 15           |
+      | 1000      | 100        | 60              | "CTGTCTCTTATACACATCT"               | 20        | 15           |
+      | 500       | 150        | 50              | "AGATCGGAAGAGCACACGTCTGAACTCCAGTCA" | 50        | 15           |
+
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Adapter trimming: BioSharp vs Trimmomatic — bases removed
+  # ─────────────────────────────────────────────────────────────────────────────
+
+  @RequiresTrimmomatic
+  Scenario Outline: BioSharp bases removed by adapter trimming is within tolerance of trimmomatic
+    Given <ReadCount> FASTQ reads of <ReadLength> bp with <AdapterFraction> percent carrying adapter <Adapter>
+    When BioSharp trims adapter <Adapter> with minimum length <MinLength> and max mismatches 2
+    And trimmomatic trims the reads with adapter <Adapter> and minimum length <MinLength>
+    Then the BioSharp bases removed should be within <TolerancePct> percent of the trimmomatic bases removed
+
+    Examples:
+      | ReadCount | ReadLength | AdapterFraction | Adapter                               | MinLength | TolerancePct |
+      | 1000      | 100        | 30              | "AGATCGGAAGAGCACACGTCTGAACTCCAGTCA" | 20        | 20           |
+      | 1000      | 100        | 60              | "CTGTCTCTTATACACATCT"               | 20        | 20           |
   # FastQC is the standard tool for read-level quality assessment.
   # The total read count must match exactly — there is no tolerance.
   # ─────────────────────────────────────────────────────────────────────────────

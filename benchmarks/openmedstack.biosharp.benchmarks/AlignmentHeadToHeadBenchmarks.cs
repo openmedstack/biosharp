@@ -336,10 +336,9 @@ public class AlignmentHeadToHeadBenchmarks
                     300_000)
                 : ExternalProcess.Run(
                     "dotnet",
-                    $"\"{_preatorDll}\" variantcall" +
+                    $"\"{_preatorDll}\" align" +
                     $" --reference \"{_referenceFastaPath}\"" +
                     $" --fastq \"{_readsFastqPath}\"" +
-                    $" --chromosome chrSynth" +
                     $" --output \"{outDir}\"" +
                     $" --output-prefix aligned" +
                     $" -p {ThreadCount}",
@@ -347,16 +346,12 @@ public class AlignmentHeadToHeadBenchmarks
                     300_000);
             if (exit != 0)
             {
-                throw new InvalidOperationException($"preator variantcall exited with code {exit}.");
+                throw new InvalidOperationException($"preator align exited with code {exit}.");
             }
 
-            // Return the count of variant records as a work-done signal.
-            // An empty VCF (0 variants on a synthetic reference) is also acceptable.
-            var vcfPath = Path.Combine(outDir, "aligned.vcf");
-            return File.Exists(vcfPath)
-                ? File.ReadLines(vcfPath)
-                    .Count(line => !string.IsNullOrWhiteSpace(line) && line[0] != '#')
-                : 0;
+            // Return the BAM file size as a work-done signal.
+            var bamPath = Path.Combine(outDir, "aligned.bam");
+            return File.Exists(bamPath) ? (int)new FileInfo(bamPath).Length : 0;
         }
         finally
         {

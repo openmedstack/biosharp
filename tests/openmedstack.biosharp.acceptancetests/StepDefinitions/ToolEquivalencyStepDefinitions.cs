@@ -16,8 +16,7 @@ using Io.Bcl;
 using Io.FastQ;
 using Microsoft.Extensions.Logging.Abstractions;
 using Model;
-using Model.Bcl;
-using Reqnroll;
+using Model.Bcl;using Reqnroll;
 using Xunit;
 
 /// <summary>
@@ -638,6 +637,118 @@ public sealed class ToolEquivalencyStepDefinitions
         }
     }
 
+    [When("trimmomatic trims the reads with adapter {string} and minimum length {int}")]
+    public void WhenTrimmomaticTrims(string adapter, int minLength)
+    {
+        var tempDir = TempDir;
+        var readsFile = (string)_ctx["ReadsFile"];
+        var adapterFa = TempPath(tempDir, $"trimmomatic_adapter_{Guid.NewGuid():N}.fa");
+        var outFile = TempPath(tempDir, $"trimmomatic_out_{Guid.NewGuid():N}.fq");
+
+        try
+        {
+            File.WriteAllText(adapterFa, $">adapter\n{adapter}\n");
+
+            var inputBases = CountBasesInFastqGz(readsFile);
+
+            var (exit, stderr) = ExternalToolRunner.ShellCapture(
+                $"trimmomatic SE -threads {Threads} \"{readsFile}\" \"{outFile}\" ILLUMINACLIP:\"{adapterFa}\":2:30:10 MINLEN:{minLength} 2>&1",
+                tempDir, 180_000);
+
+            if (exit != 0)
+            {
+                throw new InvalidOperationException(
+                    $"trimmomatic failed with exit code {exit}. Output: {stderr[..Math.Min(500, stderr.Length)]}");
+            }
+
+            var survivingCount = ParseTrimmomaticSurvivingCount(stderr);
+            var outputBases = File.Exists(outFile) ? CountBasesInFastq(outFile) : 0L;
+            var basesRemoved = inputBases > 0 && outputBases >= 0 ? inputBases - outputBases : 0L;
+
+            _ctx["ExternalSurvivingCount"] = survivingCount;
+            _ctx["ExternalBasesRemoved"] = basesRemoved;
+            _ctx["ExternalTrimmerName"] = "trimmomatic";
+        }
+        finally
+        {
+            if (File.Exists(adapterFa)) File.Delete(adapterFa);
+            if (File.Exists(outFile)) File.Delete(outFile);
+        }
+    }
+
+    private static int ParseTrimmomaticSurvivingCount(string output)
+    {
+        // Trimmomatic reports: "Input Reads: 1000 Surviving: 970 (97.00%) Dropped: 30 (3.00%)"
+        foreach (var line in output.Split('\n'))
+        {
+            var idx = line.IndexOf("Surviving:", StringComparison.OrdinalIgnoreCase);
+            if (idx < 0)
+            {
+                continue;
+            }
+
+            var after = line[(idx + "Surviving:".Length)..].Trim();
+            var token = after.Split(' ')[0];
+            if (int.TryParse(token, out var count))
+            {
+                return count;
+            }
+        }
+
+        return -1;
+    }
+
+    private static long CountBasesInFastqGz(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return 0;
+        }
+
+        using var fs = File.OpenRead(path);
+        using var gz = new GZipStream(fs, CompressionMode.Decompress);
+        using var sr = new StreamReader(gz, Encoding.UTF8, leaveOpen: false);
+        long bases = 0;
+        var lineIndex = 0;
+        string? line;
+        while ((line = sr.ReadLine()) != null)
+        {
+            if (lineIndex % 4 == 1)
+            {
+                bases += line.Length;
+            }
+
+            lineIndex++;
+        }
+
+        return bases;
+    }
+
+    private static long CountBasesInFastq(string path)
+    {
+        if (!File.Exists(path))
+        {
+            return 0;
+        }
+
+        using var fs = File.OpenRead(path);
+        using var sr = new StreamReader(fs, Encoding.UTF8, leaveOpen: false);
+        long bases = 0;
+        var lineIndex = 0;
+        string? line;
+        while ((line = sr.ReadLine()) != null)
+        {
+            if (lineIndex % 4 == 1)
+            {
+                bases += line.Length;
+            }
+
+            lineIndex++;
+        }
+
+        return bases;
+    }
+
     private static int ParseCutadaptPassingReads(string output)
     {
         foreach (var line in output.Split('\n'))
@@ -1025,6 +1136,28 @@ public sealed class ToolEquivalencyStepDefinitions
 
         AssertWithinTolerance(biosharpBases, externalBases, tolerancePct,
             "AdapterTrimming", "cutadapt", parameters, "BasesRemoved");
+    }
+
+    [Then("the BioSharp surviving read count should be within {int} percent of the trimmomatic surviving count")]
+    public void ThenBioSharpSurvivingCountWithinTolerance_Trimmomatic(int tolerancePct)
+    {
+        var biosharpCount = (int)_ctx["BioSharpSurvivingCount"];
+        var externalCount = (int)_ctx["ExternalSurvivingCount"];
+        var parameters = _ctx.TryGetValue("ScenarioParams", out var p) ? (string)p! : "";
+
+        AssertWithinTolerance(biosharpCount, externalCount, tolerancePct,
+            "AdapterTrimming", "trimmomatic", parameters, "SurvivingReads");
+    }
+
+    [Then("the BioSharp bases removed should be within {int} percent of the trimmomatic bases removed")]
+    public void ThenBioSharpBasesRemovedWithinTolerance_Trimmomatic(int tolerancePct)
+    {
+        var biosharpBases = (int)_ctx["BioSharpBasesRemoved"];
+        var externalBases = (long)_ctx["ExternalBasesRemoved"];
+        var parameters = _ctx.TryGetValue("ScenarioParams", out var p) ? (string)p! : "";
+
+        AssertWithinTolerance(biosharpBases, externalBases, tolerancePct,
+            "AdapterTrimming", "trimmomatic", parameters, "BasesRemoved");
     }
 
     // ── Then: QC assertions ───────────────────────────────────────────────────
@@ -1492,5 +1625,211 @@ public sealed class ToolEquivalencyStepDefinitions
         }
 
         return new BclFastqSummary(fastqFiles.Length, readCount, totalBases);
+    }
+
+    // ── Annotation (SnpEff equivalency) ───────────────────────────────────────
+
+    [Given("a synthetic reference with {int} transcripts and {int} planted variants")]
+    public void GivenSyntheticReferenceWithTranscriptsAndVariants(int transcriptCount, int variantCount)
+    {
+        var tempDir = TempDir;
+        var fastaPath = TempPath(tempDir, "synth_ref.fa");
+        var gtfPath = TempPath(tempDir, "synth_genes.gtf");
+        var vcfPath = TempPath(tempDir, "synth_variants.vcf");
+
+        const int txLength = 1000;
+        const int cdsOffset = 100;
+        var sb = new StringBuilder();
+        var lines = new List<string>();
+
+        // FASTA: one sequence per transcript
+        for (var t = 0; t < transcriptCount; t++)
+        {
+            var chromName = $"synth{t + 1}";
+            sb.Append('>').AppendLine(chromName);
+            var seq = GenerateSyntheticNucleotides(txLength);
+            sb.AppendLine(seq);
+            lines.Add($"##contig=<ID={chromName},length={txLength}>");
+        }
+
+        File.WriteAllText(fastaPath, sb.ToString());
+
+        // GTF: one transcript + CDS + exon per chromosome
+        using (var gtfWriter = File.CreateText(gtfPath))
+        {
+            for (var t = 0; t < transcriptCount; t++)
+            {
+                var chrom = $"synth{t + 1}";
+                var txId = $"TX{t + 1:D3}";
+                var cdsEnd = txLength - cdsOffset;
+                gtfWriter.WriteLine($"{chrom}\tSynth\ttranscript\t1\t{txLength}\t.\t+\t.\tgene_id \"{txId}\"; transcript_id \"{txId}\";");
+                gtfWriter.WriteLine($"{chrom}\tSynth\texon\t1\t{txLength}\t.\t+\t.\tgene_id \"{txId}\"; transcript_id \"{txId}\";");
+                gtfWriter.WriteLine($"{chrom}\tSynth\tCDS\t{cdsOffset}\t{cdsEnd}\t.\t+\t0\tgene_id \"{txId}\"; transcript_id \"{txId}\";");
+            }
+        }
+
+        // VCF: distribute variants across transcripts
+        using (var vcfWriter = File.CreateText(vcfPath))
+        {
+            vcfWriter.WriteLine("##fileformat=VCFv4.1");
+            foreach (var contig in lines)
+            {
+                vcfWriter.WriteLine(contig);
+            }
+
+            vcfWriter.WriteLine("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO");
+
+            var positions = new HashSet<string>();
+            for (var v = 0; v < variantCount; v++)
+            {
+                var tIdx = v % transcriptCount;
+                var chrom = $"synth{tIdx + 1}";
+                var pos = 50 + (v / transcriptCount * 3) + (tIdx * 10) + 1;
+                var key = $"{chrom}:{pos}";
+                if (!positions.Add(key))
+                {
+                    pos += variantCount;
+                    positions.Add($"{chrom}:{pos}");
+                }
+
+                var refBase = "A";
+                var altBase = v % 4 == 0 ? "T" : v % 4 == 1 ? "C" : v % 4 == 2 ? "G" : "T";
+                vcfWriter.WriteLine($"{chrom}\t{pos}\t.\t{refBase}\t{altBase}\t30\tPASS\t.");
+            }
+        }
+
+        _ctx["SynthFastaPath"] = fastaPath;
+        _ctx["SynthGtfPath"] = gtfPath;
+        _ctx["SynthVcfPath"] = vcfPath;
+    }
+
+    [When("BioSharp annotates the variants using the synthetic GTF transcripts")]
+    public async Task WhenBioSharpAnnotatesVariants()
+    {
+        var gtfPath = (string)_ctx["SynthGtfPath"];
+        var vcfPath = (string)_ctx["SynthVcfPath"];
+
+        var engine = new VariantAnnotationEngine();
+        await engine.LoadTranscriptsFromGtf(gtfPath, CancellationToken.None).ConfigureAwait(false);
+
+        var annotations = new List<VariantAnnotation>();
+        await foreach (var ann in engine.AnnotateVcf(vcfPath).ConfigureAwait(false))
+        {
+            annotations.Add(ann);
+        }
+
+        var codingConsequences = new HashSet<VariantConsequence>
+        {
+            VariantConsequence.Missense,
+            VariantConsequence.Nonsense,
+            VariantConsequence.Synonymous,
+            VariantConsequence.Frameshift,
+            VariantConsequence.InframeInsertion,
+            VariantConsequence.InframeDeletion
+        };
+        var codingCount = annotations.Count(a => codingConsequences.Contains(a.Consequence));
+        var codingFraction = annotations.Count > 0 ? (double)codingCount / annotations.Count : 0.0;
+
+        _ctx["BioSharpAnnotatedCount"] = annotations.Count;
+        _ctx["BioSharpCodingFraction"] = codingFraction;
+    }
+
+    [When("SnpEff annotates the same variants using a custom database built from the synthetic GTF")]
+    public void WhenSnpEffAnnotatesVariants()
+    {
+        var tempDir = TempDir;
+        var fastaPath = (string)_ctx["SynthFastaPath"];
+        var gtfPath = (string)_ctx["SynthGtfPath"];
+        var vcfPath = (string)_ctx["SynthVcfPath"];
+
+        var snpeffData = TempPath(tempDir, "snpeff_data");
+        Directory.CreateDirectory(Path.Combine(snpeffData, "synth"));
+
+        File.Copy(fastaPath, Path.Combine(snpeffData, "synth", "sequences.fa"), overwrite: true);
+        File.Copy(gtfPath, Path.Combine(snpeffData, "synth", "genes.gtf"), overwrite: true);
+
+        var configPath = TempPath(tempDir, "snpEff.config");
+        File.WriteAllText(configPath, $"data.dir = {snpeffData}\nsynth.genome : Synthetic\n");
+
+        // Build custom SnpEff database
+        var (buildExit, buildOutput) = ExternalToolRunner.ShellCapture(
+            $"snpeff build -gtf22 -c \"{configPath}\" -v synth 2>&1",
+            tempDir, 180_000);
+        if (buildExit != 0)
+        {
+            throw new InvalidOperationException(
+                $"snpeff build failed (exit {buildExit}). Output: {buildOutput[..Math.Min(500, buildOutput.Length)]}");
+        }
+
+        // Annotate VCF
+        var outVcf = TempPath(tempDir, $"snpeff_out_{Guid.NewGuid():N}.vcf");
+        var (annExit, annOutput) = ExternalToolRunner.ShellCapture(
+            $"snpeff ann -c \"{configPath}\" -noLog synth \"{vcfPath}\" > \"{outVcf}\" 2>&1",
+            tempDir, 180_000);
+        if (annExit != 0)
+        {
+            throw new InvalidOperationException(
+                $"snpeff ann failed (exit {annExit}). Output: {annOutput[..Math.Min(500, annOutput.Length)]}");
+        }
+
+        var annotatedCount = 0;
+        var codingCount = 0;
+        if (File.Exists(outVcf))
+        {
+            foreach (var line in File.ReadLines(outVcf))
+            {
+                if (line.StartsWith('#'))
+                {
+                    continue;
+                }
+
+                annotatedCount++;
+                // ANN field contains HIGH/MODERATE impact consequences = coding
+                var infoIdx = line.Split('\t').Length > 7 ? line.Split('\t')[7] : "";
+                if (infoIdx.Contains("|HIGH|", StringComparison.OrdinalIgnoreCase)
+                    || infoIdx.Contains("|MODERATE|", StringComparison.OrdinalIgnoreCase))
+                {
+                    codingCount++;
+                }
+            }
+        }
+
+        var snpeffCodingFraction = annotatedCount > 0 ? (double)codingCount / annotatedCount : 0.0;
+        _ctx["SnpEffAnnotatedCount"] = annotatedCount;
+        _ctx["SnpEffCodingFraction"] = snpeffCodingFraction;
+    }
+
+    [Then("the BioSharp annotated variant count should be within {int} percent of the SnpEff annotated count")]
+    public void ThenBioSharpAnnotatedCountWithinTolerance(int tolerancePct)
+    {
+        var biosharpCount = (int)_ctx["BioSharpAnnotatedCount"];
+        var snpeffCount = (int)_ctx["SnpEffAnnotatedCount"];
+        var parameters = _ctx.TryGetValue("ScenarioParams", out var p) ? (string)p! : "";
+
+        AssertWithinTolerance(biosharpCount, snpeffCount, tolerancePct,
+            "VariantAnnotation", "snpeff", parameters, "AnnotatedVariantCount");
+    }
+
+    [Then("the BioSharp coding consequence fraction should be within {int} percent of the SnpEff coding fraction")]
+    public void ThenBioSharpCodingFractionWithinTolerance(int tolerancePct)
+    {
+        var biosharpFraction = (double)_ctx["BioSharpCodingFraction"];
+        var snpeffFraction = (double)_ctx["SnpEffCodingFraction"];
+        var parameters = _ctx.TryGetValue("ScenarioParams", out var p) ? (string)p! : "";
+
+        AssertWithinTolerance(biosharpFraction, snpeffFraction, tolerancePct,
+            "VariantAnnotation", "snpeff", parameters, "CodingConsequenceFraction");
+    }
+
+    private static string GenerateSyntheticNucleotides(int length)
+    {
+        var bases = "ACGT";
+        var sb = new StringBuilder(length);
+        for (var i = 0; i < length; i++)
+        {
+            sb.Append(bases[i % 4]);
+        }
+
+        return sb.ToString();
     }
 }

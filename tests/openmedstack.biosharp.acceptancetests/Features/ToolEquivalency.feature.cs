@@ -109,7 +109,7 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.Features
         
         private static global::Reqnroll.Formatters.RuntimeSupport.FeatureLevelCucumberMessages InitializeCucumberMessages()
         {
-            return new global::Reqnroll.Formatters.RuntimeSupport.FeatureLevelCucumberMessages("Features/ToolEquivalency.feature.ndjson", 28);
+            return new global::Reqnroll.Formatters.RuntimeSupport.FeatureLevelCucumberMessages("Features/ToolEquivalency.feature.ndjson", 33);
         }
         
         async System.Threading.Tasks.ValueTask Xunit.IAsyncLifetime.InitializeAsync()
@@ -521,13 +521,123 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.Features
             await this.ScenarioCleanupAsync();
         }
         
+        [global::Xunit.TheoryAttribute(DisplayName="BioSharp adapter trimming produces equivalent surviving read count to trimmomatic" +
+            "")]
+        [global::Xunit.TraitAttribute("FeatureTitle", "Tool Equivalency Acceptance Tests")]
+        [global::Xunit.TraitAttribute("Description", "BioSharp adapter trimming produces equivalent surviving read count to trimmomatic" +
+            "")]
+        [global::Xunit.TraitAttribute("Category", "RequiresTrimmomatic")]
+        [global::Xunit.InlineDataAttribute("1000", "100", "30", "\"AGATCGGAAGAGCACACGTCTGAACTCCAGTCA\"", "20", "15", "17", new string[0])]
+        [global::Xunit.InlineDataAttribute("1000", "100", "60", "\"CTGTCTCTTATACACATCT\"", "20", "15", "18", new string[0])]
+        [global::Xunit.InlineDataAttribute("500", "150", "50", "\"AGATCGGAAGAGCACACGTCTGAACTCCAGTCA\"", "50", "15", "19", new string[0])]
+        public async global::System.Threading.Tasks.Task BioSharpAdapterTrimmingProducesEquivalentSurvivingReadCountToTrimmomatic(string readCount, string readLength, string adapterFraction, string adapter, string minLength, string tolerancePct, string @__pickleIndex, string[] exampleTags)
+        {
+            string[] @__tags = new string[] {
+                    "RequiresTrimmomatic"};
+            if ((exampleTags != null))
+            {
+                @__tags = System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Concat(@__tags, exampleTags));
+            }
+            string[] tagsOfScenario = @__tags;
+            global::System.Collections.Specialized.OrderedDictionary argumentsOfScenario = new global::System.Collections.Specialized.OrderedDictionary();
+            argumentsOfScenario.Add("ReadCount", readCount);
+            argumentsOfScenario.Add("ReadLength", readLength);
+            argumentsOfScenario.Add("AdapterFraction", adapterFraction);
+            argumentsOfScenario.Add("Adapter", adapter);
+            argumentsOfScenario.Add("MinLength", minLength);
+            argumentsOfScenario.Add("TolerancePct", tolerancePct);
+            string pickleIndex = @__pickleIndex;
+            global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("BioSharp adapter trimming produces equivalent surviving read count to trimmomatic" +
+                    "", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
+            string[] tagsOfRule = ((string[])(null));
+            global::Reqnroll.RuleInfo ruleInfo = null;
+#line 145
+  this.ScenarioInitialize(scenarioInfo, ruleInfo);
+#line hidden
+            if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
+            {
+                await testRunner.SkipScenarioAsync();
+            }
+            else
+            {
+                await this.ScenarioStartAsync();
+#line 146
+    await testRunner.GivenAsync(string.Format("{0} FASTQ reads of {1} bp with {2} percent carrying adapter {3}", readCount, readLength, adapterFraction, adapter), ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
+#line hidden
+#line 147
+    await testRunner.WhenAsync(string.Format("BioSharp trims adapter {0} with minimum length {1} and max mismatches 2", adapter, minLength), ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
+#line hidden
+#line 148
+    await testRunner.AndAsync(string.Format("trimmomatic trims the reads with adapter {0} and minimum length {1}", adapter, minLength), ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+#line hidden
+#line 149
+    await testRunner.ThenAsync(string.Format("the BioSharp surviving read count should be within {0} percent of the trimmomatic" +
+                            " surviving count", tolerancePct), ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
+#line hidden
+            }
+            await this.ScenarioCleanupAsync();
+        }
+        
+        [global::Xunit.TheoryAttribute(DisplayName="BioSharp bases removed by adapter trimming is within tolerance of trimmomatic")]
+        [global::Xunit.TraitAttribute("FeatureTitle", "Tool Equivalency Acceptance Tests")]
+        [global::Xunit.TraitAttribute("Description", "BioSharp bases removed by adapter trimming is within tolerance of trimmomatic")]
+        [global::Xunit.TraitAttribute("Category", "RequiresTrimmomatic")]
+        [global::Xunit.InlineDataAttribute("1000", "100", "30", "\"AGATCGGAAGAGCACACGTCTGAACTCCAGTCA\"", "20", "20", "20", new string[0])]
+        [global::Xunit.InlineDataAttribute("1000", "100", "60", "\"CTGTCTCTTATACACATCT\"", "20", "20", "21", new string[0])]
+        public async global::System.Threading.Tasks.Task BioSharpBasesRemovedByAdapterTrimmingIsWithinToleranceOfTrimmomatic(string readCount, string readLength, string adapterFraction, string adapter, string minLength, string tolerancePct, string @__pickleIndex, string[] exampleTags)
+        {
+            string[] @__tags = new string[] {
+                    "RequiresTrimmomatic"};
+            if ((exampleTags != null))
+            {
+                @__tags = System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Concat(@__tags, exampleTags));
+            }
+            string[] tagsOfScenario = @__tags;
+            global::System.Collections.Specialized.OrderedDictionary argumentsOfScenario = new global::System.Collections.Specialized.OrderedDictionary();
+            argumentsOfScenario.Add("ReadCount", readCount);
+            argumentsOfScenario.Add("ReadLength", readLength);
+            argumentsOfScenario.Add("AdapterFraction", adapterFraction);
+            argumentsOfScenario.Add("Adapter", adapter);
+            argumentsOfScenario.Add("MinLength", minLength);
+            argumentsOfScenario.Add("TolerancePct", tolerancePct);
+            string pickleIndex = @__pickleIndex;
+            global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("BioSharp bases removed by adapter trimming is within tolerance of trimmomatic", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
+            string[] tagsOfRule = ((string[])(null));
+            global::Reqnroll.RuleInfo ruleInfo = null;
+#line 162
+  this.ScenarioInitialize(scenarioInfo, ruleInfo);
+#line hidden
+            if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
+            {
+                await testRunner.SkipScenarioAsync();
+            }
+            else
+            {
+                await this.ScenarioStartAsync();
+#line 163
+    await testRunner.GivenAsync(string.Format("{0} FASTQ reads of {1} bp with {2} percent carrying adapter {3}", readCount, readLength, adapterFraction, adapter), ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
+#line hidden
+#line 164
+    await testRunner.WhenAsync(string.Format("BioSharp trims adapter {0} with minimum length {1} and max mismatches 2", adapter, minLength), ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
+#line hidden
+#line 165
+    await testRunner.AndAsync(string.Format("trimmomatic trims the reads with adapter {0} and minimum length {1}", adapter, minLength), ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
+#line hidden
+#line 166
+    await testRunner.ThenAsync(string.Format("the BioSharp bases removed should be within {0} percent of the trimmomatic bases " +
+                            "removed", tolerancePct), ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
+#line hidden
+            }
+            await this.ScenarioCleanupAsync();
+        }
+        
         [global::Xunit.TheoryAttribute(DisplayName="BioSharp total read count matches fastqc exactly")]
         [global::Xunit.TraitAttribute("FeatureTitle", "Tool Equivalency Acceptance Tests")]
         [global::Xunit.TraitAttribute("Description", "BioSharp total read count matches fastqc exactly")]
         [global::Xunit.TraitAttribute("Category", "RequiresFastqc")]
-        [global::Xunit.InlineDataAttribute("1000", "75", "30", "17", new string[0])]
-        [global::Xunit.InlineDataAttribute("500", "150", "20", "18", new string[0])]
-        [global::Xunit.InlineDataAttribute("200", "100", "40", "19", new string[0])]
+        [global::Xunit.InlineDataAttribute("1000", "75", "30", "22", new string[0])]
+        [global::Xunit.InlineDataAttribute("500", "150", "20", "23", new string[0])]
+        [global::Xunit.InlineDataAttribute("200", "100", "40", "24", new string[0])]
         public async global::System.Threading.Tasks.Task BioSharpTotalReadCountMatchesFastqcExactly(string readCount, string readLength, string qualScore, string @__pickleIndex, string[] exampleTags)
         {
             string[] @__tags = new string[] {
@@ -545,7 +655,7 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.Features
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("BioSharp total read count matches fastqc exactly", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
-#line 145
+#line 177
   this.ScenarioInitialize(scenarioInfo, ruleInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -555,16 +665,16 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.Features
             else
             {
                 await this.ScenarioStartAsync();
-#line 146
+#line 178
     await testRunner.GivenAsync(string.Format("{0} uniform-quality FASTQ reads of {1} bp with quality score {2}", readCount, readLength, qualScore), ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 147
+#line 179
     await testRunner.WhenAsync("BioSharp computes the FastQ quality report", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 148
+#line 180
     await testRunner.AndAsync("fastqc analyses the same FASTQ reads", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 149
+#line 181
     await testRunner.ThenAsync("the BioSharp total read count should match the fastqc total read count exactly", ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
             }
@@ -575,8 +685,8 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.Features
         [global::Xunit.TraitAttribute("FeatureTitle", "Tool Equivalency Acceptance Tests")]
         [global::Xunit.TraitAttribute("Description", "BioSharp mean per-base quality is within tolerance of fastqc")]
         [global::Xunit.TraitAttribute("Category", "RequiresFastqc")]
-        [global::Xunit.InlineDataAttribute("1000", "75", "30", "5", "20", new string[0])]
-        [global::Xunit.InlineDataAttribute("1000", "150", "20", "5", "21", new string[0])]
+        [global::Xunit.InlineDataAttribute("1000", "75", "30", "5", "25", new string[0])]
+        [global::Xunit.InlineDataAttribute("1000", "150", "20", "5", "26", new string[0])]
         public async global::System.Threading.Tasks.Task BioSharpMeanPer_BaseQualityIsWithinToleranceOfFastqc(string readCount, string readLength, string qualScore, string tolerancePct, string @__pickleIndex, string[] exampleTags)
         {
             string[] @__tags = new string[] {
@@ -595,7 +705,7 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.Features
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("BioSharp mean per-base quality is within tolerance of fastqc", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
-#line 164
+#line 196
   this.ScenarioInitialize(scenarioInfo, ruleInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -605,16 +715,16 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.Features
             else
             {
                 await this.ScenarioStartAsync();
-#line 165
+#line 197
     await testRunner.GivenAsync(string.Format("{0} uniform-quality FASTQ reads of {1} bp with quality score {2}", readCount, readLength, qualScore), ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 166
+#line 198
     await testRunner.WhenAsync("BioSharp computes the FastQ quality report", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 167
+#line 199
     await testRunner.AndAsync("fastqc analyses the same FASTQ reads", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 168
+#line 200
     await testRunner.ThenAsync(string.Format("the BioSharp mean per-base quality should be within {0} percent of the fastqc mea" +
                             "n quality", tolerancePct), ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
@@ -628,8 +738,8 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.Features
         [global::Xunit.TraitAttribute("Category", "RequiresBwa")]
         [global::Xunit.TraitAttribute("Category", "RequiresSamtools")]
         [global::Xunit.TraitAttribute("Category", "RequiresFreebayes")]
-        [global::Xunit.InlineDataAttribute("10000", "5", "500", "150", "50", "22", new string[0])]
-        [global::Xunit.InlineDataAttribute("10000", "10", "1000", "150", "50", "23", new string[0])]
+        [global::Xunit.InlineDataAttribute("10000", "5", "500", "150", "50", "27", new string[0])]
+        [global::Xunit.InlineDataAttribute("10000", "10", "1000", "150", "50", "28", new string[0])]
         public async global::System.Threading.Tasks.Task BioSharpSNPCallsOverlapWithFreebayesCalls(string referenceSize, string snpCount, string readCount, string readLength, string minOverlapPct, string @__pickleIndex, string[] exampleTags)
         {
             string[] @__tags = new string[] {
@@ -651,7 +761,7 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.Features
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("BioSharp SNP calls overlap with freebayes calls", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
-#line 184
+#line 216
   this.ScenarioInitialize(scenarioInfo, ruleInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -661,24 +771,24 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.Features
             else
             {
                 await this.ScenarioStartAsync();
-#line 185
+#line 217
     await testRunner.GivenAsync(string.Format("a synthetic FASTA reference of {0} bases with {1} planted SNPs seeded with random" +
                             " 42", referenceSize, snpCount), ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 186
+#line 218
     await testRunner.AndAsync(string.Format("{0} FASTQ reads of {1} bp covering those SNP positions", readCount, readLength), ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 187
+#line 219
     await testRunner.WhenAsync("a sorted BAM is produced by aligning the reads with bwa mem and sorting with samt" +
                         "ools", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 188
+#line 220
     await testRunner.AndAsync("BioSharp calls variants from that BAM using the HashMap seeder", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 189
+#line 221
     await testRunner.AndAsync("freebayes calls variants from the same BAM", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 190
+#line 222
     await testRunner.ThenAsync(string.Format("the BioSharp SNP positions should overlap freebayes SNP positions by at least {0}" +
                             " percent", minOverlapPct), ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden
@@ -692,8 +802,8 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.Features
         [global::Xunit.TraitAttribute("Category", "RequiresBwa")]
         [global::Xunit.TraitAttribute("Category", "RequiresSamtools")]
         [global::Xunit.TraitAttribute("Category", "RequiresBcftools")]
-        [global::Xunit.InlineDataAttribute("10000", "5", "500", "150", "50", "24", new string[0])]
-        [global::Xunit.InlineDataAttribute("10000", "10", "1000", "150", "50", "25", new string[0])]
+        [global::Xunit.InlineDataAttribute("10000", "5", "500", "150", "50", "29", new string[0])]
+        [global::Xunit.InlineDataAttribute("10000", "10", "1000", "150", "50", "30", new string[0])]
         public async global::System.Threading.Tasks.Task BioSharpSNPCallsOverlapWithSamtoolsMpileupBcftoolsCall(string referenceSize, string snpCount, string readCount, string readLength, string minOverlapPct, string @__pickleIndex, string[] exampleTags)
         {
             string[] @__tags = new string[] {
@@ -715,7 +825,7 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.Features
             global::Reqnroll.ScenarioInfo scenarioInfo = new global::Reqnroll.ScenarioInfo("BioSharp SNP calls overlap with samtools mpileup bcftools call", null, tagsOfScenario, argumentsOfScenario, featureTags, pickleIndex);
             string[] tagsOfRule = ((string[])(null));
             global::Reqnroll.RuleInfo ruleInfo = null;
-#line 204
+#line 236
   this.ScenarioInitialize(scenarioInfo, ruleInfo);
 #line hidden
             if ((global::Reqnroll.TagHelper.ContainsIgnoreTag(scenarioInfo.CombinedTags) || global::Reqnroll.TagHelper.ContainsIgnoreTag(featureTags)))
@@ -725,24 +835,24 @@ namespace OpenMedStack.BioSharp.AcceptanceTests.Features
             else
             {
                 await this.ScenarioStartAsync();
-#line 205
+#line 237
     await testRunner.GivenAsync(string.Format("a synthetic FASTA reference of {0} bases with {1} planted SNPs seeded with random" +
                             " 42", referenceSize, snpCount), ((string)(null)), ((global::Reqnroll.Table)(null)), "Given ");
 #line hidden
-#line 206
+#line 238
     await testRunner.AndAsync(string.Format("{0} FASTQ reads of {1} bp covering those SNP positions", readCount, readLength), ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 207
+#line 239
     await testRunner.WhenAsync("a sorted BAM is produced by aligning the reads with bwa mem and sorting with samt" +
                         "ools", ((string)(null)), ((global::Reqnroll.Table)(null)), "When ");
 #line hidden
-#line 208
+#line 240
     await testRunner.AndAsync("BioSharp calls variants from that BAM using the HashMap seeder", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 209
+#line 241
     await testRunner.AndAsync("samtools mpileup piped to bcftools calls variants from the same BAM", ((string)(null)), ((global::Reqnroll.Table)(null)), "And ");
 #line hidden
-#line 210
+#line 242
     await testRunner.ThenAsync(string.Format("the BioSharp SNP positions should overlap samtools-bcftools SNP positions by at l" +
                             "east {0} percent", minOverlapPct), ((string)(null)), ((global::Reqnroll.Table)(null)), "Then ");
 #line hidden

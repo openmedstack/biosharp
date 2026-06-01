@@ -28,6 +28,8 @@ public class FastqProcessingHeadToHeadBenchmarks
     private bool _fastqcAvailable;
     private bool _fastpAvailable;
     private bool _cutadaptAvailable;
+    private bool _trimmomaticAvailable;
+    private string? _adapterFaPath;
     private string? _preatorDll;
     private string? _preatorPublishError;
 
@@ -46,6 +48,11 @@ public class FastqProcessingHeadToHeadBenchmarks
         _fastqcAvailable = ExternalProcess.IsAvailable("fastqc");
         _fastpAvailable = ExternalProcess.IsAvailable("fastp");
         _cutadaptAvailable = ExternalProcess.IsAvailable("cutadapt");
+        _trimmomaticAvailable = ExternalProcess.IsAvailable("trimmomatic");
+
+        // Write adapter to a FASTA file for Trimmomatic ILLUMINACLIP
+        _adapterFaPath = Path.Combine(_tempDir, "adapter.fa");
+        File.WriteAllText(_adapterFaPath, $">adapter\n{Adapter}\n");
 
         // Publish the preator binary once (shared across all benchmark classes in this process).
         _preatorDll = PreatorPublisher.GetPreatorDll();
@@ -316,6 +323,48 @@ public class FastqProcessingHeadToHeadBenchmarks
             {
                 Directory.Delete(outDir, recursive: true);
             }
+        }
+    }
+
+    /// <summary>
+    /// Trimmomatic (external subprocess): single-end adapter trimming and minimum-length filter.
+    /// Comparable to the fastp/cutadapt measurements above.
+    /// </summary>
+    [Benchmark(Description = "trimmomatic (subprocess)")]
+    [BenchmarkCategory("Trimming", "External")]
+    public long Trimmomatic_Subprocess()
+    {
+        if (!_trimmomaticAvailable)
+        {
+            throw new InvalidOperationException(
+                "trimmomatic is not installed on PATH. The Trimmomatic trimming head-to-head benchmark cannot be run on this machine.");
+        }
+
+        var outPath = Path.Combine(_tempDir, $"trimmomatic_{Guid.NewGuid():N}.fastq");
+        var logPath = Path.Combine(_tempDir, $"trimmomatic_{Guid.NewGuid():N}.stderr.log");
+        try
+        {
+            var exit = ExternalProcess.Shell(
+                $"trimmomatic SE -threads {ThreadCount} \"{_fastqPath}\" \"{outPath}\" ILLUMINACLIP:\"{_adapterFaPath}\":2:30:10 MINLEN:20 > {ExternalProcess.NullDevice} 2> \"{logPath}\"",
+                _tempDir,
+                120_000);
+            if (exit != 0)
+            {
+                throw new InvalidOperationException(
+                    $"trimmomatic exited with code {exit}. STDERR: {ReadExternalLog(logPath)}");
+            }
+
+            if (!File.Exists(outPath))
+            {
+                throw new InvalidOperationException("trimmomatic completed but produced no FASTQ output.");
+            }
+
+            return new FileInfo(outPath).Length;
+        }
+        finally
+        {
+            DeleteIfExists(outPath);
+            DeleteIfExists(logPath);
         }
     }
 

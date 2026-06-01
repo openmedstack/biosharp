@@ -34,7 +34,7 @@ internal static class Program
     internal static RootCommand CreateRootCommand()
     {
         return new RootCommand("Preator - BioSharp command-line tools")
-         {
+        {
             CreateAlignmentCommand(),
             CreateAnnotateCommand(),
             CreateBclCommand(),
@@ -42,7 +42,7 @@ internal static class Program
             CreateVariantCallCommand(),
             CreateQcCommand(),
             CreateTrimCommand(),
-         };
+        };
     }
 
     private static Command CreateBclCommand()
@@ -60,9 +60,9 @@ internal static class Program
     }
 
     private static Command CreateVariantCallCommand()
-      {
+    {
         var command = new Command("variantcall", "Run the variant call pipeline")
-         {
+        {
             PreatorCommandOptions.ReferenceOption,
             PreatorCommandOptions.FastqOption,
             PreatorCommandOptions.FastaOption,
@@ -82,22 +82,22 @@ internal static class Program
             PreatorCommandOptions.MinGraphCoverageOption,
             PreatorCommandOptions.GraphWindowBpOption,
             PreatorCommandOptions.MaxCoresOption
-         };
+        };
 
         command.Validators.Add(result =>
-         {
+        {
             var hasFastq = result.GetValue(PreatorCommandOptions.FastqOption) is not null;
             var hasFasta = result.GetValue(PreatorCommandOptions.FastaOption) is not null;
             var hasBam = result.GetValue(PreatorCommandOptions.BamOption) is not null;
             if (!hasFastq && !hasFasta && !hasBam)
-              {
+            {
                 result.AddError("Missing required argument: --fastq, --fasta, or --bam");
-              }
-         });
+            }
+        });
 
         command.SetAction(VariantCallCommand.Invoke);
         return command;
-      }
+    }
 
     private static Command CreateE2ECommand()
     {
@@ -105,44 +105,44 @@ internal static class Program
             "e2e",
             "Run end-to-end: read FASTA/FASTQ/BAM, call variants, annotate and produce a clinical report")
         {
-           PreatorCommandOptions.ReferenceOption,
-           PreatorCommandOptions.FastqOption,
-           PreatorCommandOptions.FastaOption,
-           PreatorCommandOptions.BamOption,
-           PreatorCommandOptions.ReferenceIdContainsOption,
-           PreatorCommandOptions.ChromosomeOption,
-           PreatorCommandOptions.OutputOption,
-           PreatorCommandOptions.OutputPrefixOption,
-           PreatorCommandOptions.MaxReadsOption,
-           PreatorCommandOptions.MinAlignmentScoreOption,
-           PreatorCommandOptions.MinVariantQualityOption,
-           PreatorCommandOptions.MinAlternateObservationCountOption,
-           PreatorCommandOptions.MinAlternateFractionOption,
-           PreatorCommandOptions.DisableSoftclipRealignOption,
-           PreatorCommandOptions.EnableGraphSvOption,
-           PreatorCommandOptions.KmerSizeOption,
-           PreatorCommandOptions.MinGraphCoverageOption,
-           PreatorCommandOptions.GraphWindowBpOption,
-           PreatorCommandOptions.MaxCoresOption,
-           PreatorCommandOptions.DatabaseOption,
-           PreatorCommandOptions.TranscriptIdOption,
-           PreatorCommandOptions.MinQualityOption
+            PreatorCommandOptions.ReferenceOption,
+            PreatorCommandOptions.FastqOption,
+            PreatorCommandOptions.FastaOption,
+            PreatorCommandOptions.BamOption,
+            PreatorCommandOptions.ReferenceIdContainsOption,
+            PreatorCommandOptions.ChromosomeOption,
+            PreatorCommandOptions.OutputOption,
+            PreatorCommandOptions.OutputPrefixOption,
+            PreatorCommandOptions.MaxReadsOption,
+            PreatorCommandOptions.MinAlignmentScoreOption,
+            PreatorCommandOptions.MinVariantQualityOption,
+            PreatorCommandOptions.MinAlternateObservationCountOption,
+            PreatorCommandOptions.MinAlternateFractionOption,
+            PreatorCommandOptions.DisableSoftclipRealignOption,
+            PreatorCommandOptions.EnableGraphSvOption,
+            PreatorCommandOptions.KmerSizeOption,
+            PreatorCommandOptions.MinGraphCoverageOption,
+            PreatorCommandOptions.GraphWindowBpOption,
+            PreatorCommandOptions.MaxCoresOption,
+            PreatorCommandOptions.DatabaseOption,
+            PreatorCommandOptions.TranscriptIdOption,
+            PreatorCommandOptions.MinQualityOption
         };
 
         command.Validators.Add(result =>
-          {
+        {
             var hasFastq = result.GetValue(PreatorCommandOptions.FastqOption) is not null;
             var hasFasta = result.GetValue(PreatorCommandOptions.FastaOption) is not null;
             var hasBam = result.GetValue(PreatorCommandOptions.BamOption) is not null;
             if (!hasFastq && !hasFasta && !hasBam)
-              {
+            {
                 result.AddError("Missing required argument: --fastq, --fasta, or --bam");
-              }
-          });
+            }
+        });
 
         command.SetAction(E2ECommand.Invoke);
         return command;
-      }
+    }
 
     private static Command CreateAnnotateCommand()
     {
@@ -201,11 +201,11 @@ internal static class Program
     }
 
     private static Command CreateAlignmentCommand()
-     {
+    {
         var command = new Command(
-             "align",
-             "Align FASTQ reads against a reference FASTA using FM-index seeding + Smith-Waterman (equivalent to bwa-mem), or reformat BAM to SAM")
-         {
+            "align",
+            "Align FASTQ reads against a reference FASTA using FM-index seeding + Smith-Waterman (equivalent to bwa-mem), or reformat BAM to SAM")
+        {
             PreatorCommandOptions.ReferenceOption,
             PreatorCommandOptions.FastqOption,
             PreatorCommandOptions.BamOption,
@@ -219,19 +219,19 @@ internal static class Program
             PreatorCommandOptions.MaxCandidateWindowsPerReadOption,
             PreatorCommandOptions.MaxCoresOption,
             PreatorCommandOptions.OutputPrefixOption
-         };
+        };
 
         command.Validators.Add(result =>
-          {
+        {
             var hasFastq = result.GetValue(PreatorCommandOptions.FastqOption) is not null;
             var hasBam = result.GetValue(PreatorCommandOptions.BamOption) is not null;
             if (!hasFastq && !hasBam)
-               {
+            {
                 result.AddError("Missing required argument: --fastq or --bam");
-               }
-          });
+            }
+        });
 
         command.SetAction(AlignmentCommand.Invoke);
         return command;
-      }
+    }
 }

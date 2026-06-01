@@ -11,12 +11,14 @@
 
     <ItemGroup>
         <PackageReference Include="BenchmarkDotNet" Version="0.15.8" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.8" />
     </ItemGroup>
 
     <ItemGroup>
         <ProjectReference Include="../../src/openmedstack.biosharp.calculations/openmedstack.biosharp.calculations.csproj"/>
         <ProjectReference Include="../../src/openmedstack.biosharp.io/openmedstack.biosharp.io.csproj"/>
         <ProjectReference Include="../../src/openmedstack.biosharp.model/openmedstack.biosharp.model.csproj"/>
+        <ProjectReference Include="../../src/openmedstack.biosharp.annotationdb/openmedstack.biosharp.annotationdb.csproj"/>
     </ItemGroup>
 
 </Project>

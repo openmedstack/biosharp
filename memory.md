@@ -11,7 +11,32 @@
 
 ## Active Tasks
 
-### 31. Add published preator subprocess benchmarks — DONE
+### 32. Audit and complete preator command benchmark/equivalency coverage — DONE
+
+All 7 preator commands now have both a benchmark and an equivalency test vs. the standard external tool:
+
+| Command      | External Tool | Benchmark Class                          | Equivalency Feature                     |
+|--------------|---------------|------------------------------------------|-----------------------------------------|
+| align        | bwa/bwa-mem2  | AlignmentHeadToHeadBenchmarks.cs (fixed) | ToolEquivalency.feature                 |
+| annotate     | SnpEff        | AnnotateHeadToHeadBenchmarks.cs (new)    | AnnotateEquivalency.feature (new)       |
+| bcl          | bcl2fastq     | BclHeadToHeadBenchmarks.cs               | ToolEquivalency.feature                 |
+| e2e          | (pipeline)    | n/a (no single external equivalent)      | n/a                                     |
+| variantcall  | freebayes     | VariantCallingHeadToHeadBenchmarks.cs    | ToolEquivalency.feature                 |
+| qc           | FastQC        | FastqProcessingHeadToHeadBenchmarks.cs   | ToolEquivalency.feature                 |
+| trim         | Trimmomatic   | FastqProcessingHeadToHeadBenchmarks.cs   | ToolEquivalency.feature (new scenarios) |
+
+**Files changed**:
+- `benchmarks/openmedstack.biosharp.benchmarks/AnnotateHeadToHeadBenchmarks.cs` — created; BioSharp in-process, preator subprocess, SnpEff subprocess benchmarks; synthetic FASTA+GTF+VCF+SQLite DB generation in Setup
+- `benchmarks/openmedstack.biosharp.benchmarks/openmedstack.biosharp.benchmarks.csproj` — added `annotationdb` project ref + `Microsoft.EntityFrameworkCore.Sqlite` package
+- `benchmarks/openmedstack.biosharp.benchmarks/AlignmentHeadToHeadBenchmarks.cs` — fixed non-container path bug (variantcall→align, removed --chromosome, BAM size check)
+- `benchmarks/openmedstack.biosharp.benchmarks/FastqProcessingHeadToHeadBenchmarks.cs` — added Trimmomatic_Subprocess() benchmark
+- `tests/openmedstack.biosharp.acceptancetests/Features/AnnotateEquivalency.feature` — created; 2 @RequiresSnpEff scenarios (annotated count and coding fraction within 30% tolerance)
+- `tests/openmedstack.biosharp.acceptancetests/Features/ToolEquivalency.feature` — added 2 @RequiresTrimmomatic scenarios
+- `tests/openmedstack.biosharp.acceptancetests/StepDefinitions/ToolEquivalencyStepDefinitions.cs` — added all Trimmomatic + SnpEff step definitions
+- `tests/openmedstack.biosharp.acceptancetests/StepDefinitions/ToolEquivalencyHooks.cs` — added RequiresTrimmomatic() + RequiresSnpEff() hooks; updated DeriveCategory/DeriveTool
+- `run-equivalency.sh` — added trimmomatic + snpeff version recording
+
+
 
 Added `PreatorPublisher.cs` and preator subprocess benchmark methods to all four head-to-head benchmark classes so the compiled/published preator binary is measured alongside in-process BioSharp and external tools.
 
