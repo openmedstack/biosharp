@@ -1,8 +1,6 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Xunit;
 
 namespace OpenMedStack.BioSharp.AnnotationDb.Tests;
@@ -58,11 +56,7 @@ public sealed class EnsemblVersionNormalizationTests : IAsyncDisposable
 
     private static TranscriptAnnotationDatabase CreateInMemoryDatabase(out TranscriptAnnotationDbContext ctx)
     {
-        var options = new DbContextOptionsBuilder<TranscriptAnnotationDbContext>()
-            .UseInMemoryDatabase($"ensembl-tests-{Guid.NewGuid():N}")
-            .ConfigureWarnings(w => w.Ignore(InMemoryEventId.TransactionIgnoredWarning))
-            .Options;
-        ctx = new TranscriptAnnotationDbContext(options);
+        ctx = new TranscriptAnnotationDbContext("Data Source=:memory:");
         return new TranscriptAnnotationDatabase(ctx);
     }
 

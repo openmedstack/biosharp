@@ -38,14 +38,16 @@ public class BamWriter
 
         var header = Encoding.UTF8.GetBytes(builder.ToString().Trim());
         await using var binaryWriter = new BinaryWriter(_stream, Encoding.UTF8, true);
-        binaryWriter.Write(header.Length);
+        binaryWriter.Write(header.Length + 1); // +1 for NUL terminator expected by reader
         await _stream.WriteAsync(header, cancellationToken);
+        binaryWriter.Write((byte)0); // NUL terminator
         binaryWriter.Write(definition.Sq.Length);
         foreach (var sequence in definition.Sq)
         {
             var name = Encoding.UTF8.GetBytes(sequence.Name);
-            binaryWriter.Write(name.Length);
+            binaryWriter.Write(name.Length + 1); // l_name includes NUL per BAM spec
             await _stream.WriteAsync(name, cancellationToken);
+            binaryWriter.Write((byte)0); // NUL terminator
             binaryWriter.Write(sequence.Length);
         }
 

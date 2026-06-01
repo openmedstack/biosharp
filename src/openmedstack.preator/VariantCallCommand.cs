@@ -69,9 +69,20 @@ internal static class VariantCallCommand
           }
 
         var inputCount = 0;
-        if (!string.IsNullOrEmpty(options.FastqPath)) inputCount++;
-        if (!string.IsNullOrEmpty(options.FastaPath)) inputCount++;
-        if (!string.IsNullOrEmpty(options.BamPath)) inputCount++;
+        if (!string.IsNullOrEmpty(options.FastqPath))
+        {
+            inputCount++;
+        }
+
+        if (!string.IsNullOrEmpty(options.FastaPath))
+        {
+            inputCount++;
+        }
+
+        if (!string.IsNullOrEmpty(options.BamPath))
+        {
+            inputCount++;
+        }
 
         if (inputCount == 0)
           {
@@ -83,21 +94,30 @@ internal static class VariantCallCommand
           {
             var fqPath = options.FastqPath;
             if (!File.Exists(fqPath))
-              throw new FileNotFoundException("FASTQ file not found.", fqPath);
+            {
+                throw new FileNotFoundException("FASTQ file not found.", fqPath);
+            }
+
             if (!fqPath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase))
-              throw new ArgumentException("BioSharp's FastQReader expects gzipped FASTQ input. Provide a .fastq.gz file.");
+            {
+                throw new ArgumentException("BioSharp's FastQReader expects gzipped FASTQ input. Provide a .fastq.gz file.");
+            }
           }
         if (!string.IsNullOrEmpty(options.FastaPath))
           {
             var faPath = options.FastaPath;
             if (!File.Exists(faPath))
-              throw new FileNotFoundException("FASTA file not found.", faPath);
+            {
+                throw new FileNotFoundException("FASTA file not found.", faPath);
+            }
           }
         if (!string.IsNullOrEmpty(options.BamPath))
           {
             var bamPath = options.BamPath;
             if (!File.Exists(bamPath))
-              throw new FileNotFoundException("BAM file not found.", bamPath);
+            {
+                throw new FileNotFoundException("BAM file not found.", bamPath);
+            }
           }
 
         Directory.CreateDirectory(options.OutputDirectory);
@@ -239,7 +259,10 @@ internal static class VariantCallCommand
         await foreach (var read in it)
            {
             if (maxReads.HasValue && count >= maxReads.Value)
+            {
                 break;
+            }
+
             count++;
             yield return read;
            }

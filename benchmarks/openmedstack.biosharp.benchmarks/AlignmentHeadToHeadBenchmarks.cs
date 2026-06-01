@@ -349,9 +349,26 @@ public class AlignmentHeadToHeadBenchmarks
                 throw new InvalidOperationException($"preator align exited with code {exit}.");
             }
 
-            // Return the BAM file size as a work-done signal.
-            var bamPath = Path.Combine(outDir, "aligned.bam");
-            return File.Exists(bamPath) ? (int)new FileInfo(bamPath).Length : 0;
+            // Return the mapped-reads count from the summary file written by preator.
+            var summaryPath = Path.Combine(outDir, "aligned.summary.txt");
+            if (!File.Exists(summaryPath))
+            {
+                return 0;
+            }
+
+            foreach (var line in File.ReadAllLines(summaryPath))
+            {
+                if (line.StartsWith("MappedReads\t", StringComparison.Ordinal))
+                {
+                    var tab = line.IndexOf('\t');
+                    if (tab >= 0 && int.TryParse(line.AsSpan(tab + 1), out var count))
+                    {
+                        return count;
+                    }
+                }
+            }
+
+            return 0;
         }
         finally
         {

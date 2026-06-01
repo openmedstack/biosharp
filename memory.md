@@ -11,6 +11,28 @@
 
 ## Active Tasks
 
+### 33. Improve preator `align` benchmark performance — DONE
+
+Applied all performance improvements to the `preator` CLI `align` command:
+
+1. **`ReferenceSequence.ToString()` override** (`src/openmedstack.biosharp.io/Sam/ReferenceSequence.cs`)
+   — Added `public override string ToString()` returning `@SQ\tSN:{Name}\tLN:{Length}[optional fields]`
+   so `BamWriter` produces valid SAM headers.
+
+2. **BAM output** — Replaced `WriteSamOutput` (writing `.sam`) with `WriteBamOutput` (writing `.bam`
+   via `BamWriter` + `BgzfStream`). Fixes benchmark probe which checks for `aligned.bam`.
+
+3. **Parallelization** — Changed sequential `await foreach` loop to collect reads into `List<Sequence>`,
+   then `Parallel.ForEach` with `MaxDegreeOfParallelism = options.MaxCores`. Changed `ProcessRead`
+   from `void` + `ref int` params to `bool` return value (required for lambda capture).
+
+4. **TLEN fix** — Added missing TLEN (`\t0`) field to `BuildSamLine` (SAM requires 11 mandatory columns).
+
+5. **RNAME fix** — Mapped reads now use `contigName` instead of hardcoded `*`.
+
+6. **`RunFromBam` rewrite** — Now collects `AlignmentSection` objects directly from `BamReader` and
+   writes BAM output via `BamWriter` + `BgzfStream` instead of building SAM text lines.
+
 ### 32. Audit and complete preator command benchmark/equivalency coverage — DONE
 
 All 7 preator commands now have both a benchmark and an equivalency test vs. the standard external tool:

@@ -8,7 +8,6 @@ using System.Threading;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
-using Microsoft.EntityFrameworkCore;
 using OpenMedStack.BioSharp.AnnotationDb;
 using OpenMedStack.BioSharp.Calculations;
 using OpenMedStack.BioSharp.Model;
@@ -45,7 +44,7 @@ public class AnnotateHeadToHeadBenchmarks
     private string? _preatorPublishError;
 
     [GlobalSetup]
-    public void Setup()
+    public async Task Setup()
     {
         _tempDir = Path.Combine(Path.GetTempPath(), $"biosharp-annotate-bench-{Guid.NewGuid():N}");
         Directory.CreateDirectory(_tempDir);
@@ -61,7 +60,7 @@ public class AnnotateHeadToHeadBenchmarks
 
         // ── 2. Build SQLite annotation database (used by preator annotate) ─
         _sqlitePath = Path.Combine(_tempDir, "annotations.db");
-        BuildSqliteDatabase(_sqlitePath, _gtfPath, _fastaPath);
+        await BuildSqliteDatabase(_sqlitePath, _gtfPath, _fastaPath);
 
         // ── 3. Build SnpEff custom database ───────────────────────────────
         _snpeffAvailable = ExternalProcess.IsAvailable("snpeff");
@@ -265,12 +264,9 @@ public class AnnotateHeadToHeadBenchmarks
         }
     }
 
-    private static void BuildSqliteDatabase(string sqlitePath, string gtfPath, string fastaPath)
+    private static async Task BuildSqliteDatabase(string sqlitePath, string gtfPath, string fastaPath)
     {
-        var optionsBuilder = new DbContextOptionsBuilder<TranscriptAnnotationDbContext>();
-        optionsBuilder.UseSqlite($"Data Source={sqlitePath}");
-
-        using var ctx = new TranscriptAnnotationDbContext(optionsBuilder.Options);
+        await using var ctx = new TranscriptAnnotationDbContext($"Data Source={sqlitePath}");
         var db = new TranscriptAnnotationDatabase(ctx);
         db.Initialize(CancellationToken.None).GetAwaiter().GetResult();
 

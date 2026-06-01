@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 using OpenMedStack.BioSharp.Model;
 using OpenMedStack.BioSharp.Model.Vcf;
 using Xunit;
@@ -37,23 +36,10 @@ public sealed class DatabaseVariantAnnotationEngineSpecTests : IAsyncDisposable
 
         await scope.Database.Initialize(TestContext.Current.CancellationToken);
 
-        scope.Context.TranscriptSources.Add(new TranscriptSourceEntity
-        {
-            SourceId = "source",
-            SourceName = "test",
-            Assembly = "GRCh38",
-            SourceVersion = "v1",
-            AnnotationPath = "annotations",
-            SequencePath = "sequences",
-            ImportedAtUtc = DateTimeOffset.UtcNow
-        });
-        await scope.Context.SaveChangesAsync(TestContext.Current.CancellationToken);
-
-        Assert.Single(scope.Context.TranscriptSources);
-        Assert.NotNull(scope.Context.Model.FindEntityType(typeof(TranscriptSourceEntity)));
-        Assert.NotNull(scope.Context.Model.FindEntityType(typeof(TranscriptEntity)));
-        Assert.NotNull(scope.Context.Model.FindEntityType(typeof(TranscriptExonEntity)));
-        Assert.NotNull(scope.Context.Model.FindEntityType(typeof(TranscriptIntronEntity)));
+        // Verify the schema was created by running a harmless query via the public API.
+        // GetTranscript returns null when not found, which is fine — we just need no exception.
+        var result = await scope.Database.GetTranscript("non-existent", TestContext.Current.CancellationToken);
+        Assert.Null(result);
     }
 
     [Fact]
@@ -263,14 +249,10 @@ public sealed class DatabaseVariantAnnotationEngineSpecTests : IAsyncDisposable
 
     private static async Task<TestDatabaseScope> CreateDatabaseScope()
     {
-        var databaseName = $"annotationdb-tests-{Guid.NewGuid():N}";
-        var options = new DbContextOptionsBuilder<TranscriptAnnotationDbContext>()
-            .UseInMemoryDatabase(databaseName)
-            .Options;
-
-        var context = new TranscriptAnnotationDbContext(options);
+        var context = new TranscriptAnnotationDbContext("Data Source=:memory:");
         var database = new TranscriptAnnotationDatabase(context);
-        return await Task.FromResult(new TestDatabaseScope(context, database));
+        await database.Initialize(TestContext.Current.CancellationToken).ConfigureAwait(false);
+        return new TestDatabaseScope(context, database);
     }
 
     private sealed class TestDatabaseScope : IAsyncDisposable

@@ -5,7 +5,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 using OpenMedStack.BioSharp.AnnotationDb;
 using Xunit;
 
@@ -118,11 +117,7 @@ public sealed class AnnotateCommandTests : IAsyncDisposable
             ">ENST000001",
             "ATGGCCATT");
 
-        var dbOptions = new DbContextOptionsBuilder<TranscriptAnnotationDbContext>()
-            .UseSqlite($"Data Source={databasePath}")
-            .Options;
-
-        await using var context = new TranscriptAnnotationDbContext(dbOptions);
+        await using var context = new TranscriptAnnotationDbContext($"Data Source={databasePath}");
         var database = new TranscriptAnnotationDatabase(context);
         await database.Initialize(TestContext.Current.CancellationToken);
         await database.Import(

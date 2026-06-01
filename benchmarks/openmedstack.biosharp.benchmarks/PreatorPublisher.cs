@@ -112,7 +112,7 @@ public static class PreatorPublisher
         // trim-compatible, so the trimmer produces fatal IL2104/NETSDK1144 errors unless overridden.
         var (exit, stderr) = ExternalProcess.RunCapture(
             "dotnet",
-            $"publish \"{projectPath}\" -c Release -o \"{publishDir}\" --self-contained false /p:PublishReadyToRunShowWarnings=true /p:PublishTrimmed=false",
+            $"publish \"{projectPath}\" -c Release -o \"{publishDir}\" --self-contained false /p:PublishReadyToRunShowWarnings=true /p:PublishTrimmed=true",
             workingDirectory: repoRoot,
             timeoutMs: 600_000);
 

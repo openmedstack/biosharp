@@ -13,6 +13,9 @@
 # Stage 1: Build BioSharp with maximum performance optimizations
 # =============================================================================
 FROM --platform=linux/amd64  mcr.microsoft.com/dotnet/sdk:10.0-noble AS build
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    clang \
+    zlib1g-dev
 
 WORKDIR /src
 
@@ -66,12 +69,11 @@ RUN ARCH=$(uname -m) && \
       -c Release \
       -r "$RID" \
       --self-contained true \
-      -p:PublishReadyToRun=true \
+      -p:PublishAot=true \
       -p:OptimizationPreference=Speed \
       -p:DebugType=None \
       -p:DebugSymbols=false \
       -p:Optimize=true \
-      -p:PublishTrimmed=false \
       -o /app/preator
 
 # =============================================================================

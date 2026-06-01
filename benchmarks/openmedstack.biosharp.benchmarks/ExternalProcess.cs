@@ -133,7 +133,11 @@ public static class ExternalProcess
         using var p = Process.Start(psi)
             ?? throw new InvalidOperationException($"Failed to start {executable}");
         p.OutputDataReceived += (_, _) => { };
-        p.ErrorDataReceived  += (_, e) => { if (e.Data != null) sb.AppendLine(e.Data); };
+        p.ErrorDataReceived  += (_, e) => { if (e.Data != null)
+            {
+                sb.AppendLine(e.Data);
+            }
+        };
         p.BeginOutputReadLine();
         p.BeginErrorReadLine();
 

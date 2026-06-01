@@ -507,8 +507,15 @@ public sealed class ToolEquivalencyStepDefinitions
         _ctx["ExternalMappedCount"] = CountMappedSamRecords(samFile);
         _ctx["ExternalAlignerName"] = "bwa mem";
 
-        if (File.Exists(samFile)) File.Delete(samFile);
-        if (File.Exists(logFile)) File.Delete(logFile);
+        if (File.Exists(samFile))
+        {
+            File.Delete(samFile);
+        }
+
+        if (File.Exists(logFile))
+        {
+            File.Delete(logFile);
+        }
     }
 
     [When("bwa-mem2 aligns the same reads to the same reference")]
@@ -544,8 +551,15 @@ public sealed class ToolEquivalencyStepDefinitions
         _ctx["ExternalMappedCount"] = CountMappedSamRecords(samFile);
         _ctx["ExternalAlignerName"] = "bwa-mem2";
 
-        if (File.Exists(samFile)) File.Delete(samFile);
-        if (File.Exists(logFile)) File.Delete(logFile);
+        if (File.Exists(samFile))
+        {
+            File.Delete(samFile);
+        }
+
+        if (File.Exists(logFile))
+        {
+            File.Delete(logFile);
+        }
     }
 
     // ── When: Adapter trimming ────────────────────────────────────────────────
@@ -599,8 +613,15 @@ public sealed class ToolEquivalencyStepDefinitions
         }
         finally
         {
-            if (File.Exists(outFile)) File.Delete(outFile);
-            if (File.Exists(htmlFile)) File.Delete(htmlFile);
+            if (File.Exists(outFile))
+            {
+                File.Delete(outFile);
+            }
+
+            if (File.Exists(htmlFile))
+            {
+                File.Delete(htmlFile);
+            }
         }
     }
 
@@ -633,7 +654,10 @@ public sealed class ToolEquivalencyStepDefinitions
         }
         finally
         {
-            if (File.Exists(outFile)) File.Delete(outFile);
+            if (File.Exists(outFile))
+            {
+                File.Delete(outFile);
+            }
         }
     }
 
@@ -671,8 +695,15 @@ public sealed class ToolEquivalencyStepDefinitions
         }
         finally
         {
-            if (File.Exists(adapterFa)) File.Delete(adapterFa);
-            if (File.Exists(outFile)) File.Delete(outFile);
+            if (File.Exists(adapterFa))
+            {
+                File.Delete(adapterFa);
+            }
+
+            if (File.Exists(outFile))
+            {
+                File.Delete(outFile);
+            }
         }
     }
 
@@ -956,7 +987,10 @@ public sealed class ToolEquivalencyStepDefinitions
         }
 
         _ctx["BamFile"] = sortedBam;
-        if (File.Exists(logFile)) File.Delete(logFile);
+        if (File.Exists(logFile))
+        {
+            File.Delete(logFile);
+        }
     }
 
     [When("BioSharp calls variants from that BAM using the HashMap seeder")]
@@ -1018,7 +1052,11 @@ public sealed class ToolEquivalencyStepDefinitions
                         var f = l.Split('\t');
                         return f.Length >= 2 && int.TryParse(f[1], out var pos) && pos == p;
                     });
-                if (line == null) return false;
+                if (line == null)
+                {
+                    return false;
+                }
+
                 var fields = line.Split('\t');
                 return fields.Length >= 5 && fields[3].Length == 1 && fields[4].Length == 1;
             })
@@ -1027,7 +1065,10 @@ public sealed class ToolEquivalencyStepDefinitions
         _ctx["ExternalVariantPositions"] = positions;
         _ctx["ExternalCallerName"] = "freebayes";
 
-        if (File.Exists(vcfFile)) File.Delete(vcfFile);
+        if (File.Exists(vcfFile))
+        {
+            File.Delete(vcfFile);
+        }
     }
 
     [When("samtools mpileup piped to bcftools calls variants from the same BAM")]
@@ -1051,7 +1092,11 @@ public sealed class ToolEquivalencyStepDefinitions
         var snpPositions = new HashSet<int>();
         foreach (var line in File.ReadLines(vcfFile))
         {
-            if (line.StartsWith('#')) continue;
+            if (line.StartsWith('#'))
+            {
+                continue;
+            }
+
             var fields = line.Split('\t');
             if (fields.Length >= 5
                 && int.TryParse(fields[1], out var pos)
@@ -1065,7 +1110,10 @@ public sealed class ToolEquivalencyStepDefinitions
         _ctx["ExternalVariantPositions"] = snpPositions;
         _ctx["ExternalCallerName"] = "samtools mpileup | bcftools call";
 
-        if (File.Exists(vcfFile)) File.Delete(vcfFile);
+        if (File.Exists(vcfFile))
+        {
+            File.Delete(vcfFile);
+        }
     }
 
     // ── Then: Alignment assertions ────────────────────────────────────────────
@@ -1398,7 +1446,10 @@ public sealed class ToolEquivalencyStepDefinitions
         _ctx["ExternalBclConverterName"] = "bcl-convert";
 
         Directory.Delete(outDir, recursive: true);
-        if (File.Exists(logFile)) File.Delete(logFile);
+        if (File.Exists(logFile))
+        {
+            File.Delete(logFile);
+        }
     }
 
     [When("bcl2fastq converts the same BCL run directory to FASTQ")]
@@ -1445,7 +1496,10 @@ public sealed class ToolEquivalencyStepDefinitions
         _ctx["ExternalBclConverterName"] = "bcl2fastq";
 
         Directory.Delete(outDir, recursive: true);
-        if (File.Exists(logFile)) File.Delete(logFile);
+        if (File.Exists(logFile))
+        {
+            File.Delete(logFile);
+        }
     }
 
     // ── Then: BCL equivalency assertions ─────────────────────────────────────

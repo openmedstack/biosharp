@@ -34,7 +34,8 @@ RUN --mount=type=cache,target=/root/.nuget/packages \
       --self-contained true \
       --no-restore \
       -p:PublishSingleFile=true \
-      -p:EnableCompressionInSingleFile=true \
+      -p:EnableCompressionInSingleFile=false \
+      -p:PublishReadyToRun=true \
       -p:PublishTrimmed=true \
       -p:SuppressTrimAnalysisWarnings=true \
       -p:TrimmerRemoveSymbols=true \

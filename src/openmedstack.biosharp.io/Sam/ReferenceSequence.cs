@@ -41,6 +41,55 @@ public record ReferenceSequence
     public string? MoleculeTopology { get; }
     public string? Uri { get; }
 
+    public override string ToString()
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.Append("@SQ");
+        sb.Append($"\tSN:{Name}");
+        sb.Append($"\tLN:{Length}");
+        if (AlternateLocus != null)
+        {
+            sb.Append($"\tAH:{AlternateLocus}");
+        }
+
+        if (AlternateName != null)
+        {
+            sb.Append($"\tAN:{AlternateName}");
+        }
+
+        if (GenomeAssembly != null)
+        {
+            sb.Append($"\tAS:{GenomeAssembly}");
+        }
+
+        if (Description != null)
+        {
+            sb.Append($"\tDS:{Description}");
+        }
+
+        if (Md5Checksum != null)
+        {
+            sb.Append($"\tM5:{Md5Checksum}");
+        }
+
+        if (Species != null)
+        {
+            sb.Append($"\tSP:{Species}");
+        }
+
+        if (MoleculeTopology != null)
+        {
+            sb.Append($"\tTP:{MoleculeTopology}");
+        }
+
+        if (Uri != null)
+        {
+            sb.Append($"\tUR:{Uri}");
+        }
+
+        return sb.ToString();
+    }
+
     public static ReferenceSequence Parse(string line)
     {
         var span = line.AsSpan(4);

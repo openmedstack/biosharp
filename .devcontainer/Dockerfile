@@ -19,18 +19,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     make \
      && rm -rf /var/lib/apt/lists/*
 
-# Create vscode user (UID 1000) with sudo access
-# Shared between VS Code (remoteUser) and JetBrains (SSH auth)
-RUN groupadd -g 1000 vscode && \
-    useradd -m -u 1000 -g vscode -s /bin/bash vscode && \
-    echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
-
-# Map local user (UID/GID on host) to the container vscode user
-# so mounted files keep correct ownership. Defaults to 1000 if unset.
+# The base image may already have user 1000 or a "vscode" user.
+# Only create the user/group if they don't already exist.
+# sshd feature will use whichever user exists, and devcontainer config
+# remoteUser tells VS Code which user to drop into on connect.
 ARG HOST_UID=1000
 ARG HOST_GID=1000
-RUN groupmod -g ${HOST_GID} vscode 2>/dev/null || true && \
-    usermod -u ${HOST_UID} vscode
+RUN if ! id vscode &>/dev/null; then \
+        groupadd -g ${HOST_GID} vscode; \
+        useradd -m -u ${HOST_UID} -g vscode -s /bin/bash vscode; \
+    fi && \
+    echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Set working directory
 WORKDIR /workspaces/biosharp

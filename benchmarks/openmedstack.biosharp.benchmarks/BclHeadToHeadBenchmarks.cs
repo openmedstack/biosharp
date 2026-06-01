@@ -418,7 +418,9 @@ public class BclHeadToHeadBenchmarks
     {
         const string docker = "/app/data/sampledata";
         if (Directory.Exists(docker))
+        {
             return docker;
+        }
 
         // Walk up from the working directory.
         var dir = new DirectoryInfo(Directory.GetCurrentDirectory());
@@ -426,7 +428,10 @@ public class BclHeadToHeadBenchmarks
         {
             var candidate = Path.Combine(dir.FullName, "data", "sampledata");
             if (Directory.Exists(candidate))
+            {
                 return candidate;
+            }
+
             dir = dir.Parent;
         }
 
@@ -436,7 +441,10 @@ public class BclHeadToHeadBenchmarks
         {
             var candidate = Path.Combine(dir.FullName, "data", "sampledata");
             if (Directory.Exists(candidate))
+            {
                 return candidate;
+            }
+
             dir = dir.Parent;
         }
 
@@ -464,7 +472,9 @@ public class BclHeadToHeadBenchmarks
         finally
         {
             if (!ReferenceEquals(readStream, fs))
+            {
                 readStream.Dispose();
+            }
         }
     }
 

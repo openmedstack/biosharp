@@ -359,7 +359,7 @@ public partial class BamReader
                 var subtype = (char)span[0];
                 var count = BitConverter.ToInt32(span.Slice(1, 4));
                 var total = 5;
-                var array = Array.CreateInstance(GetTagType(type), count);
+                var array = GetTagType(type, count);
                 for (var i = 0; i < count; i++)
                 {
                     var (length, value) = ReadTagValue(span[5..], subtype);
@@ -373,22 +373,27 @@ public partial class BamReader
         }
     }
 
-    private static Type GetTagType(char type)
+    private static Array GetTagType(char type, int count)
     {
         return type switch
         {
-            'A' => typeof(char),
-            'i' => typeof(int),
-            'I' => typeof(uint),
-            'f' => typeof(float),
-            'Z' => typeof(string),
-            'H' => typeof(char[]),
-            'c' => typeof(sbyte),
-            'C' => typeof(byte),
-            's' => typeof(short),
-            'S' => typeof(ushort),
+            'A' => new char[count],
+            'i' => new int[count],
+            'I' => new uint[count],
+            'f' => new float[count],
+            'Z' => new string[count],
+            'H' => Create<char[]>(count), //new char[][count],
+            'c' => new sbyte[count],
+            'C' => new byte[count],
+            's' => new short[count],
+            'S' => new ushort[count],
             _ => throw new InvalidDataException("Invalid tag value")
         };
+
+        static Array Create<T>(int count)
+        {
+            return new T[count];
+        }
     }
 
     /// <summary>

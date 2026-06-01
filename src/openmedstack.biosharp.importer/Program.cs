@@ -1,5 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
-using OpenMedStack.BioSharp.AnnotationDb;
+﻿using OpenMedStack.BioSharp.AnnotationDb;
 
 namespace OpenMedStack.BioSharp.Importer;
 
@@ -7,11 +6,7 @@ class Program
 {
     private static async Task Main()
     {
-        var options = new DbContextOptionsBuilder<TranscriptAnnotationDbContext>()
-            .UseSqlite("Data Source=data/transcripts.db")
-            .Options;
-
-        await using var context = new TranscriptAnnotationDbContext(options);
+        await using var context = new TranscriptAnnotationDbContext("Data Source=data/transcripts.db");
         var database = new TranscriptAnnotationDatabase(context);
         Console.WriteLine("Initializing database...");
         await database.Initialize();

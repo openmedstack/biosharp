@@ -57,24 +57,36 @@ internal static class E2ECommand
     public static async Task<int> Run(E2EOptions options, CancellationToken cancellationToken = default)
       {
         if (!File.Exists(options.ReferencePath))
+        {
           throw new FileNotFoundException("Reference FASTA file not found.", options.ReferencePath);
+        }
 
         var inputSources = new[] { options.FastqPath, options.FastaPath, options.BamPath }
             .Where(s => !string.IsNullOrEmpty(s))
             .ToArray();
 
         if (inputSources.Length == 0)
+        {
           throw new ArgumentException("No input provided. Provide --fastq, --fasta, or --bam.");
+        }
 
         // Validate file existence
         foreach (var path in inputSources)
           {
             if (path != null && path.EndsWith(".fastq.gz", StringComparison.OrdinalIgnoreCase) && !File.Exists(path))
+            {
               throw new FileNotFoundException("FASTQ file not found.", path);
+            }
+
             if (path != null && path.EndsWith(".fasta.gz", StringComparison.OrdinalIgnoreCase) && !File.Exists(path))
+            {
               throw new FileNotFoundException("FASTA file not found.", path);
+            }
+
             if (path != null && path.EndsWith(".bam", StringComparison.OrdinalIgnoreCase) && !File.Exists(path))
+            {
               throw new FileNotFoundException("BAM file not found.", path);
+            }
           }
 
         Directory.CreateDirectory(options.OutputDirectory);

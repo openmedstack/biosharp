@@ -10,7 +10,6 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.EntityFrameworkCore;
 using OpenMedStack.BioSharp.AnnotationDb;
 using OpenMedStack.BioSharp.Io.Vcf;
 using OpenMedStack.BioSharp.Model;
@@ -196,11 +195,7 @@ internal static class AnnotateCommand
             throw new FileNotFoundException("Transcript SQLite database file not found.", databasePath);
         }
 
-        var dbOptions = new DbContextOptionsBuilder<TranscriptAnnotationDbContext>()
-            .UseSqlite($"Data Source={databasePath}")
-            .Options;
-
-        var context = new TranscriptAnnotationDbContext(dbOptions);
+        var context = new TranscriptAnnotationDbContext($"Data Source={databasePath}");
         var database = new TranscriptAnnotationDatabase(context);
         await database.Initialize(cancellationToken).ConfigureAwait(false);
         return new AnnotationDatabaseHandle(context, database);
