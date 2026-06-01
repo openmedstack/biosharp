@@ -10,7 +10,6 @@ using OpenMedStack.BioSharp.Model;
 using OpenMedStack.BioSharp.Model.Vcf;
 using OpenMedStack.BioSharp.Io.FastA;
 using OpenMedStack.BioSharp.Io.Vcf;
-using OpenMedStack.BioSharp.Io;
 using OpenMedStack.BioSharp.Io.Gff;
 
 namespace OpenMedStack.BioSharp.Calculations;

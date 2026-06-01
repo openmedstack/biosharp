@@ -4,6 +4,7 @@ internal sealed record VariantCallOptions(
     string ReferencePath,
     string? FastqPath,
     string? FastaPath,
+    string? BamPath,
     string? ReferenceIdContains,
     string? Chromosome,
     string OutputDirectory,

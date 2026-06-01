@@ -300,6 +300,12 @@ public class VariantCallingPipelineTests
 
         var result = pipeline.BuildResult();
 
+         // Debug: print all variant positions to understand multi-variant behavior
+         foreach (var v in result.Variants)
+         {
+            System.Console.WriteLine($"  Variant@{v.Position}: {v.Reference}->{v.Alternate} depth={v.Depth} qual={v.QuantitativeQuality}");
+         }
+
         Assert.Empty(result.Variants);
         Assert.Equal(1, result.Metrics.VariantsCalled);
         Assert.Equal(0, result.Metrics.VariantsFinal);

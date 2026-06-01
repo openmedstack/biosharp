@@ -22,7 +22,7 @@ internal static class PreatorCommandOptions
         Description = "FASTA or FASTA.GZ read file to analyze."
     };
 
-    internal static readonly Option<string?> ReferenceIdContainsOption = new("--reference-id-contains")
+    internal static readonly Option<string?> ReferenceIdContainsOption = new("--reference-id-contains", "-ric")
     {
         Description = "Choose a FASTA record by partial ID match."
     };
@@ -33,7 +33,7 @@ internal static class PreatorCommandOptions
         DefaultValueFactory = _ => Environment.CurrentDirectory
     };
 
-    internal static readonly Option<string?> ReadStructureOption = new("--readstructure", "-r")
+    internal static readonly Option<string?> ReadStructureOption = new("--readstructure", "-rs")
     {
         Description = "Set the read structure for the data.",
         DefaultValueFactory = _ => null
@@ -45,7 +45,7 @@ internal static class PreatorCommandOptions
         DefaultValueFactory = _ => "1"
     };
 
-    internal static readonly Option<string> ReferenceOption = new("--reference", "-ref")
+    internal static readonly Option<string> ReferenceOption = new("--reference", "-r")
     {
         Description = "FASTA or FASTA.GZ reference sequence file.",
         Required = true
@@ -62,7 +62,7 @@ internal static class PreatorCommandOptions
         DefaultValueFactory = _ => 10
     };
 
-    internal static readonly Option<int> MinVariantQualityOption = new("--min-variant-quality")
+    internal static readonly Option<int> MinVariantQualityOption = new("--min-variant-quality", "-mvq")
     {
         Description = "Minimum variant quality.",
         DefaultValueFactory = _ => 30
@@ -115,7 +115,7 @@ internal static class PreatorCommandOptions
         Required = false
     };
 
-    internal static readonly Option<int?> MaxReadsOption = new("--max-reads")
+    internal static readonly Option<int?> MaxReadsOption = new("--max-reads", "-mr")
     {
         Description = "Stop after this many reads."
     };
@@ -143,7 +143,7 @@ internal static class PreatorCommandOptions
         Description = "Restrict annotation to a single transcript ID."
     };
 
-    internal static readonly Option<float> MinQualityOption = new("--min-quality")
+    internal static readonly Option<float> MinQualityOption = new("--min-quality", "-minq")
     {
         Description = "Minimum QUAL threshold required before a variant is annotated.",
         DefaultValueFactory = _ => 0.0f
@@ -179,11 +179,11 @@ internal static class PreatorCommandOptions
         DefaultValueFactory = _ => 2
     };
 
-    internal static readonly Option<string> BamOption = new("--bam", "-b")
-     {
-        Description = "Input sorted BAM file for variant calling.",
-        Required = true
-     };
+    internal static readonly Option<FileInfo?> BamOption = new("--bam", "-b")
+      {
+        Description = "Input sorted BAM file for variant calling or alignment (alternative to --fastq/--fasta).",
+        Required = false
+      };
 
     // Alignment-specific options
     internal static readonly Option<int> MinSeedLenOption = new("--min-seed-len", "-ms")

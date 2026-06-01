@@ -1,4 +1,3 @@
-using BenchmarkDotNet.Exporters;
 using OpenMedStack.BioSharp.Model.Alignment;
 
 namespace OpenMedStack.BioSharp.Benchmarks;
@@ -309,9 +308,9 @@ public class AlignmentHeadToHeadBenchmarks
     /// on the first warmup iteration.  The difference exposes the true startup + JIT overhead
     /// of the .NET runtime vs. a native C tool like BWA.
     /// </summary>
-    [Benchmark(Description = "preator-variantcall (subprocess)")]
+    [Benchmark(Description = "preator-alignment (subprocess)")]
     [BenchmarkCategory("Alignment", "Preator")]
-    public int Preator_VariantCall_Subprocess()
+    public int Preator_Alignment_Subprocess()
     {
         if (_preatorDll == null)
         {
@@ -319,7 +318,7 @@ public class AlignmentHeadToHeadBenchmarks
                 $"preator binary is not available: {_preatorPublishError}");
         }
 
-        var outDir = Path.Combine(_tempDir, $"preator_variantcall_{Guid.NewGuid():N}");
+        var outDir = Path.Combine(_tempDir, $"preator_alignment_{Guid.NewGuid():N}");
         Directory.CreateDirectory(outDir);
         try
         {
@@ -327,10 +326,9 @@ public class AlignmentHeadToHeadBenchmarks
             var exit = runningInContainer
                 ? ExternalProcess.Run(
                     "/app/preator/preator",
-                    $"variantcall" +
+                    $"align" +
                     $" --reference \"{_referenceFastaPath}\"" +
                     $" --fastq \"{_readsFastqPath}\"" +
-                    $" --chromosome chrSynth" +
                     $" --output \"{outDir}\"" +
                     $" --output-prefix aligned" +
                     $" -p {ThreadCount}",

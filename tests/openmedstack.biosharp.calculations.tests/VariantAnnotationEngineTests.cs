@@ -1,12 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Threading;
 using System.Threading.Tasks;
 using OpenMedStack.BioSharp.Model;
 using OpenMedStack.BioSharp.Model.Vcf;
-using OpenMedStack.BioSharp.Calculations;
 using Xunit;
 
 namespace OpenMedStack.BioSharp.Calculations.Tests;
@@ -28,29 +25,36 @@ public class VariantAnnotationEngineTests : IDisposable
         // Create a dummy FASTA file with 2 transcripts
         // NM_001: ATG GCC ATT -> M A I  (Pos 4 is G)
         // NM_002: ATG GGA CGT -> M G R  (Pos 4 is G)
-        File.WriteAllLines(_fastaPath, new[] {
+        File.WriteAllLines(_fastaPath, [
             ">NM_001",
             "ATGGCCATT",
             ">NM_002",
-            "ATGGGACGT" 
-        });
+            "ATGGGACGT"
+        ]);
 
         // Create a dummy VCF file
         // Variant 1: pos 1, A>G (ATG -> GTG = Met -> Val) in both transcripts if applicable
         // Variant 2: pos 4, G>A (GCC -> GAC = Ala -> Asp) in NM_001 AND ATGGGACGT? No.
         // Actually for NM_002 sequence 'ATGGGACGT', pos 4 is G. So a G>A substitution works for both!
-        File.WriteAllLines(_vcfPath, new[] {
+        File.WriteAllLines(_vcfPath, [
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO",
             "chr1\t1\t.\tA\tG\t30.0\tPASS\t.",
             "chr1\t4\t.\tG\tA\t30.0\tPASS\t."
-        });
+        ]);
     }
 
     public void Dispose()
     {
         if (Directory.Exists(_testDir))
         {
-            try { Directory.Delete(_testDir, true); } catch { /* ignore */ }
+            try
+            {
+                Directory.Delete(_testDir, true);
+            }
+            catch
+            {
+                /* ignore */
+            }
         }
     }
 
@@ -58,22 +62,22 @@ public class VariantAnnotationEngineTests : IDisposable
     public async Task LoadTranscriptsAsync_TwoTranscripts_PopulatesDictionary()
     {
         using var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsAsync(_fastaPath);
+        await engine.LoadTranscripts(_fastaPath);
     }
 
     [Fact]
     public async Task LoadTranscriptsAsync_NonExistentFile_ThrowsFileNotFoundException()
     {
         using var engine = new VariantAnnotationEngine();
-        await Assert.ThrowsAsync<FileNotFoundException>(() => engine.LoadTranscriptsAsync("nonexistent.fasta"));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => engine.LoadTranscripts("nonexistent.fasta"));
     }
 
     [Fact]
     public async Task AnnotateVcfAsync_AnnotatesCorrectNumber()
     {
         using var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsAsync(_fastaPath);
-        
+        await engine.LoadTranscripts(_fastaPath);
+
         var annotations = new List<VariantAnnotation>();
         await foreach (var ann in engine.AnnotateVcf(_vcfPath, null, 5.0f))
         {
@@ -90,8 +94,8 @@ public class VariantAnnotationEngineTests : IDisposable
     public async Task AnnotateVcfAsync_FilteringByTranscriptId_Works()
     {
         using var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsAsync(_fastaPath);
-        
+        await engine.LoadTranscripts(_fastaPath);
+
         var annotations = new List<VariantAnnotation>();
         // The FASTA header is ">NM_001".
         await foreach (var ann in engine.AnnotateVcf(_vcfPath, "NM_001", 5.0f))
@@ -111,15 +115,15 @@ public class VariantAnnotationEngineTests : IDisposable
     {
         // Create VCF with one high quality and one low quality variant
         var vcfWithLowQual = Path.Combine(_testDir, "lowqual.vcf");
-        File.WriteAllLines(vcfWithLowQual, new[] {
+        File.WriteAllLines(vcfWithLowQual, [
             "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO",
             "chr1\t1\t.\tA\tG\t30.0\tPASS\t.", // High qual (Phred 30)
-            "chr1\t4\t.\tG\tA\t2.0\tPASS\t."  // Low qual (Phred 2 < 5)
-        });
+            "chr1\t4\t.\tG\tA\t2.0\tPASS\t." // Low qual (Phred 2 < 5)
+        ]);
 
         using var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsAsync(_fastaPath);
-        
+        await engine.LoadTranscripts(_fastaPath);
+
         var annotations = new List<VariantAnnotation>();
         await foreach (var ann in engine.AnnotateVcf(vcfWithLowQual, null, 5.0f))
         {
@@ -134,16 +138,16 @@ public class VariantAnnotationEngineTests : IDisposable
     public async Task AnnotateVariantAsync_ReturnsMultipleAnnotations()
     {
         using var engine = new VariantAnnotationEngine();
-        await engine.LoadTranscriptsAsync(_fastaPath);
-        
-        var variant = new VcfVariant 
-        { 
-            Chromosome = "chr1", 
-            Position = 1, 
-            Reference = "A", 
+        await engine.LoadTranscripts(_fastaPath);
+
+        var variant = new VcfVariant
+        {
+            Chromosome = "chr1",
+            Position = 1,
+            Reference = "A",
             Alternate = "G",
-            ErrorProbabilities = new[] { 30 }, // High qual
-            FailedFilter = Array.Empty<string>()
+            ErrorProbabilities = [30], // High qual
+            FailedFilter = []
         };
 
         var anns = engine.AnnotateVariant(variant);

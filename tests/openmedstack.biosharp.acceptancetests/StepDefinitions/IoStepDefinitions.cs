@@ -14,7 +14,6 @@ using Io.Cram;
 using Io.FastQ;
 using Io.Sam;
 using Io.Vcf;
-using Io;
 using Calculations.Alignment;
 using Model;
 using Model.Vcf;

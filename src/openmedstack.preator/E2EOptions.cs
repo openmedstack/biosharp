@@ -3,6 +3,7 @@ namespace OpenMedStack.Preator;
 internal sealed record E2EOptions(
     string? FastqPath,
     string? FastaPath,
+    string? BamPath,
     string OutputDirectory,
     string OutputPrefix,
     string ReferencePath,

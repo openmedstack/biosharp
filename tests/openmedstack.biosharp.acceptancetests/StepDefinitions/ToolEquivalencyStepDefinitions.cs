@@ -16,7 +16,6 @@ using Io.Bcl;
 using Io.FastQ;
 using Microsoft.Extensions.Logging.Abstractions;
 using Model;
-using Model.Alignment;
 using Model.Bcl;
 using Reqnroll;
 using Xunit;

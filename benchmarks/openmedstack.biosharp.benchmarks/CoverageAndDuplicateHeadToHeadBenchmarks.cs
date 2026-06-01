@@ -10,7 +10,6 @@ using BenchmarkDotNet.Jobs;
 using OpenMedStack.BioSharp.Calculations.Alignment;
 using OpenMedStack.BioSharp.Io.Sam;
 using OpenMedStack.BioSharp.Model;
-using OpenMedStack.BioSharp.Model.Alignment;
 
 [MemoryDiagnoser]
 [MarkdownExporterAttribute.GitHub]

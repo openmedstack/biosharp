@@ -730,7 +730,7 @@ public class BclHeadToHeadBenchmarks
 
             [BCLConvert_Data]
             Lane,Sample_ID,index
-            1,BenchSample,NNNNNNNN
+            1,BenchSample,ATCCACTG
             
             [BCLConvert_Settings]
             SoftwareVersion,4.1.23

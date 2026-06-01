@@ -2,7 +2,8 @@ namespace OpenMedStack.Preator;
 
 internal sealed record AlignmentOptions(
     string ReferencePath,
-    string FastqPath,
+    string? FastqPath,
+    string? BamPath,
     string OutputPath,
     int? MaxReads,
     int MinAlignmentScore,

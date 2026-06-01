@@ -11,11 +11,6 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <Compile Remove="Diagnostic.cs"/>
-        <Compile Remove="VariantAnnotationEngineTests.cs"/>
-    </ItemGroup>
-
-    <ItemGroup>
         <None Include="..\..\data\*.fastq.gz">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>

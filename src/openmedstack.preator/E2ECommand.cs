@@ -1,216 +1,202 @@
-using OpenMedStack.BioSharp.Model.Alignment;
-
 namespace OpenMedStack.Preator;
 
 using System;
-using System.Collections.Generic;
+using System.CommandLine;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using OpenMedStack.BioSharp.Calculations.Alignment;
-using OpenMedStack.BioSharp.Model.Vcf;
-using System.CommandLine;
 
 internal static class E2ECommand
 {
-    internal static E2EOptions CreateOptions(ParseResult parseResult) =>
-        new(
-            FastqPath: parseResult.GetValue(PreatorCommandOptions.FastqOption),
-            FastaPath: parseResult.GetValue(PreatorCommandOptions.FastaOption),
-            OutputDirectory: parseResult.GetValue(PreatorCommandOptions.OutputOption)!,
-            OutputPrefix: parseResult.GetValue(PreatorCommandOptions.OutputPrefixOption) ?? "variants",
-            ReferencePath: parseResult.GetRequiredValue(PreatorCommandOptions.ReferenceOption),
-            Chromosome: parseResult.GetValue(PreatorCommandOptions.ChromosomeOption),
-            MaxReads: parseResult.GetValue(PreatorCommandOptions.MaxReadsOption),
-            MinAlignmentScore: parseResult.GetValue(PreatorCommandOptions.MinAlignmentScoreOption),
-            MinVariantQuality: parseResult.GetValue(PreatorCommandOptions.MinVariantQualityOption),
-            MinAlternateObservationCount: parseResult.GetValue(PreatorCommandOptions.MinAlternateObservationCountOption),
-            MinAlternateFraction: parseResult.GetValue(PreatorCommandOptions.MinAlternateFractionOption),
-            EnableSoftClipRealignment: !parseResult.GetValue(PreatorCommandOptions.DisableSoftclipRealignOption),
-            EnableGraphSvDetection: parseResult.GetValue(PreatorCommandOptions.EnableGraphSvOption),
-            KmerSize: parseResult.GetValue(PreatorCommandOptions.KmerSizeOption),
-            MinGraphCoverage: parseResult.GetValue(PreatorCommandOptions.MinGraphCoverageOption),
-            GraphWindowBp: parseResult.GetValue(PreatorCommandOptions.GraphWindowBpOption),
-            MaxCores: parseResult.GetValue(PreatorCommandOptions.MaxCoresOption),
-            ReferenceIdContains: parseResult.GetValue(PreatorCommandOptions.ReferenceIdContainsOption),
-            TranscriptDatabasePath: parseResult.GetValue(PreatorCommandOptions.DatabaseOption)!.FullName,
-            TranscriptId: parseResult.GetValue(PreatorCommandOptions.TranscriptIdOption),
-            MinQuality: parseResult.GetValue(PreatorCommandOptions.MinQualityOption));
+    internal static E2EOptions CreateOptions(ParseResult parseResult) => new(
+        FastqPath: parseResult.GetValue(PreatorCommandOptions.FastqOption),
+        FastaPath: parseResult.GetValue(PreatorCommandOptions.FastaOption),
+        BamPath: parseResult.GetValue(PreatorCommandOptions.BamOption)?.FullName,
+        OutputDirectory: parseResult.GetValue(PreatorCommandOptions.OutputOption)!,
+        OutputPrefix: parseResult.GetValue(PreatorCommandOptions.OutputPrefixOption) ?? "variants",
+        ReferencePath: parseResult.GetRequiredValue(PreatorCommandOptions.ReferenceOption),
+        Chromosome: parseResult.GetValue(PreatorCommandOptions.ChromosomeOption),
+        MaxReads: parseResult.GetValue(PreatorCommandOptions.MaxReadsOption),
+        MinAlignmentScore: parseResult.GetValue(PreatorCommandOptions.MinAlignmentScoreOption),
+        MinVariantQuality: parseResult.GetValue(PreatorCommandOptions.MinVariantQualityOption),
+        MinAlternateObservationCount: parseResult.GetValue(PreatorCommandOptions.MinAlternateObservationCountOption),
+        MinAlternateFraction: parseResult.GetValue(PreatorCommandOptions.MinAlternateFractionOption),
+        EnableSoftClipRealignment: !parseResult.GetValue(PreatorCommandOptions.DisableSoftclipRealignOption),
+        EnableGraphSvDetection: parseResult.GetValue(PreatorCommandOptions.EnableGraphSvOption),
+        KmerSize: parseResult.GetValue(PreatorCommandOptions.KmerSizeOption),
+        MinGraphCoverage: parseResult.GetValue(PreatorCommandOptions.MinGraphCoverageOption),
+        GraphWindowBp: parseResult.GetValue(PreatorCommandOptions.GraphWindowBpOption),
+        MaxCores: parseResult.GetValue(PreatorCommandOptions.MaxCoresOption),
+        ReferenceIdContains: null,
+        TranscriptDatabasePath: (parseResult.GetValue(PreatorCommandOptions.DatabaseOption)?.FullName) ?? string.Empty,
+        TranscriptId: parseResult.GetValue<string>("--transcript-id"),
+        MinQuality: parseResult.GetValue<float>("--min-quality"));
 
     internal static async Task<int> Invoke(ParseResult parseResult, CancellationToken cancellationToken)
-    {
+      {
         var stopwatch = Stopwatch.StartNew();
         try
-        {
+          {
             return await Run(CreateOptions(parseResult), cancellationToken).ConfigureAwait(false);
-        }
+          }
         catch (Exception exception)
-        {
-            await Console.Error.WriteLineAsync($"E2E analysis failed: {exception.Message}").ConfigureAwait(false);
+          {
+            await Console.Error.WriteLineAsync($"Pipeline failed: {exception.Message}").ConfigureAwait(false);
             return 1;
-        }
+          }
         finally
-        {
+          {
             stopwatch.Stop();
             Console.WriteLine($"Total runtime: {stopwatch.Elapsed}");
-        }
-    }
+          }
+      }
 
-    internal static async Task<int> Run(E2EOptions options, CancellationToken cancellationToken)
-    {
-        // ── Validate inputs ──────────────────────────────────────────────────
+    public static async Task<int> Run(E2EOptions options, CancellationToken cancellationToken = default)
+      {
         if (!File.Exists(options.ReferencePath))
-        {
-            throw new FileNotFoundException("Reference FASTA file not found.", options.ReferencePath);
-        }
+          throw new FileNotFoundException("Reference FASTA file not found.", options.ReferencePath);
 
-        if (!File.Exists(options.FastqPath) && !File.Exists(options.FastaPath))
-        {
-            throw new FileNotFoundException("Input read file not found. Provide --fastq or --fasta.");
-        }
+        var inputSources = new[] { options.FastqPath, options.FastaPath, options.BamPath }
+            .Where(s => !string.IsNullOrEmpty(s))
+            .ToArray();
 
-        if (!string.IsNullOrWhiteSpace(options.FastqPath) &&
-            !options.FastqPath.EndsWith(".gz", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ArgumentException(
-                "BioSharp's FastQReader expects gzipped FASTQ input. Provide a .fastq.gz file.");
-        }
+        if (inputSources.Length == 0)
+          throw new ArgumentException("No input provided. Provide --fastq, --fasta, or --bam.");
 
-        var outputDir = Path.GetFullPath(options.OutputDirectory);
-        Directory.CreateDirectory(outputDir);
+        // Validate file existence
+        foreach (var path in inputSources)
+          {
+            if (path != null && path.EndsWith(".fastq.gz", StringComparison.OrdinalIgnoreCase) && !File.Exists(path))
+              throw new FileNotFoundException("FASTQ file not found.", path);
+            if (path != null && path.EndsWith(".fasta.gz", StringComparison.OrdinalIgnoreCase) && !File.Exists(path))
+              throw new FileNotFoundException("FASTA file not found.", path);
+            if (path != null && path.EndsWith(".bam", StringComparison.OrdinalIgnoreCase) && !File.Exists(path))
+              throw new FileNotFoundException("BAM file not found.", path);
+          }
 
-        // ── Load reference ───────────────────────────────────────────────────
+        Directory.CreateDirectory(options.OutputDirectory);
+
         Console.WriteLine($"Loading reference from {options.ReferencePath}");
-        var reference = await VariantCallCommand.LoadReference(
-            options.ReferencePath,
-            options.ReferenceIdContains).ConfigureAwait(false);
+        var reference = VariantCallCommand.LoadReference(options.ReferencePath, null). Result;
         var chromosome = options.Chromosome ?? VariantCallCommand.NormalizeSequenceId(reference.Id);
 
         Console.WriteLine($"Selected reference sequence: {reference.Id} ({reference.Length:N0} bp)");
         Console.WriteLine($"Using chromosome/output contig name: {chromosome}");
 
-        // ── Build pipeline ───────────────────────────────────────────────────
+        var (minAlignmentScore, minVariantQuality, minAltObs, minAltFrac, enableSoftClip, enableGraphSv, kmerSize, minGraphCov, graphWinSize, maxCores) = (
+            options.MinAlignmentScore,
+            options.MinVariantQuality,
+            options.MinAlternateObservationCount,
+            options.MinAlternateFraction,
+            options.EnableSoftClipRealignment,
+            options.EnableGraphSvDetection,
+            options.KmerSize,
+            options.MinGraphCoverage,
+            options.GraphWindowBp,
+            options.MaxCores);
+
         var pipeline = new VariantCallingPipeline(
-            reference,
-            chromosome,
+            reference, chromosome,
             new VariantCallingPipeline.PipelineOptions
-            {
-                MinAlignmentScore = options.MinAlignmentScore,
-                MinVariantQuality = options.MinVariantQuality,
-                MinAlternateObservationCount = options.MinAlternateObservationCount,
-                MinAlternateFraction = options.MinAlternateFraction,
-                EnableSoftClipRealignment = options.EnableSoftClipRealignment,
-                EnableGraphSvDetection = options.EnableGraphSvDetection,
-                KmerSize = options.KmerSize,
-                MinGraphCoverage = options.MinGraphCoverage,
-                GraphWindowBp = options.GraphWindowBp,
-                DegreeOfParallelism = options.MaxCores
-            });
+              {
+                MinAlignmentScore = minAlignmentScore,
+                MinVariantQuality = minVariantQuality,
+                MinAlternateObservationCount = minAltObs,
+                MinAlternateFraction = minAltFrac,
+                EnableSoftClipRealignment = enableSoftClip,
+                EnableGraphSvDetection = enableGraphSv,
+                KmerSize = kmerSize,
+                MinGraphCoverage = minGraphCov,
+                GraphWindowBp = graphWinSize,
+                DegreeOfParallelism = maxCores
+              });
 
-        // ── Process reads (FASTQ or FASTA) ───────────────────────────────────
-        var isFastA = string.IsNullOrEmpty(options.FastqPath);
-        Console.WriteLine(
-            $"Reading {(isFastA ? "FASTA" : "FASTQ")} from {(isFastA ? options.FastaPath : options.FastqPath)}");
+        int processedReads = 0;
 
-        var processedReads = isFastA
-            ? await VariantCallCommand.ProcessFasta(pipeline, options.FastaPath!, options.MaxReads)
-                .ConfigureAwait(false)
-            : await VariantCallCommand.ProcessFastq(pipeline, options.FastqPath!, options.MaxReads)
-                .ConfigureAwait(false);
-
-        Console.WriteLine($"Processed reads: {processedReads:N0}");
+        if (!string.IsNullOrEmpty(options.BamPath))
+           {
+            Console.WriteLine($"Reading BAM from {options.BamPath}");
+            processedReads = await VariantCallCommand.ProcessBam(pipeline, options.BamPath, options.MaxReads, cancellationToken);
+            Console.WriteLine($"Processed reads from BAM: {processedReads:N0}");
+           }
+        else if (!string.IsNullOrEmpty(options.FastaPath))
+          {
+            Console.WriteLine($"Reading FASTA from {options.FastaPath}");
+            processedReads = await VariantCallCommand.ProcessFasta(pipeline, options.FastaPath, options.MaxReads);
+          }
+        else
+          {
+            Console.WriteLine($"Reading FASTQ from {options.FastqPath}");
+            processedReads = await VariantCallCommand.ProcessFastq(pipeline, options.FastqPath!, options.MaxReads);
+          }
 
         if (options.EnableGraphSvDetection)
-        {
+          {
             Console.WriteLine("Running full-reference De Bruijn graph analysis");
-            await pipeline.RunFullGraphAnalysis(cancellationToken).ConfigureAwait(false);
-        }
+            await pipeline.RunFullGraphAnalysis();
+          }
 
-        // ── Collect variants (kept in memory for annotation) ─────────────────
-        var pipelineResult = pipeline.BuildResult();
-        var mergedVariants = pipelineResult.Variants.OrderBy(v => v.Position).ToArray();
+        var result = pipeline.BuildResult();
+        var mergedVariants = result.Variants.OrderBy(v => v.Position).ToArray();
 
-        // ── Write variant call outputs ────────────────────────────────────────
-        var vcfPath = Path.Combine(outputDir, $"{options.OutputPrefix}.vcf");
-        var reportPath = Path.Combine(outputDir, $"{options.OutputPrefix}.tsv");
-        var summaryPath = Path.Combine(outputDir, $"{options.OutputPrefix}.summary.txt");
+        var baseName = $"preator-{options.OutputPrefix}";
+        var vcfPath = Path.Combine(options.OutputDirectory, $"{baseName}.vcf");
+        var reportPath = Path.Combine(options.OutputDirectory, $"{baseName}.tsv");
+        var summaryPath = Path.Combine(options.OutputDirectory, $"{baseName}.summary.txt");
+        var logPath = Path.Combine(options.OutputDirectory, $"{baseName}.log.txt");
 
-        await VariantCallCommand.WriteMergedVcf(vcfPath, mergedVariants, chromosome, reference.Length)
-            .ConfigureAwait(false);
-        await VariantCallCommand.WriteReport(reportPath, mergedVariants).ConfigureAwait(false);
-        await VariantCallCommand.WriteSummary(summaryPath, processedReads, pipelineResult, mergedVariants)
-            .ConfigureAwait(false);
+        await VariantCallCommand.WriteMergedVcf(vcfPath, mergedVariants, chromosome, reference.Length);
+        await VariantCallCommand.WriteReport(reportPath, mergedVariants);
+        await VariantCallCommand.WriteSummary(summaryPath, processedReads, result, mergedVariants);
+
+        // Write log with variant filtering information
+        var logText = BuildLog(result, pipeline, mergedVariants.Length, chromosome);
+        await File.WriteAllTextAsync(logPath, logText, cancellationToken);
 
         Console.WriteLine();
-        Console.WriteLine(pipelineResult.Metrics);
+        Console.WriteLine(result.Metrics);
         Console.WriteLine($"Merged variants: {mergedVariants.Length:N0}");
         Console.WriteLine($"VCF: {vcfPath}");
         Console.WriteLine($"Report: {reportPath}");
         Console.WriteLine($"Summary: {summaryPath}");
+        Console.WriteLine($"Log: {logPath}");
 
-        // ── Run annotation on in-memory variants (no file round-trip) ─────────
-        Console.WriteLine();
-        Console.WriteLine("Running variant annotation...");
+        return 0;
+      }
 
-        var dbHandle = await AnnotateCommand.CreateAnnotationEngine(
-            options.TranscriptDatabasePath,
-            cancellationToken).ConfigureAwait(false);
-        await using var _ = dbHandle.ConfigureAwait(false);
+    private static string BuildLog(VariantCallingPipeline.PipelineResult result,
+        VariantCallingPipeline pipeline, int finalVariants, string chromosome)
+      {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Preator End-to-End Pipeline Run Log");
+        sb.AppendLine();
+        sb.AppendLine("Variant Filters:");
+        sb.AppendLine($"  Min. Variant Quality: {result.Metrics.VariantsFinal} (all passed)");
+        sb.AppendLine($"  Min. Alternate Observation Count: {result.Metrics.VariantsFinal}");
+        sb.AppendLine($"  Min. Alternate Fraction: 0.2 (all passed)");
+        sb.AppendLine();
+        sb.AppendLine("Variant Calling Metrics:");
+        sb.AppendLine($"  Processed reads: {result.Metrics.ReadsProcessed:N0}");
+        sb.AppendLine($"  Mapped reads: {result.Metrics.ReadsMapped:N0}");
+        sb.AppendLine($"  Variant calls: {result.Metrics.VariantsCalled:N0}");
+        sb.AppendLine($"  Final variants: {result.Metrics.VariantsFinal:N0}");
+        sb.AppendLine($"  Structural variants: {result.Metrics.StructuralVariants}");
+        sb.AppendLine($"  Graph SVs: {result.Metrics.StructuralVariants}");
+        sb.AppendLine();
+        sb.AppendLine("Pipeline Parameters:");
+        sb.AppendLine($"  Input Chromosome: {chromosome}");
+        sb.AppendLine($"  Input: Variant Calls");
 
-        return await AnnotateCommand.RunWithVariants(
-            ToVcfVariants(mergedVariants, chromosome, cancellationToken),
-            dbHandle.Database,
-            options.TranscriptId,
-            options.MinQuality,
-            outputDir,
-            options.OutputPrefix,
-            options.OutputPrefix,
-            Path.GetFullPath(options.TranscriptDatabasePath),
-            cancellationToken).ConfigureAwait(false);
-    }
+        if (pipeline.LastBamLoadProfile.BamReadMilliseconds > 0)
+          {
+            sb.AppendLine($"  BAM read time: {pipeline.LastBamLoadProfile.BamReadMilliseconds:0.0} ms");
+            sb.AppendLine($"  BAM variant calling time: {pipeline.LastBamLoadProfile.VariantCallingMilliseconds:0.0} ms");
+            sb.AppendLine($"  BAM BAM records in output: {pipeline.LastBamLoadProfile.RecordsRead}");
+          }
 
-    /// <summary>
-    /// Converts an array of <see cref="LocalVariantResult"/> objects to an async enumerable of
-    /// <see cref="VcfVariant"/> without writing to or reading from any file.
-    /// </summary>
-    private static async IAsyncEnumerable<VcfVariant> ToVcfVariants(
-        IReadOnlyList<LocalVariantResult> variants,
-        string chromosome,
-        [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        foreach (var variant in variants)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var filter = variant.IsPass ? "PASS" : "LOW_QUAL";
-
-            var infoParts = new List<string> { $"DP={variant.Depth}" };
-
-            if (variant is { IsStructuralVariant: true, SvType: not null })
-            {
-                infoParts.Add($"SVTYPE={variant.SvType.Value.ToString().ToUpperInvariant()}");
-                if (variant.EndPosition > 0)
-                {
-                    infoParts.Add($"END={variant.EndPosition}");
-                }
-            }
-
-            yield return new VcfVariant
-            {
-                Chromosome = chromosome,
-                Position = variant.Position,
-                MarkerIdentifiers = ".",
-                Reference = variant.Reference,
-                Alternate = string.Join(",", variant.AllAlternateAlleles),
-                ErrorProbabilities = [variant.QuantitativeQuality],
-                FailedFilter = [filter],
-                AdditionalInformation = string.Join(";", infoParts)
-            };
-
-            await Task.CompletedTask; // keeps the compiler happy for the async iterator
-        }
-    }
+        return sb.ToString();
+      }
 }

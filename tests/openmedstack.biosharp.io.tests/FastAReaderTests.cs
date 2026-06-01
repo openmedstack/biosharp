@@ -11,6 +11,7 @@ public class FastAReaderTests
 {
     [Theory]
     [InlineData("chr1.fa.gz")]
+    [InlineData("Homo_sapiens.GRCh38.dna.chromosome.1.fa.gz")]
     public async Task CanReadSingleSequence(string path)
     {
         var parser = new FastAReader(NullLogger<FastAReader>.Instance);
