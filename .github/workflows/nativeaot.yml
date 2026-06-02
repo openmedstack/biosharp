@@ -1,0 +1,75 @@
+name: NativeAOT Multi-Platform Build
+
+on:
+  push:
+    tags:
+      - 'v*'           # Triggers on tags like v1.2.3, v2.0.0-beta1, etc.
+  release:
+    types: [ published ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.rid }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      matrix:
+        include:
+          - rid: osx-arm64
+            runner: macos-latest
+            os_name: macos-arm64
+
+          - rid: linux-x64
+            runner: ubuntu-latest
+            os_name: linux-x64
+
+          - rid: win-x64
+            runner: windows-latest
+            os_name: windows-x64
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'   # Change if you need a specific version
+
+      - name: Publish NativeAOT for ${{ matrix.rid }}
+        run: |
+          dotnet publish -r ${{ matrix.rid }} \
+                         -c Release \
+                         --self-contained true \
+                         -p:PublishAot=true \
+                         -p:PublishSingleFile=false \
+                         -p:PublishReadyToRun=true \
+                         -p:OptimizationPreference=Speed \
+                         -p:DebugType=None \
+                         -p:DebugSymbols=false \
+                         -p:Optimize=true \
+                         -o ./publish/${{ matrix.rid }}
+        shell: bash
+
+      - name: Zip artifact
+        run: |
+          cd publish
+          zip -r ../preator-${{ matrix.os_name }}-${{ github.ref_name }}.zip ${{ matrix.rid }}
+        shell: bash
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ github.event.repository.name }}-${{ matrix.os_name }}-${{ github.ref_name }}
+          path: ./${{ github.event.repository.name }}-${{ matrix.os_name }}-${{ github.ref_name }}.zip
+          if-no-files-found: error
+          compression-level: 6
+
+      - name: Upload to Release (if this is a GitHub Release)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./${{ github.event.repository.name }}-${{ matrix.os_name }}-${{ github.ref_name }}.zip
+          tag_name: ${{ github.ref_name }}

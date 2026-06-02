@@ -67,9 +67,10 @@ RUN ARCH=$(uname -m) && \
     else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
     dotnet publish src/openmedstack.preator/openmedstack.preator.csproj \
       -c Release \
-      -r "$RID" \
       --self-contained true \
       -p:PublishAot=true \
+      -p:PublishSingleFile=false \
+      -p:PublishReadyToRun=true \
       -p:OptimizationPreference=Speed \
       -p:DebugType=None \
       -p:DebugSymbols=false \

@@ -5,7 +5,7 @@
         <OutputType>Exe</OutputType>
         <AssemblyName>preator</AssemblyName>
         <RootNamespace>OpenMedStack.Preator</RootNamespace>
-        <PublishAot>true</PublishAot>
+        <PublishSingleFile>true</PublishSingleFile>
     </PropertyGroup>
 
     <ItemGroup>
@@ -20,5 +20,4 @@
         <ProjectReference Include="..\openmedstack.biosharp.model\openmedstack.biosharp.model.csproj"/>
         <ProjectReference Include="..\openmedstack.biosharp.calculations\openmedstack.biosharp.calculations.csproj"/>
     </ItemGroup>
-
 </Project>

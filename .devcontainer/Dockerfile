@@ -17,18 +17,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     less \
     jq \
     make \
-     && rm -rf /var/lib/apt/lists/*
+       && rm -rf /var/lib/apt/lists/*
 
-# The base image may already have user 1000 or a "vscode" user.
-# Only create the user/group if they don't already exist.
-# sshd feature will use whichever user exists, and devcontainer config
-# remoteUser tells VS Code which user to drop into on connect.
+# The base image may already have a "vscode" user (e.g. ubuntu with UID 1000).
+# groupadd without -g auto-assigns a free GID to avoid conflicts.
+# useradd without -u lets it auto-assign a free UID if 1000 is taken.
+# The ARG hosts are available for IDEs to use as defaults when 1000 is free.
 ARG HOST_UID=1000
 ARG HOST_GID=1000
-RUN if ! id vscode &>/dev/null; then \
-        groupadd -g ${HOST_GID} vscode; \
-        useradd -m -u ${HOST_UID} -g vscode -s /bin/bash vscode; \
-    fi && \
+RUN (getent group vscode >/dev/null 2>&1 || groupadd vscode) && \
+     (id vscode >/dev/null 2>&1 || useradd -m -g vscode -s /bin/bash vscode) && \
     echo "vscode ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Set working directory
