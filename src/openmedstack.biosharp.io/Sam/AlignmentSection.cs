@@ -108,13 +108,41 @@ public record AlignmentSection
 
     private static (uint, CigarOp)[] GetOpCodes(ReadOnlySpan<char> ops)
     {
-        var result = new (uint, CigarOp)[ops.Length];
-        for (var i = 0; i < ops.Length; i++)
+        if (ops.IsEmpty || (ops.Length == 1 && ops[0] == '*'))
         {
-            result[i] = ((uint)(byte)ops[i]).Decode();
+            return [];
         }
 
-        return result;
+        var result = new List<(uint, CigarOp)>(8);
+        var i = 0;
+        while (i < ops.Length)
+        {
+            var count = 0u;
+            while (i < ops.Length && char.IsAsciiDigit(ops[i]))
+            {
+                count = count * 10 + (uint)(ops[i++] - '0');
+            }
+
+            if (i < ops.Length)
+            {
+                var cigarOp = ops[i++] switch
+                {
+                    'M' => CigarOp.Match,
+                    'I' => CigarOp.Insertion,
+                    'D' => CigarOp.Deletion,
+                    'N' => CigarOp.Skip,
+                    'S' => CigarOp.SoftClip,
+                    'H' => CigarOp.HardClip,
+                    'P' => CigarOp.Padding,
+                    '=' => CigarOp.Equal,
+                    'X' => CigarOp.Difference,
+                    _ => CigarOp.Match
+                };
+                result.Add((count, cigarOp));
+            }
+        }
+
+        return result.ToArray();
     }
 
     /// <summary>

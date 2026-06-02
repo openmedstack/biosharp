@@ -1,0 +1,22 @@
+<Project>
+    <PropertyGroup>
+        <Version>1.1.0</Version>
+        <TargetFramework>net10.0</TargetFramework>
+        <Authors>OpenMedStack;Jacob Reimers</Authors>
+        <Company>OpenMedStack</Company>
+        <Product>OpenMedStack BioSharp</Product>
+        <Copyright>OpenMedStack © 2016 - 2024</Copyright>
+        <RepositoryType>git</RepositoryType>
+        <GeneratePackageOnBuild>False</GeneratePackageOnBuild>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+        <IsTrimmable>true</IsTrimmable>
+        <TrimMode>partial</TrimMode>
+        <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+        <WarningsAsErrors/>
+        <WarningsNotAsErrors>618;1701</WarningsNotAsErrors>
+        <NoWarn>$(NoWarn);xUnit1051;xUnit1041;xUnit1031;CS0121;CS0108</NoWarn>
+    </PropertyGroup>
+</Project>

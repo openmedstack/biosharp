@@ -9,7 +9,9 @@ using System.CommandLine;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading;
+using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.IO.Compression;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -37,7 +39,8 @@ internal static class AlignmentCommand
         WindowPadding: parseResult.GetValue(PreatorCommandOptions.WindowPaddingOption),
         MaxCandidateWindowsPerRead: parseResult.GetValue(PreatorCommandOptions.MaxCandidateWindowsPerReadOption),
         MaxCores: parseResult.GetValue(PreatorCommandOptions.MaxCoresOption),
-        OutputPrefix: parseResult.GetValue(PreatorCommandOptions.OutputPrefixOption) ?? "aligned");
+        OutputPrefix: parseResult.GetValue(PreatorCommandOptions.OutputPrefixOption) ?? "aligned",
+        IndexPath: parseResult.GetValue(PreatorCommandOptions.PreloadIndexOption));
 
     internal static async Task<int> Invoke(ParseResult parseResult, CancellationToken cancellationToken)
     {
@@ -96,7 +99,17 @@ internal static class AlignmentCommand
             MergeDistance = 32,
         };
 
-        var seeder = new FmIndexSeeder(reference, seederOptions);
+        FmIndexSeeder seeder;
+        if (!string.IsNullOrWhiteSpace(options.IndexPath) && File.Exists(options.IndexPath))
+        {
+            Console.WriteLine($"Loading pre-built FM-index from {options.IndexPath}");
+            seeder = FmIndexSeeder.Load(reference, options.IndexPath, seederOptions);
+        }
+        else
+        {
+            seeder = new FmIndexSeeder(reference, seederOptions);
+        }
+
         Console.WriteLine($"FM-index seeder built ({seeder.ReferenceLength:N0} bp)");
 
         var mappedCount = 0;
@@ -209,7 +222,99 @@ internal static class AlignmentCommand
             cancellationToken);
     }
 
-    private static bool ProcessRead(
+    /// <summary>
+    /// Aligns a collection of reads against the reference in-memory using FM-index seeding +
+    /// Smith-Waterman, returning <see cref="AlignmentSection"/> records for downstream use
+    /// (e.g. duplicate marking and variant calling) without writing any intermediate files.
+    /// </summary>
+    /// <summary>
+    /// Aligns a stream of reads against the reference in-memory using FM-index seeding +
+    /// Smith-Waterman, returning <see cref="AlignmentSection"/> records for downstream use
+    /// (e.g. duplicate marking and variant calling) without writing any intermediate files.
+    /// Reads are streamed through a bounded <see cref="Channel{T}"/> into parallel alignment
+    /// workers so input reading and alignment proceed concurrently — no full materialisation
+    /// of the read stream before alignment begins.
+    /// </summary>
+    /// <param name="reads">Lazily-evaluated read stream (e.g. from adapter trimming).</param>
+    /// <param name="reference">Reference sequence used for alignment.</param>
+    /// <param name="seeder">Pre-built FM-index seeder to reuse across all workers.</param>
+    /// <param name="contigName">Contig/chromosome name written into each SAM record.</param>
+    /// <param name="minAlignmentScore">Minimum Smith-Waterman score to accept an alignment.</param>
+    /// <param name="maxCores">Degree of parallelism for alignment workers.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    internal static async Task<IReadOnlyList<AlignmentSection>> AlignReadsInMemory(
+        IAsyncEnumerable<Sequence> reads,
+        Sequence reference,
+        FmIndexSeeder seeder,
+        string contigName,
+        int minAlignmentScore,
+        int maxCores,
+        CancellationToken cancellationToken = default)
+    {
+        var parallelism = Math.Max(1, maxCores);
+        var alignments = new ConcurrentBag<SamLineData>();
+
+        if (parallelism == 1)
+        {
+            // Single-threaded: stream reads directly without Channel overhead
+            await foreach (var read in reads.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                ProcessRead(read, reference, seeder, minAlignmentScore, alignments);
+            }
+        }
+        else
+        {
+            // Multi-threaded: producer streams reads into a bounded channel; worker tasks
+            // consume from the channel in parallel so I/O and alignment overlap.
+            var channelOptions = new BoundedChannelOptions(parallelism * 4)
+            {
+                SingleWriter = true,
+                SingleReader = false,
+                AllowSynchronousContinuations = false,
+                FullMode = BoundedChannelFullMode.Wait,
+            };
+            var channel = Channel.CreateBounded<Sequence>(channelOptions);
+
+            var producer = Task.Run(async () =>
+            {
+                try
+                {
+                    await foreach (var read in reads.WithCancellation(cancellationToken)
+                                       .ConfigureAwait(false))
+                    {
+                        await channel.Writer.WriteAsync(read, cancellationToken).ConfigureAwait(false);
+                    }
+
+                    channel.Writer.TryComplete();
+                }
+                catch (Exception ex)
+                {
+                    channel.Writer.TryComplete(ex);
+                    throw;
+                }
+            }, cancellationToken);
+
+            var workers = Enumerable.Range(0, parallelism)
+                .Select(_ => Task.Run(async () =>
+                {
+                    await foreach (var read in channel.Reader.ReadAllAsync(cancellationToken)
+                                       .ConfigureAwait(false))
+                    {
+                        ProcessRead(read, reference, seeder, minAlignmentScore, alignments);
+                    }
+                }, cancellationToken))
+                .ToList();
+
+            await Task.WhenAll(workers.Prepend(producer)).ConfigureAwait(false);
+        }
+
+        return alignments
+            .Select(r => AlignmentSection.Parse(BuildSamLine(r, contigName)))
+            .OfType<AlignmentSection>()
+            .ToList();
+    }
+
+    internal static bool ProcessRead(
         Sequence read,
         Sequence reference,
         FmIndexSeeder seeder,
@@ -301,7 +406,7 @@ internal static class AlignmentCommand
         await bamWriter.Write(definition, cancellationToken).ConfigureAwait(false);
     }
 
-    private static string BuildSamLine(SamLineData record, string contigName = "*")
+    internal static string BuildSamLine(SamLineData record, string contigName = "*")
     {
         if (record.IsUnmapped)
         {
@@ -314,7 +419,9 @@ internal static class AlignmentCommand
         var result = record.AlignmentResult!;
         var cigarOps = CigarBuilder.BuildCigarOps(result);
         var cigar = string.Concat(cigarOps.Select(o => $"{o.Item1}{o.Item2}"));
-        var pos = result.ReferenceStartPosition + 1;
+        // WindowStart is the absolute reference offset of the candidate window; add the
+        // aligner's window-relative start position to get the true reference coordinate.
+        var pos = record.WindowStart + result.ReferenceStartPosition + 1;
         var mapq = result.Score >= 50 ? (byte)60 : result.Score >= 30 ? (byte)40 : (byte)25;
         var mappedFlag = (short)(AlignmentSection.AlignmentFlag.FirstSegmentInTemplate);
         var editDistance = CalculateEditDistance(result);

@@ -4,10 +4,15 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Threading;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
+using Microsoft.Extensions.Logging.Abstractions;
 using OpenMedStack.BioSharp.Calculations.Alignment;
+using OpenMedStack.BioSharp.Io.Bam;
+using OpenMedStack.BioSharp.Io.Bgzf;
 using OpenMedStack.BioSharp.Io.Sam;
 using OpenMedStack.BioSharp.Model;
 
@@ -25,7 +30,9 @@ public class CoverageAndDuplicateHeadToHeadBenchmarks
     private string _tempDir = null!;
     private string _referencePath = null!;
     private string _coordinateSortedBamPath = null!;
+    private string _biosharpBamPath = null!;
     private bool _samtoolsAvailable;
+    private string? _preatorPublishError;
 
     [Params(5_000)]
     public int AlignmentCount { get; set; }
@@ -50,6 +57,12 @@ public class CoverageAndDuplicateHeadToHeadBenchmarks
         {
             PrepareSamtoolsBam();
         }
+
+        // Write a BioSharp-native BAM for the preator markdup subprocess benchmark.
+        // This bypasses samtools fixmate so the BAM is guaranteed to be compatible with BioSharp's BamReader.
+        WriteBiosharpBam();
+
+        _preatorPublishError = PreatorPublisher.GetPublishError();
     }
 
     [GlobalCleanup]
@@ -132,6 +145,39 @@ public class CoverageAndDuplicateHeadToHeadBenchmarks
         }
     }
 
+    [Benchmark(Description = "preator-markdup (subprocess)")]
+    [BenchmarkCategory("DuplicateMarking", "External")]
+    public long PreatorMarkdup_Subprocess()
+    {
+        if (_preatorPublishError != null)
+        {
+            throw new InvalidOperationException($"preator is not available: {_preatorPublishError}");
+        }
+
+        var outDir = Path.Combine(_tempDir, $"preator-markdup-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(outDir);
+            var exit = PreatorPublisher.Run(
+                $"markdup --bam \"{_biosharpBamPath}\" --output \"{outDir}\" --output-prefix markdup",
+                _tempDir,
+                120_000);
+            if (exit != 0)
+            {
+                throw new InvalidOperationException($"preator markdup exited with code {exit}.");
+            }
+
+            return Directory.EnumerateFiles(outDir).Sum(f => new FileInfo(f).Length);
+        }
+        finally
+        {
+            if (Directory.Exists(outDir))
+            {
+                Directory.Delete(outDir, recursive: true);
+            }
+        }
+    }
+
     private void EnsureSamtoolsPrepared()
     {
         if (!_samtoolsAvailable)
@@ -160,6 +206,23 @@ public class CoverageAndDuplicateHeadToHeadBenchmarks
         RunSamtoolsOrThrow($"fixmate -@ {ThreadCount} -m \"{nameSortedBam}\" \"{fixmateBam}\"");
         RunSamtoolsOrThrow($"sort -@ {ThreadCount} \"{fixmateBam}\" -o \"{_coordinateSortedBamPath}\"");
         RunSamtoolsOrThrow($"index \"{_coordinateSortedBamPath}\"");
+    }
+
+    private void WriteBiosharpBam()
+    {
+        // Write a BAM using BioSharp's own writer so that the preator markdup subprocess
+        // is guaranteed to receive a BAM it can parse (avoids samtools fixmate tag issues).
+        var samPath = Path.Combine(_tempDir, "biosharp.sam");
+        WriteSam(samPath, _alignments);
+        _biosharpBamPath = Path.Combine(_tempDir, "biosharp.bam");
+
+        var samReader = new SamReader(NullLogger.Instance);
+        var definition = samReader.Read(samPath, CancellationToken.None).GetAwaiter().GetResult();
+
+        using var fileStream = File.Create(_biosharpBamPath);
+        using var bgzf = new BgzfStream(fileStream, CompressionLevel.Fastest);
+        var bamWriter = new BamWriter(bgzf, NullLogger<BamWriter>.Instance);
+        bamWriter.Write(definition, CancellationToken.None).GetAwaiter().GetResult();
     }
 
     private static IReadOnlyList<AlignmentSection> GenerateAlignments(int count)

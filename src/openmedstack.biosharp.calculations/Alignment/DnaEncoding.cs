@@ -1,18 +1,18 @@
 namespace OpenMedStack.BioSharp.Calculations.Alignment;
 
 using System;
+using System.Buffers;
+using System.Runtime.CompilerServices;
 
 internal static class DnaEncoding
 {
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static char Normalize(char value)
     {
-        return value switch
-        {
-            >= 'a' and <= 'z' => (char)(value - 32),
-            _ => value
-        };
+        return (uint)(value - 'a') <= (uint)('z' - 'a') ? (char)(value - 32) : value;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool AreEqual(char left, char right)
     {
         return Normalize(left) == Normalize(right);
@@ -40,19 +40,23 @@ internal static class DnaEncoding
             return string.Empty;
         }
 
-        var buffer = new char[length];
-        var pos = 0;
-        foreach (var value in data)
+        var buffer = ArrayPool<char>.Shared.Rent(length);
+        try
         {
-            if (value == '-')
+            var pos = 0;
+            foreach (var value in data)
             {
-                continue;
+                if (value != '-')
+                {
+                    buffer[pos++] = Normalize(value);
+                }
             }
-
-            buffer[pos++] = Normalize(value);
+            return new string(buffer, 0, length);
         }
-
-        return new string(buffer);
+        finally
+        {
+            ArrayPool<char>.Shared.Return(buffer, clearArray: false);
+        }
     }
 
     public static string ReverseComplement(ReadOnlySpan<char> sequence)
@@ -62,21 +66,27 @@ internal static class DnaEncoding
             return string.Empty;
         }
 
-        var complement = new char[sequence.Length];
-        for (var index = 0; index < sequence.Length; index++)
+        var complement = ArrayPool<char>.Shared.Rent(sequence.Length);
+        try
         {
-            var baseChar = Normalize(sequence[sequence.Length - 1 - index]);
-            complement[index] = baseChar switch
+            for (var index = 0; index < sequence.Length; index++)
             {
-                'A' => 'T',
-                'T' => 'A',
-                'C' => 'G',
-                'G' => 'C',
-                _ => baseChar
-            };
+                var baseChar = Normalize(sequence[sequence.Length - 1 - index]);
+                complement[index] = baseChar switch
+                {
+                    'A' => 'T',
+                    'T' => 'A',
+                    'C' => 'G',
+                    'G' => 'C',
+                    _   => baseChar
+                };
+            }
+            return new string(complement, 0, sequence.Length);
         }
-
-        return new string(complement);
+        finally
+        {
+            ArrayPool<char>.Shared.Return(complement, clearArray: false);
+        }
     }
 
     public static bool IsLowComplexity(ReadOnlySpan<char> sequence, double threshold = 0.85d)

@@ -11,7 +11,35 @@
 
 ## Active Tasks
 
-### 33. Improve preator `align` benchmark performance — DONE
+### 34. Add markdup and repeatmask commands to preator and benchmark comparisons — DONE
+
+**Task**: Add `markdup` and `repeatmask` commands to `openmedstack.preator` CLI and update
+`benchmark-tutorial-comparison.sh` to include duplicate marking and repeat masking timing
+comparisons against external tools (samtools, trf).
+
+**New files added to `src/openmedstack.preator/`**:
+- `MarkDupCommand.cs` — reads BAM → `DuplicateMarker.MarkDuplicates()` → writes output BAM + metrics JSON
+- `MarkDupOptions.cs` — options record: `BamPath`, `OutputPath`, `OutputPrefix`, `OpticalPixelDistance`
+- `MarkDupSummary.cs` — JSON serialization target for markdup metrics
+- `RepeatMaskCommand.cs` — reads FASTA → `RepeatMasker.MaskRepeats()` → writes N-masked FASTA + summary JSON
+- `RepeatMaskOptions.cs` — options record: `FastaPath`, `LibraryPath`, `MinMotifLength`, `OutputPath`, `OutputPrefix`
+- `RepeatMaskSummary.cs` — JSON serialization target for repeat masking metrics
+
+**Modified files**:
+- `PreatorCommandOptions.cs` — added `BamRequiredOption`, `LibraryOption`, `OpticalPixelDistanceOption`, `MinMotifLengthOption`, `FastaRequiredOption`
+- `Program.cs` — added `CreateMarkDupCommand()`, `CreateRepeatMaskCommand()`, registered in `CreateRootCommand()`
+- `PreatorJsonContext.cs` — added `[JsonSerializable(typeof(MarkDupSummary))]` and `[JsonSerializable(typeof(RepeatMaskSummary))]`
+
+**`benchmark-tutorial-comparison.sh` additions**:
+- `build_preator_cli()` — publishes preator CLI once; sets `PREATOR_DLL` variable
+- `prepare_markdup_bam()` — bwa+samtools fixmate+sort to produce a shared sorted BAM input; sets `MARKDUP_INPUT_BAM`
+- `generate_repeatmask_fixtures()` — generates a 50 kbp synthetic repeat-rich FASTA + library JSON; sets `REPEATMASK_FASTA`, `REPEATMASK_LIBRARY`
+- `benchmark_markdup_preator()`, `benchmark_markdup_samtools()` — timed markdup comparison
+- `benchmark_repeatmask_preator()`, `benchmark_repeatmask_trf()` — timed repeat masking comparison (trf skipped when unavailable with `N/A` placeholder)
+- `write_summary()` — extended to include 4 new TSV tables (markdup preator, markdup samtools, repeatmask preator, repeatmask trf)
+- `main()` — calls new setup functions and loops through all 6 benchmark pairs
+
+
 
 Applied all performance improvements to the `preator` CLI `align` command:
 

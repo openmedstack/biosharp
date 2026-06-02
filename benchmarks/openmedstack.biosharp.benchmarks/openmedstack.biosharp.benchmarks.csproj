@@ -18,6 +18,7 @@
         <ProjectReference Include="../../src/openmedstack.biosharp.io/openmedstack.biosharp.io.csproj"/>
         <ProjectReference Include="../../src/openmedstack.biosharp.model/openmedstack.biosharp.model.csproj"/>
         <ProjectReference Include="../../src/openmedstack.biosharp.annotationdb/openmedstack.biosharp.annotationdb.csproj"/>
+        <ProjectReference Include="../../src/openmedstack.preator/openmedstack.preator.csproj"/>
     </ItemGroup>
 
 </Project>

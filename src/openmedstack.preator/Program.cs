@@ -38,7 +38,11 @@ internal static class Program
             CreateAlignmentCommand(),
             CreateAnnotateCommand(),
             CreateBclCommand(),
+            CreateCoverageCommand(),
             CreateE2ECommand(),
+            CreateIndexCommand(),
+            CreateMarkDupCommand(),
+            CreateRepeatMaskCommand(),
             CreateVariantCallCommand(),
             CreateQcCommand(),
             CreateTrimCommand(),
@@ -103,7 +107,7 @@ internal static class Program
     {
         var command = new Command(
             "e2e",
-            "Run end-to-end: read FASTA/FASTQ/BAM, call variants, annotate and produce a clinical report")
+            "Run end-to-end: read FASTA/FASTQ/BAM, trim, align, mark duplicates, call variants, annotate and produce a clinical report")
         {
             PreatorCommandOptions.ReferenceOption,
             PreatorCommandOptions.FastqOption,
@@ -124,7 +128,20 @@ internal static class Program
             PreatorCommandOptions.MinGraphCoverageOption,
             PreatorCommandOptions.GraphWindowBpOption,
             PreatorCommandOptions.MaxCoresOption,
-            PreatorCommandOptions.DatabaseOption,
+            // Adapter trimming
+            PreatorCommandOptions.AdapterOption,
+            PreatorCommandOptions.MinLengthOption,
+            PreatorCommandOptions.MaxMismatchesOption,
+            // Alignment
+            PreatorCommandOptions.MinSeedLenOption,
+            PreatorCommandOptions.MaxSeedHitsThresholdOption,
+            PreatorCommandOptions.SeedStepOption,
+            PreatorCommandOptions.WindowPaddingOption,
+            PreatorCommandOptions.MaxCandidateWindowsPerReadOption,
+            // Duplicate marking
+            PreatorCommandOptions.OpticalPixelDistanceOption,
+            // Annotation (optional)
+            PreatorCommandOptions.OptionalDatabaseOption,
             PreatorCommandOptions.TranscriptIdOption,
             PreatorCommandOptions.MinQualityOption
         };
@@ -209,6 +226,7 @@ internal static class Program
             PreatorCommandOptions.ReferenceOption,
             PreatorCommandOptions.FastqOption,
             PreatorCommandOptions.BamOption,
+            PreatorCommandOptions.PreloadIndexOption,
             PreatorCommandOptions.OutputOption,
             PreatorCommandOptions.MaxReadsOption,
             PreatorCommandOptions.MinAlignmentScoreOption,
@@ -232,6 +250,78 @@ internal static class Program
         });
 
         command.SetAction(AlignmentCommand.Invoke);
+        return command;
+    }
+
+    private static Command CreateIndexCommand()
+    {
+        var command = new Command(
+            "index",
+            "Build an FM-index (and optionally a k-mer reference index) from a FASTA reference or BAM read set")
+        {
+            PreatorCommandOptions.FastaOption,
+            PreatorCommandOptions.BamOption,
+            PreatorCommandOptions.ReferenceIdContainsOption,
+            PreatorCommandOptions.FmSampleRateOption,
+            PreatorCommandOptions.AlsoBuildReferenceIndexOption,
+            PreatorCommandOptions.OutputOption,
+            PreatorCommandOptions.OutputPrefixOption
+        };
+
+        command.Validators.Add(result =>
+        {
+            var hasFasta = result.GetValue(PreatorCommandOptions.FastaOption) is not null;
+            var hasBam = result.GetValue(PreatorCommandOptions.BamOption) is not null;
+            if (!hasFasta && !hasBam)
+            {
+                result.AddError("Missing required argument: --fasta or --bam");
+            }
+        });
+
+        command.SetAction(IndexCommand.Invoke);
+        return command;
+    }
+
+    private static Command CreateCoverageCommand()
+    {
+        var command = new Command("coverage", "Compute per-position and summary read depth from a sorted BAM file (equivalent to samtools depth)")
+        {
+            PreatorCommandOptions.BamRequiredOption,
+            PreatorCommandOptions.BedOption,
+            PreatorCommandOptions.WriteDepthTsvOption,
+            PreatorCommandOptions.OutputOption,
+            PreatorCommandOptions.OutputPrefixOption
+        };
+
+        command.SetAction(CoverageCommand.Invoke);
+        return command;
+    }
+
+    private static Command CreateMarkDupCommand()    {
+        var command = new Command("markdup", "Mark PCR and optical duplicate reads in a sorted BAM file")
+        {
+            PreatorCommandOptions.BamRequiredOption,
+            PreatorCommandOptions.OutputOption,
+            PreatorCommandOptions.OutputPrefixOption,
+            PreatorCommandOptions.OpticalPixelDistanceOption
+        };
+
+        command.SetAction(MarkDupCommand.Invoke);
+        return command;
+    }
+
+    private static Command CreateRepeatMaskCommand()
+    {
+        var command = new Command("repeatmask", "Mask repeat sequences in a FASTA file using a repeat library")
+        {
+            PreatorCommandOptions.FastaRequiredOption,
+            PreatorCommandOptions.LibraryOption,
+            PreatorCommandOptions.MinMotifLengthOption,
+            PreatorCommandOptions.OutputOption,
+            PreatorCommandOptions.OutputPrefixOption
+        };
+
+        command.SetAction(RepeatMaskCommand.Invoke);
         return command;
     }
 }

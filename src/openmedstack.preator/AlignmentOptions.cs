@@ -13,4 +13,5 @@ internal sealed record AlignmentOptions(
     int WindowPadding,
     int MaxCandidateWindowsPerRead,
     int MaxCores,
-    string OutputPrefix);
+    string OutputPrefix,
+    string? IndexPath = null);

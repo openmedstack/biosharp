@@ -19,6 +19,21 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Include="..\..\data\*.fastq.gz">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Include="..\..\data\*.fa.gz">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Include="..\..\data\*.bam">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Include="..\..\data\*.bam.bai">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\..\src\openmedstack.preator\openmedstack.preator.csproj"/>
     </ItemGroup>
 

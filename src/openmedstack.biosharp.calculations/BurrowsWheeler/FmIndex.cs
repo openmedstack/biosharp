@@ -3,6 +3,9 @@ namespace OpenMedStack.BioSharp.Calculations.BurrowsWheeler;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Numerics;
+using System.Runtime.CompilerServices;
+using System.Runtime.Intrinsics;
 using System.Text;
 
 /// <summary>
@@ -290,8 +293,9 @@ public sealed class FmIndex
     /// <summary>
     /// Rank query: number of occurrences of encoded byte <paramref name="b"/>
     /// in BWT[0 .. <paramref name="i"/>−1].
-    /// O(<see cref="SampleRate"/>) per call.
+    /// O(<see cref="SampleRate"/>) per call; uses SIMD when available.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private int Rank(byte b, int i)
     {
         if (i <= 0)
@@ -302,10 +306,53 @@ public sealed class FmIndex
         var s     = i / _sampleRate;
         var count = _occ[b][s];
         var start = s * _sampleRate;
-        var bwt   = _bwt;
-        for (var j = start; j < i; j++)
+        var len   = i - start;
+        if (len <= 0)
         {
-            if (bwt[j] == b)
+            return count;
+        }
+
+        return count + CountByte(_bwt.AsSpan(start, len), b);
+    }
+
+    /// <summary>
+    /// Counts occurrences of <paramref name="target"/> in <paramref name="span"/>
+    /// using SIMD when available (Vector256 → Vector128 → scalar fallback).
+    /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static int CountByte(ReadOnlySpan<byte> span, byte target)
+    {
+        var n     = span.Length;
+        var count = 0;
+        var i     = 0;
+
+        if (Vector256.IsHardwareAccelerated && n >= 32)
+        {
+            var vTarget = Vector256.Create(target);
+            ref var baseRef = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(span);
+            for (; i <= n - 32; i += 32)
+            {
+                var v  = Vector256.LoadUnsafe(ref baseRef, (nuint)i);
+                var eq = Vector256.Equals(v, vTarget);
+                count += BitOperations.PopCount(Vector256.ExtractMostSignificantBits(eq));
+            }
+        }
+        else if (Vector128.IsHardwareAccelerated && n >= 16)
+        {
+            var vTarget = Vector128.Create(target);
+            ref var baseRef = ref System.Runtime.InteropServices.MemoryMarshal.GetReference(span);
+            for (; i <= n - 16; i += 16)
+            {
+                var v  = Vector128.LoadUnsafe(ref baseRef, (nuint)i);
+                var eq = Vector128.Equals(v, vTarget);
+                count += BitOperations.PopCount(Vector128.ExtractMostSignificantBits(eq));
+            }
+        }
+
+        // Scalar tail
+        for (; i < n; i++)
+        {
+            if (span[i] == target)
             {
                 count++;
             }
@@ -319,6 +366,7 @@ public sealed class FmIndex
     /// In other words, if SA[i] = p then LF(i) = inverse_SA[p−1].
     /// Used for SA locate: SA[i] = SA[LF(i)] + 1.
     /// </summary>
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private int LFMap(int i) => _c[_bwt[i]] + Rank(_bwt[i], i);
 
     // ── Backward search ───────────────────────────────────────────────────────
@@ -376,8 +424,10 @@ public sealed class FmIndex
     /// </summary>
     public int[] Locate(int sp, int ep, int maxCount = 64)
     {
-        var count     = Math.Min(ep - sp, maxCount);
-        var positions = new List<int>(count);
+        var count    = Math.Min(ep - sp, maxCount);
+        var buf      = new int[count];
+        var actual   = 0;
+        var nPlusOne = _n + 1;
         for (var idx = 0; idx < count; idx++)
         {
             var row   = sp + idx;
@@ -388,14 +438,14 @@ public sealed class FmIndex
                 steps++;
             }
             // SA[original_row] = (SA[sampled_row] + steps) mod (n+1)
-            var pos = (_saSample[row / _sampleRate] + steps) % (_n + 1);
+            var pos = (_saSample[row / _sampleRate] + steps) % nPlusOne;
             // Exclude the sentinel position (_n) — it is not a valid reference position
             if (pos < _n)
             {
-                positions.Add(pos);
+                buf[actual++] = pos;
             }
         }
-        return [.. positions];
+        return actual == count ? buf : buf[..actual];
     }
 
     // ── Fixed-length exact-match seeds ───────────────────────────────────────

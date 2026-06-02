@@ -431,7 +431,8 @@ public sealed class ReferenceIndex : IReferenceSeeder
         }
 
         var end = Math.Min(_reference.Length, Math.Max(readLength + _options.WindowPadding * 2, readLength));
-        return [new CandidateWindow(0, end, 0, 0)];
+        // Use -1 as a sentinel meaning "no preference" — the aligner will run unbanded for this window.
+        return [new CandidateWindow(0, end, 0, -1)];
     }
 
     private bool CanMerge(CandidateWindow window, int start, int end)

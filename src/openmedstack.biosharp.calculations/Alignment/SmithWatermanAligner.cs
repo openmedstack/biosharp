@@ -259,10 +259,16 @@ public static class SmithWatermanAligner
                 (prevY, currY) = (currY, prevY);
             }
 
-            // Find the best score in the last row (read fully consumed, ref can end anywhere)
+            // Find the best score in the last row (read fully consumed, ref can end anywhere).
+            // In banded mode only scan the last row's band — other columns have stale values
+            // from earlier rows due to the double-buffer swap.
             var bestInLastCol = negInf;
             var bestCol = 0;
-            for (var col = 0; col <= refLen; col++)
+            var scanStart = bandWidth >= 0 ? previousBandStart : 0;
+            var scanEnd   = bandWidth >= 0 ? previousBandEnd   : refLen;
+            // Column 0 is always valid (pure-insertion prefix path)
+            if (prevH[0] > bestInLastCol) { bestInLastCol = prevH[0]; bestCol = 0; }
+            for (var col = scanStart; col <= scanEnd; col++)
             {
                 if (prevH[col] > bestInLastCol)
                 {
@@ -276,10 +282,11 @@ public static class SmithWatermanAligner
                 return null;
             }
 
-            // Traceback from (readLen, bestCol) all the way to (0, ?)
-            var alnRead = new char[readLen + refLen];
-            var alnRef = new char[readLen + refLen];
-            var pos = 0;
+        // Traceback from (readLen, bestCol) all the way to (0, ?)
+        var tracePool = ArrayPool<char>.Shared;
+        var alnRead = tracePool.Rent(readLen + refLen);
+        var alnRef  = tracePool.Rent(readLen + refLen);
+        var pos = 0;
             var tbI = readLen;
             var tbJ = bestCol;
             var refGapCount = 0;
@@ -326,10 +333,16 @@ public static class SmithWatermanAligner
             Array.Reverse(alnRead, 0, pos);
             Array.Reverse(alnRef, 0, pos);
 
+            var alignedRef  = new string(alnRef, 0, pos);
+            var alignedRead = new string(alnRead, 0, pos);
+            var visual      = CreateAlignmentStringInternal(alnRead.AsSpan(0, pos), alnRef.AsSpan(0, pos), pos);
+            tracePool.Return(alnRead, clearArray: false);
+            tracePool.Return(alnRef, clearArray: false);
+
             return new AlignmentResult(
-                new string(alnRef, 0, pos),
-                new string(alnRead, 0, pos),
-                CreateAlignmentStringInternal(alnRead, alnRef, pos),
+                alignedRef,
+                alignedRead,
+                visual,
                 bestInLastCol,
                 refStart,
                 0,
@@ -540,21 +553,27 @@ public static class SmithWatermanAligner
         int rightSoftClip)
     {
         var alignedReference = new string(reference);
-        var alignedRead = new string(read);
-        var visual = new char[read.Length];
-        for (var index = 0; index < read.Length; index++)
+        var alignedRead      = new string(read);
+        var visualBuf        = ArrayPool<char>.Shared.Rent(read.Length);
+        try
         {
-            visual[index] = DnaEncoding.AreEqual(reference[index], read[index]) ? '|' : 'X';
+            for (var index = 0; index < read.Length; index++)
+            {
+                visualBuf[index] = DnaEncoding.AreEqual(reference[index], read[index]) ? '|' : 'X';
+            }
+            return new AlignmentResult(
+                alignedReference,
+                alignedRead,
+                new string(visualBuf, 0, read.Length),
+                score,
+                referenceStart,
+                0,
+                rightSoftClip);
         }
-
-        return new AlignmentResult(
-            alignedReference,
-            alignedRead,
-            new string(visual),
-            score,
-            referenceStart,
-            0,
-            rightSoftClip);
+        finally
+        {
+            ArrayPool<char>.Shared.Return(visualBuf, clearArray: false);
+        }
     }
 
     /// <summary>
@@ -697,27 +716,22 @@ public static class SmithWatermanAligner
 
     private static string CreateAlignmentStringInternal(ReadOnlySpan<char> aRead, ReadOnlySpan<char> aRef, int len)
     {
-        var sb = new System.Text.StringBuilder(len);
-        for (var i = 0; i < len; i++)
+        var buf = ArrayPool<char>.Shared.Rent(len);
+        try
         {
-            var refChar = aRef[i];
-            var readChar = aRead[i];
-
-            if (refChar == '-' || readChar == '-')
+            for (var i = 0; i < len; i++)
             {
-                sb.Append(' ');
+                var refChar  = aRef[i];
+                var readChar = aRead[i];
+                buf[i] = (refChar == '-' || readChar == '-') ? ' '
+                       : DnaEncoding.AreEqual(refChar, readChar) ? '|' : 'X';
             }
-            else if (DnaEncoding.AreEqual(refChar, readChar))
-            {
-                sb.Append('|');
-            }
-            else
-            {
-                sb.Append('X');
-            }
+            return new string(buf, 0, len);
         }
-
-        return sb.ToString();
+        finally
+        {
+            ArrayPool<char>.Shared.Return(buf, clearArray: false);
+        }
     }
 
     /// <summary>

@@ -2,6 +2,7 @@ namespace OpenMedStack.BioSharp.Calculations.BurrowsWheeler;
 
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Alignment;
 using Model;
 
@@ -83,6 +84,12 @@ public sealed class FmIndexSeeder : IReferenceSeeder
     private readonly Options _options;
     private readonly Sequence _reference;
 
+    // Thread-local votes dictionary and ranked list — avoids heap allocations per read
+    [ThreadStatic]
+    private static Dictionary<int, (int Hits, int PreferredOffset)>? _threadVotes;
+    [ThreadStatic]
+    private static List<(int Start, int Hits, int PrefOffset)>? _threadRanked;
+
     /// <inheritdoc/>
     public string ReferenceId => _reference.Id;
 
@@ -141,7 +148,9 @@ public sealed class FmIndexSeeder : IReferenceSeeder
 
         // Convert seeds → candidate windows, using the same merging logic
         // as ReferenceIndex to stay compatible with the rest of the pipeline.
-        var votes = new Dictionary<int, (int Hits, int PreferredOffset)>();
+        _threadVotes ??= new Dictionary<int, (int Hits, int PreferredOffset)>();
+        var votes = _threadVotes;
+        votes.Clear();
 
         foreach (var seed in seeds)
         {
@@ -167,10 +176,13 @@ public sealed class FmIndexSeeder : IReferenceSeeder
         }
 
         // Sort by hit count descending, then by position
-        var ranked = new List<(int Start, int Hits, int PrefOffset)>(votes.Count);
+        _threadRanked ??= new List<(int Start, int Hits, int PrefOffset)>();
+        var ranked = _threadRanked;
+        ranked.Clear();
+        ranked.EnsureCapacity(votes.Count);
         foreach (var (start, (hits, pref)) in votes)
             ranked.Add((start, hits, pref));
-        ranked.Sort((a, b) => b.Hits != a.Hits ? b.Hits.CompareTo(a.Hits) : a.Start.CompareTo(b.Start));
+        ranked.Sort(static (a, b) => b.Hits != a.Hits ? b.Hits.CompareTo(a.Hits) : a.Start.CompareTo(b.Start));
 
         // Build and merge candidate windows
         var windows = new List<ReferenceIndex.CandidateWindow>(_options.MaxCandidateWindowsPerRead);

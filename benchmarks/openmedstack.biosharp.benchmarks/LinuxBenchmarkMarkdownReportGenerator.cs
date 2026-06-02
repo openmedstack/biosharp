@@ -16,8 +16,9 @@ internal static class LinuxBenchmarkMarkdownReportGenerator
         new("VariantCalling", "Variant Calling Benchmarks", "Comparison of BioSharp variant calling vs FreeBayes and the samtools/bcftools pipeline.", "csharp-linux-variant-calling.csv"),
         new("BCL", "BCL Conversion Benchmarks", "Three-way comparison of BioSharp BCL conversion vs bcl-convert and bcl2fastq.", "csharp-linux-bcl.csv"),
         new("Fastq", "FASTQ Processing Benchmarks", "Comparison of BioSharp FASTQ QC and trimming vs external tools.", "csharp-linux-fastq.csv"),
-        new("Coverage", "Coverage and Duplicate Marking Benchmarks", "Comparison of BioSharp coverage / duplicate marking vs SAMtools subprocesses.", "csharp-linux-coverage-dup.csv"),
-        new("RepeatMasking", "Repeat Masking Benchmarks", "Comparison of BioSharp repeat masking vs RepeatMasker and TRF.", "csharp-linux-repeatmask.csv")
+        new("Coverage", "Coverage and Duplicate Marking Benchmarks", "Comparison of BioSharp coverage / duplicate marking vs SAMtools and preator subprocesses.", "csharp-linux-coverage-dup.csv"),
+        new("RepeatMasking", "Repeat Masking Benchmarks", "Comparison of BioSharp repeat masking vs preator, RepeatMasker, and TRF.", "csharp-linux-repeatmask.csv"),
+        new("E2E", "End-to-End Pipeline Benchmarks", "Comparison of BioSharp E2E in-process pipeline vs preator subprocess vs external tools (BWA+samtools+freebayes).", "csharp-linux-e2e.csv")
     ];
 
     public static int Run(string[] args)
@@ -200,6 +201,7 @@ internal static class LinuxBenchmarkMarkdownReportGenerator
             "Fastq" => EvaluateFastq(rows),
             "Coverage" => EvaluateCoverage(rows),
             "RepeatMasking" => EvaluateRepeatMasking(rows),
+            "E2E" => EvaluateE2E(rows),
             _ => null
         };
 
@@ -325,6 +327,48 @@ internal static class LinuxBenchmarkMarkdownReportGenerator
         return statements.Count == 0 ? "No measured BioSharp vs SAMtools coverage / duplicate comparisons were available." : string.Join(" ", statements);
     }
 
+    private static string? EvaluateE2E(IReadOnlyList<ResultRow> rows)
+    {
+        if (rows.All(row => row.Status == "Failed"))
+        {
+            return $"All E2E rows failed. Representative failure: {rows.First().Error}";
+        }
+
+        var statements = new List<string>();
+        foreach (var parameter in rows.Select(row => row.Parameters).Distinct(StringComparer.Ordinal))
+        {
+            var paramRows = rows.Where(row => row.Parameters == parameter).ToArray();
+            var inProcess = FindMeasured(paramRows, "preator-e2e (in-process)", parameter);
+            if (inProcess == null)
+            {
+                continue;
+            }
+
+            var subprocess = FindMeasured(paramRows, "preator-e2e (subprocess)", parameter);
+            var bwa = FindMeasured(paramRows, "bwa+samtools+freebayes (subprocess)", parameter);
+            var bwaMem2 = FindMeasured(paramRows, "bwa-mem2+samtools+freebayes (subprocess)", parameter);
+
+            var paramLabel = string.IsNullOrWhiteSpace(parameter) ? string.Empty : $" [{DisplayParameters(parameter)}]";
+            var parts = new List<string> { $"E2E in-process{paramLabel} measured {FormatMs(inProcess.MeanMs)}." };
+            if (subprocess != null)
+            {
+                parts.Add($"preator subprocess added {FormatMs(subprocess.MeanMs - inProcess.MeanMs)} overhead ({FormatRatio(subprocess.MeanMs!.Value / inProcess.MeanMs!.Value, fasterWhenAboveOne: false)} vs in-process).");
+            }
+
+            var bestExternal = new[] { bwa, bwaMem2 }.Where(r => r != null).OrderBy(r => r!.MeanMs).FirstOrDefault();
+            if (bestExternal != null)
+            {
+                parts.Add($"The fastest external toolchain ({bestExternal.Method}) measured {FormatMs(bestExternal.MeanMs)}, so BioSharp was {FormatRatio(bestExternal.MeanMs!.Value / inProcess.MeanMs!.Value, fasterWhenAboveOne: true)}.");
+            }
+
+            statements.Add(string.Join(' ', parts));
+        }
+
+        return statements.Count == 0
+            ? "No complete E2E comparison was available (in-process baseline missing)."
+            : string.Join(' ', statements);
+    }
+
     private static string? EvaluateRepeatMasking(IReadOnlyList<ResultRow> rows)
     {
         var bioSharp = rows.FirstOrDefault(row => row.Status == "Measured" && row.Method.StartsWith("BioSharp", StringComparison.Ordinal));
@@ -448,6 +492,18 @@ internal static class LinuxBenchmarkMarkdownReportGenerator
         conclusions.Add(anyExternalBclMeasured
             ? "BCL conversion: the report includes a full three-way comparison between BioSharp, bcl-convert, and bcl2fastq for every measured BCL parameter set."
             : "BCL conversion: BioSharp measured successfully, but at least one vendor BCL converter was unavailable, so some three-way rows remain informational rather than fully measured.");
+
+        var e2eRows = TryLoadRows(Path.Combine(resultsDir, "csharp-linux-e2e.csv"));
+        var e2eInProcess = e2eRows.Where(row => row.Status == "Measured" && row.MeanMs.HasValue && row.Method == "preator-e2e (in-process)").OrderBy(row => row.MeanMs).FirstOrDefault();
+        var e2eBestExternal = e2eRows.Where(row => row.Status == "Measured" && row.MeanMs.HasValue && row.Method.Contains("subprocess", StringComparison.Ordinal) && row.Method != "preator-e2e (subprocess)").OrderBy(row => row.MeanMs).FirstOrDefault();
+        if (e2eInProcess != null && e2eBestExternal != null)
+        {
+            conclusions.Add($"End-to-end pipeline: BioSharp in-process was {FormatRatio(e2eBestExternal.MeanMs!.Value / e2eInProcess.MeanMs!.Value, fasterWhenAboveOne: true)} vs the fastest external toolchain ({e2eBestExternal.Method} at {FormatMs(e2eBestExternal.MeanMs)}).");
+        }
+        else if (e2eInProcess != null)
+        {
+            conclusions.Add($"End-to-end pipeline: BioSharp in-process E2E measured {FormatMs(e2eInProcess.MeanMs)}, but no external toolchain comparison was available in this run.");
+        }
 
         if (conclusions.Count == 0)
         {

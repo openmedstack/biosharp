@@ -5,6 +5,8 @@ namespace OpenMedStack.BioSharp.Calculations.Alignment;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using Io.Sam;
 
 /// <summary>
@@ -33,6 +35,7 @@ public static class DuplicateMarker
     /// <summary>
     /// Marks duplicate reads in <paramref name="alignments"/> and returns the annotated list
     /// together with processing metrics.
+    /// The sequence is materialised internally; the caller does not need to buffer it.
     /// </summary>
     /// <param name="alignments">Input alignments (unmapped reads are ignored).</param>
     /// <param name="opticalDuplicatePixelDistance">
@@ -40,12 +43,44 @@ public static class DuplicateMarker
     /// Defaults to 100.
     /// </param>
     public static (IReadOnlyList<AlignmentSection> Marked, DuplicateMetrics Metrics) MarkDuplicates(
-        IReadOnlyList<AlignmentSection> alignments,
+        IEnumerable<AlignmentSection> alignments,
         int opticalDuplicatePixelDistance = 100)
     {
-        var metrics = new DuplicateMetrics { TotalReads = alignments.Count };
-        var result = new AlignmentSection[alignments.Count];
-        for (var i = 0; i < alignments.Count; i++)
+        var arr = alignments as AlignmentSection[] ?? alignments.ToArray();
+        return MarkDuplicatesCore(arr, opticalDuplicatePixelDistance);
+    }
+
+    /// <summary>
+    /// Async variant of <see cref="MarkDuplicates"/> that accepts a streamed sequence.
+    /// Records are collected in-memory before duplicate detection begins.
+    /// </summary>
+    /// <param name="alignments">Async stream of alignments (unmapped reads are ignored).</param>
+    /// <param name="opticalDuplicatePixelDistance">
+    /// Maximum Euclidean pixel distance within the same tile to call an optical duplicate.
+    /// Defaults to 100.
+    /// </param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    public static async Task<(IReadOnlyList<AlignmentSection> Marked, DuplicateMetrics Metrics)> MarkDuplicatesAsync(
+        IAsyncEnumerable<AlignmentSection> alignments,
+        int opticalDuplicatePixelDistance = 100,
+        CancellationToken cancellationToken = default)
+    {
+        var list = new List<AlignmentSection>();
+        await foreach (var section in alignments.WithCancellation(cancellationToken).ConfigureAwait(false))
+        {
+            list.Add(section);
+        }
+
+        return MarkDuplicatesCore(list.ToArray(), opticalDuplicatePixelDistance);
+    }
+
+    private static (IReadOnlyList<AlignmentSection> Marked, DuplicateMetrics Metrics) MarkDuplicatesCore(
+        AlignmentSection[] alignments,
+        int opticalDuplicatePixelDistance)
+    {
+        var metrics = new DuplicateMetrics { TotalReads = alignments.Length };
+        var result = new AlignmentSection[alignments.Length];
+        for (var i = 0; i < alignments.Length; i++)
         {
             result[i] = alignments[i];
         }
@@ -55,9 +90,9 @@ public static class DuplicateMarker
         // For single-end (or unmapped-mate), we use the read's own position.
 
         // Group indices by their duplicate key.
-        var groups = new Dictionary<DuplicateKey, List<int>>(capacity: alignments.Count);
+        var groups = new Dictionary<DuplicateKey, List<int>>(capacity: alignments.Length);
 
-        for (var i = 0; i < alignments.Count; i++)
+        for (var i = 0; i < alignments.Length; i++)
         {
             var a = alignments[i];
 
@@ -137,7 +172,7 @@ public static class DuplicateMarker
 
             // Optical-duplicate detection within this group
             var allInGroup = scored.SelectMany(s => s.indices).ToList();
-            MarkOpticalDuplicates(result, alignments, allInGroup, opticalDuplicatePixelDistance, metrics);
+            MarkOpticalDuplicates(result, allInGroup, opticalDuplicatePixelDistance, metrics);
         }
 
         return (result, metrics);
@@ -171,14 +206,13 @@ public static class DuplicateMarker
 
     private static void MarkOpticalDuplicates(
         AlignmentSection[] result,
-        IReadOnlyList<AlignmentSection> original,
         List<int> groupIndices,
         int maxPixelDistance,
         DuplicateMetrics metrics)
     {
         // Parse tile coordinates for all reads in the group
         var coords = new List<(int idx, TileCoords? tile)>(groupIndices.Count);
-        coords.AddRange(groupIndices.Select(idx => (idx, ParseTileCoords(original[idx].QName))));
+        coords.AddRange(groupIndices.Select(idx => (idx, ParseTileCoords(result[idx].QName))));
 
         // Compare every pair within same tile
         for (var i = 0; i < coords.Count - 1; i++)

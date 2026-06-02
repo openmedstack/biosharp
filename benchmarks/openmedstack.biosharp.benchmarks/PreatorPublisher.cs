@@ -58,9 +58,17 @@ public static class PreatorPublisher
          ?? throw new InvalidOperationException(
                 $"preator is not published and cannot be benchmarked: {GetPublishError()}");
         var runningInContainer = Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER") == "true";
-        return runningInContainer
-            ? ExternalProcess.Run("/app/preator/preator", $"\"{dll}\" {preatorArguments}", workingDirectory, timeoutMs)
-            : ExternalProcess.Run("dotnet", $"\"{dll}\" {preatorArguments}", workingDirectory, timeoutMs);
+        var (exit, stderr) = runningInContainer
+            ? ExternalProcess.RunCapture("/app/preator/preator", preatorArguments, workingDirectory, timeoutMs)
+            : ExternalProcess.RunCapture("dotnet", $"\"{dll}\" {preatorArguments}", workingDirectory, timeoutMs);
+        if (exit != 0 && !string.IsNullOrWhiteSpace(stderr))
+        {
+            // Embed stderr into a structured exception so BenchmarkDotNet reports it.
+            throw new InvalidOperationException(
+                $"preator {preatorArguments.Split(' ')[0]} exited {exit}.\n{stderr[..Math.Min(stderr.Length, 2048)]}");
+        }
+
+        return exit;
     }
 
     // ── Private implementation ────────────────────────────────────────────────

@@ -528,6 +528,46 @@ public class VariantCallingPipeline
     }
 
     /// <summary>
+    /// Processes pre-aligned <see cref="AlignmentSection"/> records directly without re-aligning reads.
+    /// Reads flagged as <see cref="AlignmentSection.AlignmentFlag.PcrOrOpticalDuplicate"/>,
+    /// unmapped, secondary, or supplementary are automatically skipped — equivalent to running
+    /// <c>align → markdup → variantcall</c> as separate steps and feeding the result here.
+    /// </summary>
+    /// <param name="alignments">Pre-aligned and optionally duplicate-marked records.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns><c>true</c> if at least one callable alignment was processed.</returns>
+    public Task<bool> LoadAlignments(
+        IEnumerable<AlignmentSection> alignments,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.Run(
+            () =>
+            {
+                const AlignmentSection.AlignmentFlag excluded =
+                    AlignmentSection.AlignmentFlag.SegmentUnmapped |
+                    AlignmentSection.AlignmentFlag.SecondaryAlignment |
+                    AlignmentSection.AlignmentFlag.SupplementaryAlignment |
+                    AlignmentSection.AlignmentFlag.PcrOrOpticalDuplicate;
+
+                var sawAny = false;
+                foreach (var section in alignments)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if ((section.Flag & excluded) != 0 || string.IsNullOrEmpty(section.Sequence))
+                    {
+                        continue;
+                    }
+
+                    sawAny = true;
+                    MergeReadResult(AnalyzeBamAlignment(section));
+                }
+
+                return sawAny;
+            },
+            cancellationToken);
+    }
+
+    /// <summary>
     /// Loads matched paired-end reads and uses the alignment of the first mapped mate to constrain
     /// the initial candidate windows for the second mate.
     /// </summary>
@@ -1313,7 +1353,7 @@ public class VariantCallingPipeline
             _options.GapExtendPenalty,
             _options.MinAlignmentScore,
             _options.MaxAlignmentCellCount,
-            _options.AlignmentBandWidth,
+            candidateWindow.PreferredStartOffset < 0 ? -1 : _options.AlignmentBandWidth,
             _options.AlignmentXDrop,
             candidateWindow.PreferredStartOffset);
 

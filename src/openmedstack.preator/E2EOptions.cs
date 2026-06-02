@@ -1,6 +1,6 @@
 namespace OpenMedStack.Preator;
 
-internal sealed record E2EOptions(
+public sealed record E2EOptions(
     string? FastqPath,
     string? FastaPath,
     string? BamPath,
@@ -9,6 +9,7 @@ internal sealed record E2EOptions(
     string ReferencePath,
     string? Chromosome,
     int? MaxReads,
+    // Variant calling
     int MinAlignmentScore,
     int MinVariantQuality,
     int MinAlternateObservationCount,
@@ -20,6 +21,19 @@ internal sealed record E2EOptions(
     int GraphWindowBp,
     int MaxCores,
     string? ReferenceIdContains,
-    string TranscriptDatabasePath,
+    // Annotation
+    string? TranscriptDatabasePath,
     string? TranscriptId,
-    float MinQuality);
+    float MinQuality,
+    // Adapter trimming (equivalent to preator trim)
+    string? Adapter,
+    int MinLength,
+    int MaxMismatches,
+    // Alignment seeder (equivalent to preator align)
+    int MinSeedLen,
+    int MaxSeedHitsThreshold,
+    int SeedStep,
+    int WindowPadding,
+    int MaxCandidateWindowsPerRead,
+    // Duplicate marking (equivalent to preator markdup)
+    int OpticalPixelDistance);

@@ -23,7 +23,8 @@ internal static class WarmBenchmarkReportRunner
         typeof(BclHeadToHeadBenchmarks),
         typeof(FastqProcessingHeadToHeadBenchmarks),
         typeof(CoverageAndDuplicateHeadToHeadBenchmarks),
-        typeof(RepeatMaskingHeadToHeadBenchmarks)
+        typeof(RepeatMaskingHeadToHeadBenchmarks),
+        typeof(E2eHeadToHeadBenchmarks)
     ];
 
     public static int Run(string[] args)

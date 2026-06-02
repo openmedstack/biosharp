@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
+using System.Text.Json;
 using System.Threading.Tasks;
 using BenchmarkDotNet.Attributes;
 using BenchmarkDotNet.Jobs;
@@ -23,6 +24,8 @@ public class RepeatMaskingHeadToHeadBenchmarks
     private IList<RepeatElement> _repeatLibrary = null!;
     private bool _repeatMaskerAvailable;
     private bool _trfAvailable;
+    private string _repeatLibraryJsonPath = null!;
+    private string? _preatorPublishError;
 
     [Params(50_000)]
     public int SequenceLength { get; set; }
@@ -38,6 +41,12 @@ public class RepeatMaskingHeadToHeadBenchmarks
         _repeatLibrary = BuildRepeatLibrary();
         _repeatMaskerAvailable = ExternalProcess.IsAvailable("RepeatMasker");
         _trfAvailable = ExternalProcess.IsAvailable("trf");
+
+        // Serialize repeat library in the {"Repeats":[...]} wrapper format expected by
+        // RepeatMasker.LoadLibrary (which deserializes into the internal RepeatLibrary class).
+        _repeatLibraryJsonPath = Path.Combine(_tempDir, "repeats.json");
+        File.WriteAllText(_repeatLibraryJsonPath, JsonSerializer.Serialize(new { Repeats = _repeatLibrary }));
+        _preatorPublishError = PreatorPublisher.GetPublishError();
     }
 
     [GlobalCleanup]
@@ -68,6 +77,39 @@ public class RepeatMaskingHeadToHeadBenchmarks
             throw new InvalidOperationException("BioSharp-RepeatMasker found no masked regions. This likely indicates a bug in motif matching or a fixture/library mismatch.");
         }
         return regions.Count;
+    }
+
+    [Benchmark(Description = "preator-repeatmask (subprocess)")]
+    [BenchmarkCategory("RepeatMasking", "External")]
+    public long PreatorRepeatMask_Subprocess()
+    {
+        if (_preatorPublishError != null)
+        {
+            throw new InvalidOperationException($"preator is not available: {_preatorPublishError}");
+        }
+
+        var outDir = Path.Combine(_tempDir, $"preator-repeatmask-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(outDir);
+            var exit = PreatorPublisher.Run(
+                $"repeatmask --fasta \"{_fastaPath}\" --library \"{_repeatLibraryJsonPath}\" --output \"{outDir}\" --output-prefix masked",
+                _tempDir,
+                300_000);
+            if (exit != 0)
+            {
+                throw new InvalidOperationException($"preator repeatmask exited with code {exit}.");
+            }
+
+            return Directory.EnumerateFiles(outDir).Sum(f => new FileInfo(f).Length);
+        }
+        finally
+        {
+            if (Directory.Exists(outDir))
+            {
+                Directory.Delete(outDir, recursive: true);
+            }
+        }
     }
 
     [Benchmark(Description = "RepeatMasker (subprocess)")]

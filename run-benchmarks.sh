@@ -70,6 +70,7 @@ echo "Recording tool versions..."
     echo "cutadapt: $(cutadapt --version 2>&1 | head -n 1)"
     echo "trf: $(trf 2>&1 | head -n 1 || echo 'not available')"
     echo "picard: $(picard MarkDuplicates --version 2>&1 | head -n 1 || echo 'not available')"
+    echo "preator: $(/app/preator/preator --version 2>&1 | head -n 1 || echo 'not available')"
     # Use a subshell with pipefail disabled so that a non-zero exit from bcl-convert/bcl2fastq
     # does not trigger the || fallback *after* head -n 1 already captured the version string,
     # which would produce "Version X.Y.Z not available" and cause the tool to be reported as
@@ -105,6 +106,7 @@ run_section "BCL Conversion Benchmarks" "BclHeadToHeadBenchmarks" "benchmark-res
 run_section "FASTQ Processing Benchmarks" "FastqProcessingHeadToHeadBenchmarks" "benchmark-results/csharp-linux-fastq.csv"
 run_section "Coverage and Duplicate Marking Benchmarks" "CoverageAndDuplicateHeadToHeadBenchmarks" "benchmark-results/csharp-linux-coverage-dup.csv"
 run_section "Repeat Masking Benchmarks" "RepeatMaskingHeadToHeadBenchmarks" "benchmark-results/csharp-linux-repeatmask.csv"
+run_section "E2E Head-to-Head Benchmarks" "E2eHeadToHeadBenchmarks" "benchmark-results/csharp-linux-e2e.csv"
 
 echo ""
 echo "Generating markdown benchmark report..."

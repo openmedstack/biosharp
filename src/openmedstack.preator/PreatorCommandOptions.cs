@@ -132,6 +132,12 @@ internal static class PreatorCommandOptions
         Required = true
     };
 
+    internal static readonly Option<FileInfo?> OptionalDatabaseOption = new("--database")
+    {
+        Description = "Transcript annotation SQLite database file. When provided in e2e mode, variants are annotated in-process.",
+        Required = false
+    };
+
     internal static readonly Option<FileInfo> DatabaseOption = new("--database")
     {
         Description = "Transcript annotation SQLite database file.",
@@ -184,6 +190,60 @@ internal static class PreatorCommandOptions
         Description = "Input sorted BAM file for variant calling or alignment (alternative to --fastq/--fasta).",
         Required = false
       };
+
+    internal static readonly Option<string> BamRequiredOption = new("--bam", "-b")
+    {
+        Description = "Input sorted BAM file.",
+        Required = true
+    };
+
+    internal static readonly Option<string?> LibraryOption = new("--library", "-lib")
+    {
+        Description = "Path to a repeat library JSON file (repeats.json). If omitted, no masking is applied."
+    };
+
+    internal static readonly Option<int> OpticalPixelDistanceOption = new("--optical-pixel-distance", "-opd")
+    {
+        Description = "Maximum Euclidean pixel distance within the same tile to call an optical duplicate.",
+        DefaultValueFactory = _ => 100
+    };
+
+    internal static readonly Option<int?> MinMotifLengthOption = new("--min-motif-length", "-mml")
+    {
+        Description = "Minimum motif length when loading a repeat library. Shorter motifs are ignored."
+    };
+
+    internal static readonly Option<string> FastaRequiredOption = new("--fasta", "-fa")
+    {
+        Description = "FASTA or FASTA.GZ file to process.",
+        Required = true
+    };
+
+    internal static readonly Option<string?> BedOption = new("--bed")
+    {
+        Description = "Optional BED file of target intervals. When provided, coverage statistics are computed only over these regions."
+    };
+
+    internal static readonly Option<bool> WriteDepthTsvOption = new("--write-depth-tsv")
+    {
+        Description = "Write a per-position depth TSV file (equivalent to samtools depth -a output)."
+    };
+
+    internal static readonly Option<int> FmSampleRateOption = new("--fm-sample-rate")
+    {
+        Description = "Sampling rate for the FM-index suffix array (higher = smaller index, slower locate).",
+        DefaultValueFactory = _ => 64
+    };
+
+    internal static readonly Option<bool> AlsoBuildReferenceIndexOption = new("--also-build-reference-index")
+    {
+        Description = "Also build and save a k-mer reference index (.bsi) alongside the FM-index. Only valid with --fasta input."
+    };
+
+    internal static readonly Option<string?> PreloadIndexOption = new("--index")
+    {
+        Description = "Path to a pre-built FM-index file (.fmi). When provided the index is loaded instead of rebuilt from the reference."
+    };
 
     // Alignment-specific options
     internal static readonly Option<int> MinSeedLenOption = new("--min-seed-len", "-ms")

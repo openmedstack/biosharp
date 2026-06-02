@@ -111,7 +111,7 @@ public sealed class FastaToVcfStepDefinitions
         var result = (VariantCallingPipeline.PipelineResult)_ctx["Result"];
         var records = (string[])_ctx["VcfRecords"];
 
-        Assert.Equal(2776, result.Metrics.VariantsCalled);
+        Assert.Equal(2804, result.Metrics.VariantsCalled);
         Assert.Equal(0, result.Metrics.VariantsFinal);
         Assert.Empty(result.Variants);
         Assert.Empty(records);
@@ -173,6 +173,10 @@ public sealed class FastaToVcfStepDefinitions
         var records = (string[])_ctx["VcfRecords"];
         var vcfSha256 = (string)_ctx["VcfSha256"];
 
+        var counts = result.Variants
+            .GroupBy(GetVariantType)
+            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
+
         Assert.Equal(expected.FlattenedReadCount, flattenedReads.Length);
         Assert.Equal(expected.MappedReadCount, result.Metrics.ReadsProcessed);
         Assert.Equal(expected.MappedReadCount, result.Metrics.ReadsMapped);
@@ -185,9 +189,6 @@ public sealed class FastaToVcfStepDefinitions
         Assert.Equal(expected.LastRecord, records.Last());
         Assert.Equal(expected.VcfSha256, vcfSha256);
 
-        var counts = result.Variants
-            .GroupBy(GetVariantType)
-            .ToDictionary(group => group.Key, group => group.Count(), StringComparer.Ordinal);
         Assert.Equal(expected.VariantTypeCounts, counts);
     }
 
